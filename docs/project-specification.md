@@ -2135,6 +2135,10 @@ Client reads only VITE\_ variables. No API keys are ever exposed there
 | `LOG_RETENTION_DAYS`                  | 30                                                 | §26 (logger)                                                                  |
 | `SWEEPER_INTERVAL_MS`                 | 3600000 (1 hour, default)                          | §31, §62                                                                      |
 | `OFFICIAL_TOKEN_PREFIX`               | `'±'`                                              | §35, §37, §53, §58, §64                                                       |
+| `API_MOUNT_PATH`                      | `'/api/v1'`                                        | §26.4/§26.5 mount + rate-limit skip (slice-1, 2026-08-24)                     |
+| `MS_PER_MINUTE`                       | 60000                                              | unit helper — TTLs, rate windows (slice-1, 2026-08-24)                        |
+| `MS_PER_DAY`                          | 86400000                                           | unit helper — refresh TTL (slice-1, 2026-08-24)                               |
+| `SHUTDOWN_FORCE_TIMEOUT_MS`           | 10000                                              | §26.6 forced-exit timer (slice-1, 2026-08-24)                                 |
 
 ### 11.4 Domain constants
 
@@ -15023,6 +15027,41 @@ client theme layer, the scaffold, and this specification (tracked at
 5. **Deferred until consumers exist:** the whole client
    `src/utils/*` set, every domain constant group (auth/rate-limits
    join the auth slice), the addisai SDK singleton.
+
+### 69.3.7 Slice-1 record — auth area (2026-08-24, owner-approved)
+
+Executed under the §69.3.6 directives on branch `phase-2-auth-area`
+(one branch, two commits). **Created, backend:** `utils/logger.js`,
+`utils/errors.js`, `middleware/rateLimit.js` (global+auth tiers; the
+AI tier joins with its first AI endpoint), `middleware/mongoSanitize.js`,
+`models/user.model.js`, `validators/validation.js`,
+`validators/user.validator.js`, `controllers/auth.controller.js`
+(register/login/refresh/logout/google stub — profile/avatar deferred
+to their §57 consumer), `middleware/auth.js` (§28-owned; first route
+mount lands with branches), `routes/index.js`, `routes/auth.routes.js`,
+and the real `server.js` boot (D53 retry, graceful shutdown; sweeper
+deferred to §62) + `app.js`. **Created, client:** entry rewrites
+(`main.jsx`, `App.jsx`, `AppErrorPage`, `NotFound`), redux spine
+(`store.js` + sessionStorage persist adapter, `authSlice`,
+`apiSlice` reauth chain, `authEndpoints`), utils
+(`constants.js`, `httpStatus.js` mirror, `ethiopianDate.js`,
+`toast.js`), belt subset (`MuiButton`, `MuiTextField`, `MuiAppbar`,
+`MuiPageHeader`, `LoadingSpinner`), layout (`PublicLayout`,
+guards static, `Logo`, `ThemeToggle`, `AppToastContainer`),
+auth surfaces (`AuthSheet`, forms, `GoogleOAuthButton`,
+`BrandPanel`), pages (`Login`, `Register`, structural `Landing`),
+plus the TEMPORARY bridge `/dashboard` (removed by the §49 slice).
+**Amendments this slice:** landing ships structural with the
+statically-drawn hero (waveform animation polish = later amendment);
+bridge dashboard as above. **Mirrors:** §11.3 gained
+API_MOUNT_PATH / MS_PER_MINUTE / MS_PER_DAY /
+SHUTDOWN_FORCE_TIMEOUT_MS (consumed same commit); the §15.4/§15.5
+target-tree markers for every file listed here become true with this
+commit set — all remaining markers stay false until their owning
+slice. **Evidence:** A7 curl matrix (register/dup/422/login/refresh-
+rotation/logout-clears/google-stub, cookie paths verified) and the
+browser-origin smoke (ACAO echo + allow-credentials + both cookies)
+recorded in findings.md.
 
 ### 69.3 Assumptions register
 

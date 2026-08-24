@@ -1,5 +1,29 @@
 # Findings — Report Builder
 
+## Session 2026-08-24 — Slice 1 (auth area), Phase B
+
+- **Integration smoke (browser-origin simulation):** POST login from
+  `Origin: http://localhost:3000` → 200, `ACAO` echoes the origin,
+  `allow-credentials: true`, both httpOnly cookies issued. Combined
+  with A7 this closes the client↔server loop at HTTP level; the
+  interactive browser walk remains the owner's step-5 pass.
+- **Scaffold drift fixed:** `theme/customizations/datePickers.js`
+  imported `pickersDayClasses` (pre-rename name, unused import
+  remnant) while using it at four style sites under its v9 name
+  `pickerDayClasses` — import corrected to match usages; build went
+  green. Lesson: substring greps mislead — grep the exact symbol.
+- **Layout ownership:** pages must NOT embed PublicLayout — the
+  router owns layout branches (§41.3); initial page drafts embedded
+  it and were stripped to avoid a double app-bar.
+- **react-compiler lint rule** flags RHF `watch()` as incompatible-
+  library; the name-reveal preview uses `useWatch({control})`
+  instead (also cleaner: no whole-form subscription).
+- **Route-map gate nuance:** `element` appears only for guards,
+  layouts, error page and 404 (the §41.3 static participants); every
+  PAGE route uses the lazy `Component` form with literal specifiers.
+- **Vite build chunk graph confirms code-splitting:** Login/
+  Register/Landing/Dashboard are separate lazy chunks.
+
 ## Session 2026-08-24 — Slice 1 (auth area), Phase A
 
 - **A7 sync-walk evidence (live, port 4000, Mongo local):** health
