@@ -22,7 +22,7 @@ const VARIANTS = ["success", "info", "warning", "error", "loading"];
  * @returns {string|number} The toast id — pass to dismissToast or a
  *   loading toast's update.
  */
-function showToast(variant, title, message = "") {
+const showToast = (variant, title, message = "") => {
   if (!VARIANTS.includes(variant)) {
     return toast.error(title);
   }
@@ -41,7 +41,7 @@ function showToast(variant, title, message = "") {
  * @param {string|number} id - Id returned by showToast.
  * @returns {void}
  */
-function dismissToast(id) {
+const dismissToast = (id) => {
   toast.dismiss(id);
 }
 

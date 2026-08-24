@@ -14,7 +14,7 @@ import AppErrorPage from "./pages/AppErrorPage.jsx";
  * Renders the fixed shell around every routed view.
  * @returns {JSX.Element} The root layout.
  */
-function App() {
+const App = () => {
   return (
     <AppTheme>
       <CssBaseline enableColorScheme />

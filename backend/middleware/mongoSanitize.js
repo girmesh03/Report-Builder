@@ -15,7 +15,7 @@ const OPERATOR_KEY = /^\$|\./;
  * @param {unknown} value - Candidate object from the request.
  * @returns {void}
  */
-function stripOperators(value) {
+const stripOperators = (value) => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     if (Array.isArray(value)) {
       value.forEach(stripOperators);
@@ -35,7 +35,7 @@ function stripOperators(value) {
  * Sanitizes body/params/query in place, then continues the chain.
  * @type {import("express").RequestHandler}
  */
-function mongoSanitize(req, _res, next) {
+const mongoSanitize = (req, _res, next) => {
   [req.body, req.params, req.query].forEach(stripOperators);
   next();
 }

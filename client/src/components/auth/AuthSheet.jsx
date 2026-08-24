@@ -18,7 +18,7 @@ import { formatEthiopianDatum } from "../../utils/ethiopianDate.js";
  * @param {React.ReactNode} props.children - Form + OAuth + links.
  * @returns {JSX.Element} The sheet card.
  */
-function AuthSheet({ title, children }) {
+const AuthSheet = ({ title, children }) => {
   const datum = useMemo(() => formatEthiopianDatum(), []);
   return (
     <Paper

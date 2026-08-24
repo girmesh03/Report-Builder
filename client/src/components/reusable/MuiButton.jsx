@@ -12,7 +12,7 @@ import Button from "@mui/material/Button";
  * @param {Object} [props.sx] - Merged after the flex-shrink guard.
  * @returns {JSX.Element} The configured button.
  */
-function MuiButton({ size = "small", sx, ...rest }) {
+const MuiButton = ({ size = "small", sx, ...rest }) => {
   return (
     <Button
       size={size}

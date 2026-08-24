@@ -13,7 +13,7 @@ import { useColorScheme } from "@mui/material/styles";
  * read in either scheme.
  * @returns {JSX.Element} The icon button.
  */
-function ThemeToggle() {
+const ThemeToggle = () => {
   const { mode, setMode } = useColorScheme();
   const isLight = mode === "light";
   return (
@@ -23,7 +23,7 @@ function ThemeToggle() {
         aria-label="Toggle color scheme"
         onClick={() => setMode(isLight ? "dark" : "light")}
       >
-        {isLight ? <DarkModeIcon /> : <LightModeIcon />}
+        {isLight ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
       </IconButton>
     </Tooltip>
   );

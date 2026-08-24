@@ -30,7 +30,7 @@ let server;
  * (§26.6, D53). Post-connect drops stay on the driver's auto-reconnect.
  * @returns {Promise<void>} Resolves once the connection is open.
  */
-async function connectWithRetry() {
+const connectWithRetry = async () => {
   let attempt = 0;
   let delay = DB_RETRY_INITIAL_MS;
   for (;;) {
@@ -62,7 +62,7 @@ async function connectWithRetry() {
  * close MongoDB, flush and exit 0; forced exit after the timeout.
  * @returns {void}
  */
-function registerShutdownHooks() {
+const registerShutdownHooks = () => {
   let shuttingDown = false;
   const shutdown = (signal) => {
     if (shuttingDown) {
@@ -87,7 +87,7 @@ function registerShutdownHooks() {
  * Boots the process: connect → listen → hooks.
  * @returns {Promise<void>}
  */
-async function main() {
+const main = async () => {
   await connectWithRetry();
   server = app.listen(env.PORT, () => {
     serverLogger.info(`Server listening on port ${env.PORT}`);
@@ -97,7 +97,11 @@ async function main() {
 
 main().catch((error) => {
   serverLogger.error(
-    error instanceof Error ? error.stack : String(error),
+    env.LOG_ERROR_STACK === "true" && error instanceof Error
+      ? error.stack
+      : error instanceof Error
+        ? error.message
+        : String(error),
   );
   process.exit(1);
 });

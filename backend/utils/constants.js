@@ -13,12 +13,12 @@
  * @param {T} value - Value to freeze.
  * @returns {T} The same value, deeply frozen.
  */
-function deepFreeze(value) {
+const deepFreeze = (value) => {
   if (value !== null && typeof value === "object") {
     Object.values(value).forEach(deepFreeze);
   }
   return Object.freeze(value);
-}
+};
 
 /** @type {string} The single versioned API mount point (§26.5). */
 export const API_MOUNT_PATH = deepFreeze("/api/v1");

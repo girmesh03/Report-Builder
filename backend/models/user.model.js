@@ -52,6 +52,14 @@ const userSchema = new Schema(
         return ret;
       },
     },
+    toObject: {
+      virtuals: true,
+      transform: (_doc, ret) => {
+        delete ret.id;
+        delete ret.password;
+        return ret;
+      },
+    },
   },
 );
 

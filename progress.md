@@ -1,5 +1,23 @@
 # Progress — Report Builder
 
+## Session 2026-08-24 — Slice-1 remediation (review directives) — DONE, uncommitted
+
+- All 21 owner directives addressed; records R1–R8 in AGENTS.md +
+  task_plan (step-5-before-commit, no-blocking-commands, arrows,
+  asyncHandler, zero-unused, error funnel, <domain>Slice.js,
+  LocalizationProvider-once); md-mini-sidebar recorded for shell
+  slice.
+- Backend: LOG_ERROR_STACK env (§10.4 mirror), morgan dev log via
+  winston (§26.4), toObject transform on User, asyncHandler
+  controllers, retry+hook verified-present notes.
+- Client: persist adapter Promises; lazy thunks .default;
+  Me→User tag (§41.6/§42.6); userSlice.js rename; serverUnreachable
+  copy (§60.6); MuiTextField memoized slots + hoisted adornments +
+  no per-keystroke clearErrors (lag fix); disabled-while-pending
+  submits; small icons sweep; NotFound with notFound_404.svg.
+- Mirrors: §69.3.8 record; gates lint 0 / build 0 / dist deleted /
+  node --check pass. NOTHING COMMITTED — awaiting step-5 re-pass.
+
 ## Session 2026-08-24 — Slice 1 (branch phase-2-auth-area) — COMPLETE, awaiting step-5
 
 - Phase A committed (`0efc387`): backend foundation + auth surface,

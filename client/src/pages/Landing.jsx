@@ -13,7 +13,7 @@ import MuiButton from "../components/reusable/MuiButton.jsx";
 import { REGISTER_ROUTE, LOGIN_ROUTE, APP_NAME } from "../utils/constants.js";
 
 /** Hairline rules + the spoken-report waveform, fully drawn (static). */
-function HeroDesk() {
+const HeroDesk = () => {
   return (
     <Box
       aria-hidden
@@ -58,7 +58,7 @@ const LOOP_STEPS = [
  * Renders the landing page (structural form).
  * @returns {JSX.Element} The page.
  */
-function Landing() {
+const Landing = () => {
   return (
     <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 4 } }}>
         {/* 1 — Hero */}

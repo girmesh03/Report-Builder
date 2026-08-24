@@ -34,7 +34,7 @@ export const TOAST_AUTO_DISMISS_MS = Object.freeze({
 
 /**
  * The §60.6 catalogue — single-sourced copy strings. Slice-1 rows:
- * the auth trio plus the shared offline/generic fallbacks.
+ * the auth trio plus the shared unreachable/generic fallbacks.
  * @type {Object<string, Object<string, string>>}
  */
 export const TOAST_CATALOGUE = Object.freeze({
@@ -44,7 +44,8 @@ export const TOAST_CATALOGUE = Object.freeze({
     accountCreated: "Account created — please log in",
   }),
   common: Object.freeze({
-    offline: "You appear to be offline — check your connection",
+    serverUnreachable:
+      "Cannot reach the server — please try again in a moment",
     unexpectedError: "Something went wrong — please try again",
   }),
 });

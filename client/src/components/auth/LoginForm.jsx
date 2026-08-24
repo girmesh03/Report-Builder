@@ -15,7 +15,7 @@ import {
   validateEmail,
   validatePasswordRequired,
 } from "./validators.js";
-import { useLoginMutation } from "../../redux/features/authEndpoints.js";
+import { useLoginMutation } from "../../redux/features/userSlice.js";
 import { authActions } from "../../redux/features/authSlice.js";
 import { useDispatch } from "react-redux";
 import { showToast } from "../../utils/toast.js";
@@ -24,11 +24,19 @@ import {
   LOGIN_REDIRECT_ROUTE,
 } from "../../utils/constants.js";
 
+/** Static adornments — stable identities keep typing renders cheap. */
+const EMAIL_ADORNMENT = (
+  <EmailIcon fontSize="small" sx={{ color: "action.active" }} />
+);
+const LOCK_ADORNMENT = (
+  <LockIcon fontSize="small" sx={{ color: "action.active" }} />
+);
+
 /**
  * Renders and drives the login form.
  * @returns {JSX.Element} The form.
  */
-function LoginForm() {
+const LoginForm = () => {
   const [login, { isLoading }] = useLoginMutation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -38,7 +46,6 @@ function LoginForm() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-    clearErrors,
   } = useForm({ mode: "onBlur" });
 
   /**
@@ -64,11 +71,7 @@ function LoginForm() {
   }
 
   return (
-    <form
-      noValidate
-      onSubmit={handleSubmit(onSubmit)}
-      onChange={() => clearErrors()}
-    >
+    <form noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack spacing={1}>
         <MuiTextField
           label="Email"
@@ -76,7 +79,7 @@ function LoginForm() {
           placeholder="you@example.com"
           required
           autoComplete="email"
-          startAdornment={<EmailIcon fontSize="small" sx={{ color: "action.active" }} />}
+          startAdornment={EMAIL_ADORNMENT}
           error={Boolean(errors.email)}
           helperText={errors.email?.message}
           {...register("email", {
@@ -90,7 +93,7 @@ function LoginForm() {
           type="password"
           required
           autoComplete="current-password"
-          startAdornment={<LockIcon fontSize="small" sx={{ color: "action.active" }} />}
+          startAdornment={LOCK_ADORNMENT}
           error={Boolean(errors.password)}
           helperText={errors.password?.message}
           {...register("password", { validate: validatePasswordRequired })}
@@ -100,6 +103,7 @@ function LoginForm() {
           variant="contained"
           fullWidth
           loading={isLoading || isSubmitting}
+          disabled={isLoading || isSubmitting}
           loadingIndicator="Logging in…"
         >
           Log in

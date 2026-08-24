@@ -30,21 +30,21 @@ const authSlice = createSlice({
     /**
      * Stores an authenticated session after login or rehydrate.
      */
-    authenticated(state, action) {
+    authenticated: (state, action) => {
       state.status = AUTH_STATUSES.AUTHENTICATED;
       state.user = action.payload;
     },
     /**
      * Resolves the initializing state to guest (rehydrate found none).
      */
-    setGuest(state) {
+    setGuest: (state) => {
       state.status = AUTH_STATUSES.GUEST;
       state.user = null;
     },
     /**
      * Clears local session state after a successful logout call.
      */
-    logoutCleared(state) {
+    logoutCleared: (state) => {
       state.status = AUTH_STATUSES.GUEST;
       state.user = null;
     },

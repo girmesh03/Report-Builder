@@ -16,7 +16,7 @@ import { REGISTER_ROUTE } from "../utils/constants.js";
  * Renders the login page.
  * @returns {JSX.Element} The page.
  */
-function Login() {
+const Login = () => {
   return (
     <Box>
       <Box

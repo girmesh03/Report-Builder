@@ -2018,6 +2018,7 @@ values that vary by environment.
 | NVIDIA_API_KEY     | Yes      | —                     | NVIDIA API key (backend only)                                                           |
 | NVIDIA_API_URL     | Yes      | —                     | NVIDIA NIM chat-completions base URL; official value per §16.4 (§16)                    |
 | AI_TIMEOUT_MS      | No       | 30000                 | AI provider request timeout in ms, env-overridable (§16)                                |
+| LOG_ERROR_STACK    | No       | true                  | When `false`, error stacks stay out of dev terminal logs and 5xx payloads (slice-1 review, 2026-08-24) |
 | FFMPEG_PATH        | No       | ffmpeg                | The §33.3 conversion/split binary (env-overridable; the `.env` may pin a full path)     |
 | FFPROBE_PATH       | No       | ffprobe               | The §32.2/§33.3 duration-probe binary (env-overridable; the `.env` may pin a full path) |
 
@@ -6006,7 +6007,9 @@ helmet → cors → compression → cookie-parser → express.json → express-m
 
 wired in that order, then the `/api/v1` registry mount (§26.5),
 then the not-found handler and the global error handler (both
-§27.5). CORS per §12.3: origin `CLIENT_ORIGIN`
+§27.5). In development only, a morgan request log streams through
+the Winston logger (`dev` format — never console.log, §9.5;
+added slice-1 review 2026-08-24). CORS per §12.3: origin `CLIENT_ORIGIN`
 (`http://localhost:3000`), `credentials: true` — httpOnly cookies
 travel with requests. `app.js` also mounts nothing else: no
 public static mount (uploads are service-internal, §32; the
@@ -9018,7 +9021,7 @@ replace />`; unauthenticated → `<Outlet/>`. Landing (`/`) sits
 - **Entity keys** — every injected list/detail query declares
   `selectId: (entity) => entity._id` (locked decision 6, §12.11-3);
   invalidation tags are declared per domain (`Reports`, `Branches`,
-  `Audio`, `Transcription`, `Conversation`, `Me`) and the owning
+  `Audio`, `Transcription`, `Conversation`, `User`) and the owning
   page sections pin the mutation-tag pairs (§50–§57).
 - **Server-as-source-of-record** — the browser holds only ephemeral
   UI state and a possibly-stale RTK Query cache; anything stale is
@@ -9196,7 +9199,7 @@ call itself never triggers another refresh (step 3).
   each set declares its `providesTags`/`invalidatesTags` pairs, and
   the tag families are the six domain families of §41.6
   (`Reports`, `Branches`, `Audio`, `Transcription`,
-  `Conversation`, `Me`).
+  `Conversation`, `User`).
   Mutations that close a wizard step or a page action invalidate the
   families they change — the detailed pairs are pinned by the owning
   page sections, never invented here.
@@ -12837,6 +12840,7 @@ file's content, verified by greps):
 | `toast.auth.loggedOut`         | "You have been logged out"                                       |
 | `toast.auth.loggedIn`          | "Welcome back"                                                   |
 | `toast.auth.accountCreated`    | "Account created — please log in"                                |
+| `toast.common.serverUnreachable` | "Cannot reach the server — please try again in a moment" (slice-1 review, 2026-08-24 — replaces any offline phrasing; server-down is not the user's fault) |
 | `toast.session.ended`          | "Session ended"                                                  |
 | `toast.error.generic`          | "Something went wrong — please try again"                        |
 | `toast.error.offline`          | "You appear to be offline"                                       |
@@ -15062,6 +15066,36 @@ slice. **Evidence:** A7 curl matrix (register/dup/422/login/refresh-
 rotation/logout-clears/google-stub, cookie paths verified) and the
 browser-origin smoke (ACAO echo + allow-credentials + both cookies)
 recorded in findings.md.
+
+### 69.3.8 Slice-1 remediation record (2026-08-24, owner review directives)
+
+The owner's browser pass over slice 1 produced standing directives
+and fixes, applied uncommitted pending re-review:
+
+1. **Protocol hardening:** the step-5 review precedes any commit —
+   no interim commits; one commit set per increment (mirrored in
+   `AGENTS.md` workflow). Session-shell commands never block
+   (detached spawns; sub-second polls).
+2. **Backend:** `LOG_ERROR_STACK` env added to §10.4 (default true)
+   gating stacks in terminal logs and 5xx payloads; morgan dev
+   request log streams through Winston in §26.4's chain;
+   `toObject` transform mirrors `toJSON` on User (id/password
+   stripped, no `__v`) — the pattern for every model (§18);
+   controllers ride `express-async-handler`; arrow functions
+   everywhere except mongoose `this` hooks and class bodies;
+   zero unused imports/variables enforced by sweep.
+3. **Client fixes:** redux-persist storage adapter returns Promises
+   (async storage contract); RR v8 lazy thunks resolve `.default`;
+   RTK tag family `Me` renamed **`User`** (§41.6/§42.6 amended) and
+   endpoint files adopt `<domain>Slice.js` (`userSlice.js`);
+   FETCH_ERROR copy is server-unreachable language (§60.6 row);
+   MuiTextField memoizes its input slot and forms hoist static
+   adornments + dropped per-keystroke clearErrors — the typing-lag
+   fix; submit buttons disable while pending; all bar/adornment
+   icons are small; NotFound renders the scaffold 404 art.
+4. **Recorded for later slices:** AppShell md+ defaults to mini
+   sidebar (amends §47.4 at that slice); AI rate tier, AI loggers,
+   profile/avatar, sweeper, mock routes remain with their consumers.
 
 ### 69.3 Assumptions register
 

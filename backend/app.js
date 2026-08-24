@@ -12,6 +12,7 @@ import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
 import cookieParser from "cookie-parser";
+import morgan from "morgan";
 import mongoSanitize from "./middleware/mongoSanitize.js";
 import { globalLimiter } from "./middleware/rateLimit.js";
 import routes from "./routes/index.js";
@@ -34,6 +35,17 @@ app.use(compression());
 app.use(cookieParser());
 app.use(express.json());
 app.use(mongoSanitize);
+
+// Dev-only request log (§26.4): morgan streamed through the logger —
+// never console.log (§9.5).
+if (env.NODE_ENV !== "production") {
+  app.use(
+    morgan("dev", {
+      stream: { write: (line) => serverLogger.info(line.trim()) },
+    }),
+  );
+}
+
 app.use(globalLimiter);
 
 /** The single registry mount of the whole application (§26.5). */
@@ -60,16 +72,18 @@ app.use((_req, res) => {
 // eslint-disable-next-line no-unused-vars -- signature required by Express
 function globalErrorHandler(err, _req, res, _next) {
   const { statusCode, body } = toErrorEnvelope(err);
+  const showStack =
+    env.NODE_ENV !== "production" && env.LOG_ERROR_STACK === "true";
   if (statusCode >= HTTP_STATUS.INTERNAL_SERVER_ERROR) {
     serverLogger.error(
       `${err instanceof Error ? err.name : "NonError"} ${statusCode}`,
-      { error: err instanceof Error ? err.stack : String(err) },
+      showStack && err instanceof Error ? { stack: err.stack } : undefined,
     );
   } else {
     logger.debug(`Handled error ${statusCode}`);
   }
   const payload = { ...body };
-  if (env.NODE_ENV !== "production" && statusCode >= HTTP_STATUS.INTERNAL_SERVER_ERROR && err instanceof Error) {
+  if (showStack && statusCode >= HTTP_STATUS.INTERNAL_SERVER_ERROR && err instanceof Error) {
     payload.stack = err.stack;
   }
   res.status(statusCode).json(payload);

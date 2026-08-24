@@ -6,11 +6,11 @@
  */
 import Box from "@mui/material/Box";
 import MuiButton from "../reusable/MuiButton.jsx";
-import { useGoogleAuthMutation } from "../../redux/features/authEndpoints.js";
+import { useGoogleAuthMutation } from "../../redux/features/userSlice.js";
 import { showToast } from "../../utils/toast.js";
 
 /** The four-color Google "G" mark, inline SVG (no icon-pack asset). */
-function GoogleMark() {
+const GoogleMark = () => {
   return (
     <Box
       component="svg"
@@ -32,7 +32,7 @@ function GoogleMark() {
  * @param {boolean} [props.disabled] - Disables alongside a submitting form.
  * @returns {JSX.Element} The button.
  */
-function GoogleOAuthButton({ disabled = false }) {
+const GoogleOAuthButton = ({ disabled = false }) => {
   const [googleAuth, { isLoading }] = useGoogleAuthMutation();
 
   /** Runs the stub flow and surfaces its plain-language result. */

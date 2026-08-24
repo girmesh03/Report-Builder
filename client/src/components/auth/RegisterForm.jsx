@@ -18,12 +18,20 @@ import {
   validateNewPassword,
   makeConfirmPasswordValidator,
 } from "./validators.js";
-import { useRegisterMutation } from "../../redux/features/authEndpoints.js";
+import { useRegisterMutation } from "../../redux/features/userSlice.js";
 import { showToast } from "../../utils/toast.js";
 import {
   TOAST_CATALOGUE,
   REGISTER_REDIRECT_ROUTE,
 } from "../../utils/constants.js";
+
+/** Static adornments — stable identities keep typing renders cheap. */
+const EMAIL_ADORNMENT = (
+  <EmailIcon fontSize="small" sx={{ color: "action.active" }} />
+);
+const LOCK_ADORNMENT = (
+  <LockIcon fontSize="small" sx={{ color: "action.active" }} />
+);
 
 /**
  * Derives the preview name exactly as the server will (§19.2):
@@ -31,7 +39,7 @@ import {
  * @param {string} email - Current email value.
  * @returns {string|null} "beza ayalew"-style preview or null.
  */
-function derivePreviewName(email) {
+const derivePreviewName = (email) => {
   if (!email || !EMAIL_PATTERN.test(email.trim())) {
     return null;
   }
@@ -51,7 +59,7 @@ function derivePreviewName(email) {
  * @param {string} part - Raw local-part segment.
  * @returns {string} The capitalized segment.
  */
-function capitalize(part) {
+const capitalize = (part) => {
   return part.charAt(0).toUpperCase() + part.slice(1);
 }
 
@@ -59,7 +67,7 @@ function capitalize(part) {
  * Renders and drives the registration form.
  * @returns {JSX.Element} The form.
  */
-function RegisterForm() {
+const RegisterForm = () => {
   const [registerAccount, { isLoading }] = useRegisterMutation();
   const navigate = useNavigate();
 
@@ -69,7 +77,6 @@ function RegisterForm() {
     getValues,
     control,
     formState: { errors, isSubmitting },
-    clearErrors,
   } = useForm({ mode: "onBlur" });
 
   const emailValue = useWatch({ control, name: "email" });
@@ -91,11 +98,7 @@ function RegisterForm() {
   }
 
   return (
-    <form
-      noValidate
-      onSubmit={handleSubmit(onSubmit)}
-      onChange={() => clearErrors()}
-    >
+    <form noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack spacing={1}>
         <MuiTextField
           label="Email"
@@ -103,7 +106,7 @@ function RegisterForm() {
           placeholder="you@example.com"
           required
           autoComplete="email"
-          startAdornment={<EmailIcon fontSize="small" sx={{ color: "action.active" }} />}
+          startAdornment={EMAIL_ADORNMENT}
           error={Boolean(errors.email)}
           helperText={errors.email?.message}
           {...register("email", {
@@ -129,7 +132,7 @@ function RegisterForm() {
           type="password"
           required
           autoComplete="new-password"
-          startAdornment={<LockIcon fontSize="small" sx={{ color: "action.active" }} />}
+          startAdornment={LOCK_ADORNMENT}
           error={Boolean(errors.password)}
           helperText={errors.password?.message}
           {...register("password", { validate: validateNewPassword })}
@@ -139,7 +142,7 @@ function RegisterForm() {
           type="password"
           required
           autoComplete="new-password"
-          startAdornment={<LockIcon fontSize="small" sx={{ color: "action.active" }} />}
+          startAdornment={LOCK_ADORNMENT}
           error={Boolean(errors.confirmPassword)}
           helperText={errors.confirmPassword?.message}
           {...register("confirmPassword", {
@@ -151,6 +154,7 @@ function RegisterForm() {
           variant="contained"
           fullWidth
           loading={isLoading || isSubmitting}
+          disabled={isLoading || isSubmitting}
           loadingIndicator="Creating account…"
         >
           Sign up

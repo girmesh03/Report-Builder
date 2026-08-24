@@ -39,7 +39,7 @@ class CustomError extends Error {
  * @param {mongoose.Error.ValidationError} error - The validation error.
  * @returns {Array<{field: string, message: string}>} Field errors.
  */
-function validationDetails(error) {
+const validationDetails = (error) => {
   /** @type {Object<string, string>} */
   const seen = {};
   Object.values(error.errors).forEach((entry) => {
@@ -62,7 +62,7 @@ function validationDetails(error) {
  *   data: null, details?: Array<{field: string, message: string}>}}}
  *   Status code plus the envelope body.
  */
-function toErrorEnvelope(err) {
+const toErrorEnvelope = (err) => {
   let statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let message = "Something went wrong — please try again";
   /** @type {Array<{field: string, message: string}>|undefined} */

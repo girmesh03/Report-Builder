@@ -29,7 +29,7 @@ const AUTH_PREFIX = `${API_MOUNT_PATH}/auth`;
  * @param {number} max - Maximum requests per window.
  * @returns {import("express-rate-limit").RateLimitRequestHandler} Tier limiter.
  */
-function buildTier(windowMin, max) {
+const buildTier = (windowMin, max) => {
   return rateLimit({
     windowMs: windowMin * MS_PER_MINUTE,
     limit: max,

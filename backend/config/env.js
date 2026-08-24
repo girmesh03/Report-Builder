@@ -34,6 +34,7 @@ const ENV_SPEC = {
   NVIDIA_API_KEY: { required: true },
   NVIDIA_API_URL: { required: true },
   AI_TIMEOUT_MS: { default: "30000" },
+  LOG_ERROR_STACK: { default: "true" },
   FFMPEG_PATH: { default: "ffmpeg" },
   FFPROBE_PATH: { default: "ffprobe" },
 };
@@ -45,7 +46,7 @@ const ENV_SPEC = {
  * @returns {string|undefined} Raw value, or undefined when the file is
  *   unreadable or the key is absent.
  */
-function readFromEnvFile(envFilePath, key) {
+const readFromEnvFile = (envFilePath, key) => {
   try {
     return dotenv.parse(readFileSync(envFilePath, "utf8"))[key];
   } catch {
@@ -59,7 +60,7 @@ function readFromEnvFile(envFilePath, key) {
  * @returns {Object<string, string>} Fully resolved values.
  * @throws {Error} Naming every missing Required variable.
  */
-function buildEnv() {
+const buildEnv = () => {
   dotenv.config({ path: backendEnvPath, quiet: true });
 
   const missing = [];

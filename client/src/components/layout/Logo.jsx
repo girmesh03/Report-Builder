@@ -22,7 +22,7 @@ import {
  *   mark (sidebar header true, compact bars false).
  * @returns {JSX.Element} The clickable logo.
  */
-function Logo({ showName = true }) {
+const Logo = ({ showName = true }) => {
   const navigate = useNavigate();
   const authStatus = useSelector(selectAuthStatus);
   const target =

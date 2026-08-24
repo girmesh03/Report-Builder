@@ -14,6 +14,21 @@ its proper place — proven need plus reason. Universal across
 constants, env vars, directories, structures, features,
 dependencies.
 
+Governing Rule #2 — **STEP-5 REVIEW BEFORE COMMIT** (owner directive,
+2026-08-24): no commit of any kind until the owner reviews the diff
+and approves. One commit set per increment, post-approval only.
+
+Governing Rule #3 — **NO LONG-BLOCKING COMMANDS** (owner directive,
+2026-08-24): never run `node server.js` (even backgrounded with
+redirection) through the session shell — it holds the pipe. Spawn
+detached via `cmd //c start`, poll separately with sub-second
+`curl -m 2`, kill by PID from `netstat`. Builds (~5 s) run alone.
+
+Shell-slice binding note (owner directive, 2026-08-24): when the
+AppShell/AppSidebar slice is built, **md+ defaults to `mini` mode**
+(amends §47.4's full-default; amend §47.4 in that slice's opening
+change set).
+
 ## Program plan of record (owner directives, 2026-08-24)
 
 - Sequencing: **vertical slices by domain area** — a small specific

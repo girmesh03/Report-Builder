@@ -41,7 +41,10 @@ const router = createBrowserRouter([
         children: [
           {
             index: true,
-            lazy: { Component: () => import("./pages/Landing.jsx") },
+            lazy: {
+              Component: () =>
+                import("./pages/Landing.jsx").then((m) => m.default),
+            },
           },
         ],
       },
@@ -54,11 +57,17 @@ const router = createBrowserRouter([
             children: [
               {
                 path: "login",
-                lazy: { Component: () => import("./pages/Login.jsx") },
+                lazy: {
+                  Component: () =>
+                    import("./pages/Login.jsx").then((m) => m.default),
+                },
               },
               {
                 path: "register",
-                lazy: { Component: () => import("./pages/Register.jsx") },
+                lazy: {
+                  Component: () =>
+                    import("./pages/Register.jsx").then((m) => m.default),
+                },
               },
             ],
           },
@@ -70,13 +79,19 @@ const router = createBrowserRouter([
         children: [
           {
             path: "dashboard",
-            lazy: { Component: () => import("./pages/Dashboard.jsx") },
+            lazy: {
+              Component: () =>
+                import("./pages/Dashboard.jsx").then((m) => m.default),
+            },
           },
         ],
       },
+      // Catch-all INSIDE the root layout: unmatched URLs render
+      // through AppTheme/CssBaseline/error-boundary (§41.3 static
+      // participants stay mounted around every route).
+      { path: "*", element: <NotFound /> },
     ],
   },
-  { path: "*", element: <NotFound /> },
 ]);
 
 createRoot(document.getElementById("root")).render(

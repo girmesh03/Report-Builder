@@ -18,7 +18,7 @@ import { AUTH_STATUSES, LOGIN_ROUTE } from "../utils/constants.js";
  * Renders the bridge page behind the guard.
  * @returns {JSX.Element} The bridge surface.
  */
-function Dashboard() {
+const Dashboard = () => {
   const status = useSelector(selectAuthStatus);
   const user = useSelector(selectAuthUser);
   const logout = useLogout();

@@ -1,18 +1,18 @@
 /**
- * @module redux/features/authEndpoints
+ * @module redux/features/userSlice
  *
- * The client's §28 session surface (§42.6): login, register,
- * logout, and the Google OAuth stub entry. Injected into the single
- * apiSlice descriptor exactly once (§42.2).
+ * The client's §28 session surface as the user-domain endpoint set
+ * (§42.6; file naming per the <domain>Slice.js convention): login,
+ * register, logout, and the Google OAuth stub entry. Injected into
+ * the single apiSlice descriptor exactly once (§42.2).
  */
 import { apiSlice } from "./apiSlice.js";
-import { HTTP_STATUS } from "../../utils/httpStatus.js";
 
 /**
  * Login rejects in place — a 401 here is a credential rejection to
  * toast, not a session expiry, so the reauth chain must skip it.
  */
-const authEndpoints = apiSlice.injectEndpoints({
+const userSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     login: builder.mutation({
       query: ({ email, password }) => ({
@@ -21,7 +21,7 @@ const authEndpoints = apiSlice.injectEndpoints({
         body: { email, password },
       }),
       extraOptions: { skipReauth: true },
-      invalidatesTags: ["Me"],
+      invalidatesTags: ["User"],
     }),
     register: builder.mutation({
       query: ({ email, password }) => ({
@@ -33,7 +33,7 @@ const authEndpoints = apiSlice.injectEndpoints({
     }),
     logout: builder.mutation({
       query: () => ({ url: "/auth/logout", method: "POST" }),
-      invalidatesTags: ["Me"],
+      invalidatesTags: ["User"],
     }),
     googleAuth: builder.mutation({
       query: () => ({ url: "/auth/google", method: "GET" }),
@@ -47,7 +47,4 @@ export const {
   useRegisterMutation,
   useLogoutMutation,
   useGoogleAuthMutation,
-} = authEndpoints;
-
-/** Status code the forms branch on for duplicate-email copy. */
-export const DUPLICATE_STATUS = HTTP_STATUS.CONFLICT;
+} = userSlice;

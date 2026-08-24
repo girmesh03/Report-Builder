@@ -7,7 +7,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 /** The static ruled-desk motif: hairlines + one settled waveform line. */
-function RuledDesk() {
+const RuledDesk = () => {
   return (
     <Box
       aria-hidden
@@ -55,7 +55,7 @@ function RuledDesk() {
  * Renders the brand panel.
  * @returns {JSX.Element} The panel column.
  */
-function BrandPanel() {
+const BrandPanel = () => {
   return (
     <Box
       sx={{

@@ -19,7 +19,7 @@ import Box from "@mui/material/Box";
  * @param {Object} [props.sx] - Extra styles from the layout.
  * @returns {JSX.Element} The bar.
  */
-function MuiAppbar({ variant = "public", leading, actions, sx }) {
+const MuiAppbar = ({ variant = "public", leading, actions, sx }) => {
   const isPublic = variant === "public";
   return (
     <AppBar

@@ -17,7 +17,7 @@ import {
  * Resolves the guard for one render pass.
  * @returns {JSX.Element} Spinner, redirect, or the routed branch.
  */
-function ProtectedRoute() {
+const ProtectedRoute = () => {
   const status = useSelector(selectAuthStatus);
   const location = useLocation();
 

@@ -16,7 +16,7 @@ import {
  * Resolves the guard for one render pass.
  * @returns {JSX.Element} Redirect, spinner, or the routed branch.
  */
-function PublicRoute() {
+const PublicRoute = () => {
   const status = useSelector(selectAuthStatus);
 
   if (status === AUTH_STATUSES.INITIALIZING) {

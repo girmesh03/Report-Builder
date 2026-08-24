@@ -18,7 +18,7 @@ export const PASSWORD_MIN_LENGTH = 8;
  * @param {string} value - Field value.
  * @returns {string|undefined} The error message or undefined when valid.
  */
-function validateEmail(value) {
+const validateEmail = (value) => {
   if (!value?.trim()) {
     return "Email is required";
   }
@@ -33,7 +33,7 @@ function validateEmail(value) {
  * @param {string} value - Field value.
  * @returns {string|undefined} The error message or undefined when valid.
  */
-function validatePasswordRequired(value) {
+const validatePasswordRequired = (value) => {
   return value ? undefined : "Password is required";
 }
 
@@ -42,7 +42,7 @@ function validatePasswordRequired(value) {
  * @param {string} value - Field value.
  * @returns {string|undefined} The error message or undefined when valid.
  */
-function validateNewPassword(value) {
+const validateNewPassword = (value) => {
   if (!value) {
     return "Password is required";
   }
@@ -57,7 +57,7 @@ function validateNewPassword(value) {
  * @param {Function} getValues - RHF getValues accessor.
  * @returns {Function} Resolver for the confirmPassword field.
  */
-function makeConfirmPasswordValidator(getValues) {
+const makeConfirmPasswordValidator = (getValues) => {
   return (value) => {
     if (!value) {
       return "Please confirm your password";

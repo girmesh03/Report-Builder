@@ -15,7 +15,7 @@ import {
 
 import { colorSchemes, typography, shadows, shape } from "./themePrimitives";
 
-function AppTheme(props) {
+const AppTheme = (props) => {
   const { children } = props;
   const theme = useMemo(
     () =>

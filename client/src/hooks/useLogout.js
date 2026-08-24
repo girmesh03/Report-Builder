@@ -8,7 +8,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
 import { useDispatch } from "react-redux";
-import { useLogoutMutation } from "../redux/features/authEndpoints.js";
+import { useLogoutMutation } from "../redux/features/userSlice.js";
 import { authActions } from "../redux/features/authSlice.js";
 import { showToast } from "../utils/toast.js";
 import {
@@ -20,7 +20,7 @@ import {
  * Provides the app-wide logout action.
  * @returns {Function} Async logout callback, safe to call anywhere.
  */
-function useLogout() {
+const useLogout = () => {
   const [logoutMutation] = useLogoutMutation();
   const dispatch = useDispatch();
   const navigate = useNavigate();

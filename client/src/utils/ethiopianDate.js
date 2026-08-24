@@ -31,7 +31,7 @@ const ETHIOPIAN_EPOCH_JDN = 1724221;
  * @param {number} day - Gregorian day of month, 1-based.
  * @returns {number} The integer Julian Day Number.
  */
-function gregorianToJDN(year, month, day) {
+const gregorianToJDN = (year, month, day) => {
   const a = Math.floor((14 - month) / 12);
   const yy = year + 4800 - a;
   const mm = month + 12 * a - 3;
@@ -51,7 +51,7 @@ function gregorianToJDN(year, month, day) {
  * @param {number} part - Day or month number.
  * @returns {string} Two-digit string.
  */
-function pad2(part) {
+const pad2 = (part) => {
   return String(part).padStart(2, "0");
 }
 
@@ -61,7 +61,7 @@ function pad2(part) {
  * @param {EthiopianDate} ethDate - The Ethiopian date to convert.
  * @returns {Date} The Gregorian equivalent.
  */
-export function ethiopianToGregorian(ethDate) {
+export const ethiopianToGregorian = (ethDate) => {
   const { day, month, year } = ethDate;
   const jdn =
     ETHIOPIAN_EPOCH_JDN +
@@ -88,7 +88,7 @@ export function ethiopianToGregorian(ethDate) {
  * @param {Date} jsDate - The Gregorian date to convert.
  * @returns {EthiopianDate} The Ethiopian equivalent.
  */
-export function gregorianToEthiopian(jsDate) {
+export const gregorianToEthiopian = (jsDate) => {
   const jdn = gregorianToJDN(
     jsDate.getFullYear(),
     jsDate.getMonth() + 1,
@@ -113,7 +113,7 @@ export function gregorianToEthiopian(jsDate) {
  * @param {Date|string} value - The stored date (UTC Date or ISO string).
  * @returns {string|null} `DD-MM-YY` or null when value is falsy.
  */
-export function formatEthiopianDate(value) {
+export const formatEthiopianDate = (value) => {
   if (!value) {
     return null;
   }
@@ -127,7 +127,7 @@ export function formatEthiopianDate(value) {
  * @param {Date|string} value - The date to render (defaults to today).
  * @returns {string} The long numeric Ethiopic datum.
  */
-export function formatEthiopianDatum(value = new Date()) {
+export const formatEthiopianDatum = (value = new Date()) => {
   const eth = gregorianToEthiopian(value instanceof Date ? value : new Date(value));
   return `${pad2(eth.day)}/${pad2(eth.month)}/${eth.year} EC`;
 }

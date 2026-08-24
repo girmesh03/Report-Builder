@@ -33,7 +33,7 @@ import {
  *   when provided.
  * @returns {JSX.Element} The layout.
  */
-function PublicLayout({ children }) {
+const PublicLayout = ({ children }) => {
   const navigation = useNavigation();
   const status = useSelector(selectAuthStatus);
   const logout = useLogout();
@@ -50,7 +50,7 @@ function PublicLayout({ children }) {
             onClick={() => void logout()}
             sx={{ color: "text.secondary" }}
           >
-            <LogoutIcon />
+            <LogoutIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       ) : (
@@ -59,7 +59,7 @@ function PublicLayout({ children }) {
             component={RouterLink}
             to={LOGIN_ROUTE}
             size="small"
-            startIcon={<LoginIcon />}
+            startIcon={<LoginIcon fontSize="small" />}
             sx={{ display: { xs: "none", sm: "inline-flex" }, flexShrink: 0 }}
           >
             Log in
@@ -71,13 +71,13 @@ function PublicLayout({ children }) {
             aria-label="Log in"
             sx={{ display: { xs: "inline-flex", sm: "none" } }}
           >
-            <LoginIcon />
+            <LoginIcon fontSize="small" />
           </IconButton>
           <MuiButton
             component={RouterLink}
             to="/register"
             variant="contained"
-            startIcon={<PersonAddIcon />}
+            startIcon={<PersonAddIcon fontSize="small" />}
             sx={{ display: { xs: "none", sm: "inline-flex" } }}
           >
             Sign up
@@ -89,7 +89,7 @@ function PublicLayout({ children }) {
             aria-label="Sign up"
             sx={{ display: { xs: "inline-flex", sm: "none" } }}
           >
-            <PersonAddIcon />
+            <PersonAddIcon fontSize="small" />
           </IconButton>
         </>
       )}

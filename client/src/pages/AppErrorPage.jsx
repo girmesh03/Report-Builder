@@ -11,7 +11,7 @@ import MuiButton from "../components/reusable/MuiButton.jsx";
  * Renders the error boundary fallback.
  * @returns {JSX.Element} The error surface.
  */
-function AppErrorPage() {
+const AppErrorPage = () => {
   const error = useRouteError();
   const headline = isRouteErrorResponse(error)
     ? `${error.status} — ${error.statusText}`

@@ -11,7 +11,7 @@ import { containerProps } from "../../utils/toast.js";
  * Mounts the toast container once.
  * @returns {JSX.Element} The container.
  */
-function AppToastContainer() {
+const AppToastContainer = () => {
   return <ToastContainer {...containerProps} />;
 }
 

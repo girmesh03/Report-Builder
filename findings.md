@@ -1,5 +1,60 @@
 # Findings — Report Builder
 
+## Session 2026-08-24 — Arrow-function sweep (R4 execution)
+
+- Repo-wide conversion done: ~50 declarations → arrow consts across
+  backend (env/logger/errors/sanitize/rateLimit/auth/server/
+  constants) and client (6 pages, 12 components, forms, validators,
+  store adapter, authSlice reducers, apiSlice, toast,
+  ethiopianDate, useLogout).
+- **Sed pitfall recorded:** the mechanical pattern dropped `async`
+  on converted thunks — caught by `node --check` ("await outside
+  async"); three sites repaired. Always run syntax checks immediately
+  after mechanical sweeps.
+- **Documented exceptions (`this`/class semantics):** exactly three
+  in `user.model.js` (virtual getter, pre-save hook, comparePassword
+  method) + class bodies; MuiTextField keeps a named inner render via
+  `forwardRef((...) => …)` + explicit `displayName` (DevTools/Refresh
+  names).
+- **Lazy contract preserved:** every lazily-imported page keeps a
+  named const + `export default <Name>;` — verified per file (gate);
+  thunks unchanged.
+
+## Session 2026-08-24 — 404 routing defect (owner /dashboardd pass)
+
+- **Catch-all placement:** `{path:"*"}` as a SIBLING of the root
+  layout route rendered NotFound OUTSIDE `<App/>` — unthemed, no
+  CssBaseline/boundary/toasts; and with no errorElement on that
+  branch, any failure surfaced React Router's built-in default
+  boundary (the unstyled "Go back/Home" page the owner saw). Rule:
+  **the catch-all is always the LAST CHILD of the root layout** so
+  every URL inherits AppTheme + boundary. Fixed in main.jsx.
+- The notFound_404.svg artwork contains no text/rects (2 circles,
+  4 paths) — it never drew buttons; the phantom buttons were RR's
+  default boundary chrome.
+
+## Session 2026-08-24 — Remediation verifications (owner "if not yet" items)
+
+- **DB exponential retry:** already implemented D53-conformant in
+  server.js (1 s doubling, 30 s cap, 10 attempts, fail-fast exit 1,
+  post-connect drops on driver auto-reconnect). No change needed.
+- **hashPassword await:** correct under the Mongoose 9 pure-async
+  idiom — `await bcrypt.hash` completes before save proceeds.
+- **Morgan colors:** streamed plain through Winston's formats —
+  ANSI codes would pollute file logs; `dev` tokens kept readable.
+
+## Session 2026-08-24 — Slice 1 review fixes (owner browser pass)
+
+- **redux-persist storage contract:** adapters must return Promises
+  (`getStoredState` chains `.then`); the sync hand-rolled adapter
+  crashed every boot with "storage.getItem(...).then is not a
+  function". Fixed in store.js — methods now Promise-returning.
+- **RR v8 lazy-object form:** `lazy:{ Component: () => import(X) }`
+  feeds the MODULE NAMESPACE to the fiber → "Element type is invalid
+  … got: object" inside `<Route>`. The thunk must resolve the default
+  export: `import(X).then(m => m.default)` (matches the V3-proven
+  form). Fixed on all four page routes.
+
 ## Session 2026-08-24 — Slice 1 (auth area), Phase B
 
 - **Integration smoke (browser-origin simulation):** POST login from

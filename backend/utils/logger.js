@@ -49,7 +49,7 @@ const logger = createLogger({
  * @param {string} label - Source tag, e.g. `Server`, `DB`, `Auth`.
  * @returns {import("winston").Logger} Child logger carrying the label.
  */
-function createChildLogger(label) {
+const createChildLogger = (label) => {
   return logger.child({ label });
 }
 

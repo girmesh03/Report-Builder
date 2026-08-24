@@ -31,7 +31,7 @@ let refreshPromise = null;
  *   handle carrying dispatch/getState.
  * @returns {void}
  */
-function expireSession(api) {
+const expireSession = (api) => {
   if (selectAuthStatus(api.getState()) === AUTH_STATUSES.AUTHENTICATED) {
     api.dispatch({ type: AUTH_SESSION_EXPIRED });
   }
@@ -47,7 +47,7 @@ function expireSession(api) {
  * @returns {{data?: unknown, error?: {status: number|string,
  *   message: string, fieldErrors?: Object<string,string>}}} Normalized.
  */
-function normalizeResult(result) {
+const normalizeResult = (result) => {
   if (!result.error) {
     const envelope = result.data;
     return {
@@ -62,7 +62,7 @@ function normalizeResult(result) {
     raw.data && typeof raw.data === "object" ? raw.data : undefined;
   let message = TOAST_CATALOGUE.common.unexpectedError;
   if (raw.status === "FETCH_ERROR") {
-    message = TOAST_CATALOGUE.common.offline;
+    message = TOAST_CATALOGUE.common.serverUnreachable;
   } else if (payload?.message) {
     message = payload.message;
   }
@@ -88,7 +88,7 @@ function normalizeResult(result) {
  * @param {Object} extraOptions - Carries `skipReauth` markers.
  * @returns {Promise<{data?: unknown, error?: unknown}>} Normalized result.
  */
-async function baseQueryWithReauth(args, api, extraOptions) {
+const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions);
 
   if (
@@ -129,6 +129,6 @@ async function baseQueryWithReauth(args, api, extraOptions) {
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Me"],
+  tagTypes: ["User"],
   endpoints: () => ({}),
 });

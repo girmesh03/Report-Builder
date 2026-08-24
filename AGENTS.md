@@ -66,8 +66,8 @@ Work is delivered through the spec §66 phase protocol (P1–P8) using the §9.8
 1. **Pre-git:** check status, create feature branch `phase-N-description`. No direct commits to `main`.
 2. **Step-1.1 identification:** before writing anything, identify *everything* related to the task — all spec sections it touches, all files it creates/edits, its constants/env/spec-tree mirrors, and its validation gates.
 3. **Deep analysis:** read the current code and all prior-phase commits/working files before executing.
-4. **Execute sub-tasks**, each closed by its listed validation (see gates below).
-5. **User review + explicit approval** — hard gate. Show a diff summary and exit-gate results. Step 6 never runs without it.
+4. **Execute sub-tasks**, each closed by its listed validation (see gates below). **No commit happens in this phase — work stays uncommitted in the working tree.**
+5. **User review + explicit approval BEFORE any commit** — hard gate (owner directive 2026-08-24: the step-5 review precedes committing, always; no interim commits). Show a diff summary and exit-gate results. Only after approval: commit → push → merge → delete branch.
 6. **Post-git:** stage after diff review, commit (`feat: phase N description`; `chore:` for hardening), push branch, merge to main, delete branch. No amending after push.
 
 Same-change discipline (§66.6): any change to shared truth updates its spec mirrors **in the same commit** — §15 tree ↔ files, §13 tables ↔ manifests, §14 ADR index, §11 constants ↔ consumers.
@@ -108,6 +108,11 @@ Dependencies are added only via the owning phase or explicit approval (§13.7) �
 ## Conventions that differ from defaults
 
 - JS modules kebab-case (`httpStatus.js`, `stt.service.js`); React components PascalCase, one exported component per file named after itself; reusable MUI components prefixed `Mui*` in `client/src/components/reusable/`; **no barrel files**.
+- **Arrow functions everywhere** (owner directive 2026-08-24); exceptions only where semantics force otherwise: mongoose hooks/methods/virtuals (`this`), class declarations/constructors.
+- **Controllers use `express-async-handler`** — no manual try/catch → `next(error)` boilerplate (owner directive 2026-08-24).
+- RTK Query domain endpoint sets live at `redux/features/<domain>Slice.js` (owner directive 2026-08-24; `userSlice.js` not `authEndpoints.js`).
+- `LocalizationProvider` mounts exactly once in `main.jsx` — never per page/component.
+- Every request error funnels to the global handler; every user-facing message is plain end-user language.
 - API envelope: `{ success, message, data }`; paginated data adds `{ docs, page, limit, totalDocs, totalPages }` (`mongoose-paginate-v2`, server-side pagination).
 - UI language is English; audio/transcription/report content may be Amharic — never force translation; English tech words become Amharic workplace transliteration (e.g. `deep fryer` → `ዲፕ ፍራየር`).
 - Domain dates are Ethiopian calendar, displayed numeric `DD-MM-YY`; convert only via `ethiopianDate.js` utilities + dayjs — no native `Date` arithmetic on domain dates. Times 24h `HH:mm`.

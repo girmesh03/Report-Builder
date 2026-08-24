@@ -16,7 +16,7 @@ import { env } from "../config/env.js";
  * Attaches `req.user` or rejects with 401 (§28.4).
  * @type {import("express").RequestHandler}
  */
-async function authenticate(req, _res, next) {
+const authenticate = async (req, _res, next) => {
   try {
     const token = req.cookies?.accessToken;
     if (!token) {

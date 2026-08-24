@@ -26,30 +26,35 @@ import authReducer, { authActions } from "../features/authSlice.js";
 import { AUTH_STATUSES } from "../../utils/constants.js";
 
 /**
- * Minimal sessionStorage adapter — redux-persist's default storage
- * export breaks under Vite's ESM interop, so the three methods are
- * hand-rolled here.
+ * Minimal sessionStorage adapter meeting redux-persist's async
+ * storage contract — every method returns a Promise (getStoredState
+ * chains `.then`). The package's default storage export breaks under
+ * Vite's ESM interop, hence the hand-rolled surface.
  */
 const sessionStorageAdapter = {
-  getItem(key) {
+  getItem: (key) => {
     try {
-      return window.sessionStorage.getItem(key);
+      return Promise.resolve(window.sessionStorage.getItem(key));
     } catch {
-      return null;
+      return Promise.resolve(null);
     }
   },
-  setItem(key, value) {
+  setItem: (key, value) => {
     try {
       window.sessionStorage.setItem(key, value);
+      return Promise.resolve();
     } catch {
       /* storage unavailable (private mode) — session stays in memory */
+      return Promise.resolve();
     }
   },
-  removeItem(key) {
+  removeItem: (key) => {
     try {
       window.sessionStorage.removeItem(key);
+      return Promise.resolve();
     } catch {
       /* nothing to remove */
+      return Promise.resolve();
     }
   },
 };

@@ -14,7 +14,7 @@ import Typography from "@mui/material/Typography";
  * @param {React.ReactNode} [props.actions] - Right-aligned slot.
  * @returns {JSX.Element} The header block.
  */
-function MuiPageHeader({ title, subtitle, actions }) {
+const MuiPageHeader = ({ title, subtitle, actions }) => {
   return (
     <Box
       sx={{
