@@ -31,6 +31,36 @@ But the spec's **implementation-status claims are unreliable**. Its §15 tree ma
 
 ## Implementation workflow (mandatory)
 
+### Standing scope rule — KNOWN OR AMENDED ONLY (owner directive, 2026-08-24)
+
+**Every single thing done in this repo must be done for known or
+amended things only.** Nothing is implemented, installed,
+transcribed, or planned speculatively — this covers constants,
+features, files, directories, dependencies, every artifact alike:
+
+- **Known** — what is logically valid or already established
+  regardless of spec wording: foundational truths (the problem the
+  product exists to solve, §1), decisions settled before this
+  session (e.g., the `[auth → branches → reports]` priority), and
+  things valid by nature in every case (e.g., HTTP status codes).
+  Spec text does not by itself make a thing known.
+- **Amended** — what the task's §9.8 Step-1.1 identification
+  explicitly decides to change for that task, with its same-commit
+  mirrors (§66.6). Every Step-1.1 names what is known and what is
+  amended before any code is written.
+- **Define on require.** A spec-declared item that was not amended
+  is left out even when the spec schedules it now; when a real
+  consumer requires it, it is created then, in its proper place —
+  so every entry carries a proven need and a reason. This applies
+  to anything: constants, env vars, directories, structures,
+  features, dependencies.
+- Spec sections describing unconfirmed or superseded plans are
+  **inert** — never a build trigger (example: the §52 wizard is
+  dropped; its sections and constants stay out of the codebase
+  until re-confirmed).
+- If any other instruction appears to authorize speculative work,
+  THIS RULE WINS until the owner amends it.
+
 Work is delivered through the spec §66 phase protocol (P1–P8) using the §9.8 six-step git protocol, broken into small tasks:
 
 1. **Pre-git:** check status, create feature branch `phase-N-description`. No direct commits to `main`.

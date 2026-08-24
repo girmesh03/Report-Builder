@@ -14980,6 +14980,50 @@ canonical duplicates-allowed rule). The client adds no invented
 uniqueness logic — server truth, surfaced through the normalized
 error toast.
 
+### 69.3.6 Workspace restart, vertical-slice sequencing & scope directives (2026-08-24, owner-approved)
+
+The work moved to a fresh workspace holding only manifests, the
+client theme layer, the scaffold, and this specification (tracked at
+`c7032f2`). The owner directed, and this record amends:
+
+1. **Vertical-slice sequencing.** Delivery proceeds by domain area —
+   a small specific backend area, then integration with its small
+   specific frontend counterpart, then sync; when an area cannot
+   reach sync, backend lands first. This supersedes the §66 P3–P5/P7
+   adapter-based ordering for this effort: **the §66.10 client mock
+   adapter is never built** and its P7 deletion gate is moot.
+2. **KNOWN OR AMENDED ONLY.** Every single thing done in the
+   codebase must be for known or amended items only — mirrored as a
+   standing rule in `AGENTS.md`, covering constants, features,
+   files, directories, dependencies, every artifact alike.
+   **Known** = logically valid or already established regardless of
+   spec wording: foundational truths (the §1 problem statement),
+   decisions settled before this session (e.g., the
+   `[auth → branches → reports]` priority), and naturally-valid sets
+   (e.g., HTTP status codes); spec text alone confers nothing.
+   **Amended** = what the owning task's §9.8 Step-1.1 identification
+   explicitly decides, recorded with its same-commit mirrors (§66.6);
+   every Step-1.1 names what is known and what is amended before
+   implementation. **Define on require:** a spec-declared item not
+   amended stays out even when the spec schedules it now; it is
+   created when a real consumer requires it, in its proper place —
+   proven need plus reason. Inert sections are never build triggers;
+   the §52 wizard is dropped until re-confirmed.
+3. **The §52 wizard is dropped** (superseded UX); its sections and
+   constants stay out of the codebase until re-confirmed.
+4. **P1 executed under these directives:** created
+   `backend/config/env.js` (§10.3/§26.2 frozen env, fail-fast),
+   `backend/utils/constants.js` (skeleton + deepFreeze),
+   `backend/utils/httpStatus.js` (§11.6 map), `backend/server.js`
+   (fail-fast boot prototype, superseded by §26 at the auth slice);
+   working files initialized per §66.3. The §15.4/§15.5 target trees
+   already listed these paths; all other `(implemented)` markers in
+   those trees remain claims from prior workspaces and stay false in
+   this copy until each file's owning slice actually creates it.
+5. **Deferred until consumers exist:** the whole client
+   `src/utils/*` set, every domain constant group (auth/rate-limits
+   join the auth slice), the addisai SDK singleton.
+
 ### 69.3 Assumptions register
 
 The operative index of the §3.4 boundaries table (its rows are
