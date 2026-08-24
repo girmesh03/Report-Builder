@@ -1,5 +1,38 @@
 # Findings — Report Builder
 
+## Session 2026-08-24 — Slice 1 (auth area), Phase A
+
+- **A7 sync-walk evidence (live, port 4000, Mongo local):** health
+  `{"status":"up",uptime}` exact envelope · register 201 with exact
+  DTO (derived beza/ayalew, `fullName` virtual, no password/id/__v) ·
+  duplicate 409 exact copy via global-handler dup-key mapping ·
+  invalid email 422 aggregate details shape · wrong-password 401
+  identical copy, cookie-less · login 200 "Welcome back" setting
+  httpOnly SameSite=Lax cookies at paths `/api/v1` (access) and
+  `/api/v1/auth` (refresh) · refresh 200 "Session refreshed" with
+  rotated refresh value (old ≠ new proven from jars) · logout
+  idempotent clearing BOTH cookies (Max-Age=0 headers captured) ·
+  Google stub 404 exact open-question copy. Server killed after walk;
+  port 4000 verified free.
+- **Mongoose 9 hook idiom:** async pre hooks must not declare
+  `next` — pure async functions only (next-style throws "next is not
+  a function").
+- **express-validator matchedData** is flat by default; §29.2's
+  `{ body, params, query }` buckets need explicit
+  `locations` per call in the harness.
+- **authenticate mounting deferred:** no auth route is protected in
+  this slice (profile/avatar deferred), so `middleware/auth.js`
+  exists as the §28-owned artifact; its first route-group mount lands
+  with the branches slice.
+- **AI-tier limiter deferred** (no AI endpoint yet); rateLimit.js
+  ships global + auth tiers only.
+- **New constants consumed this slice** (all §11.3 rows already
+  declared): BCRYPT_SALT_ROUNDS, ACCESS/REFRESH TTLs (+ derived MS,
+  MS_PER_MINUTE, MS_PER_DAY), MONGO_CONNECT_TIMEOUT_MS, DB_RETRY_*,
+  LOG_RETENTION_DAYS, MONGO_DUPLICATE_KEY_ERROR_CODE, RATE_LIMIT_*
+  six. Spec-mirror additions owed same-commit: API_MOUNT_PATH,
+  MS_PER_MINUTE, MS_PER_DAY, SHUTDOWN_FORCE_TIMEOUT_MS rows in §11.3.
+
 ## Session 2026-08-24 (P1)
 
 - **Owner directives (this session, binding):**

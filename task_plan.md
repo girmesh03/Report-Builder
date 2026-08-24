@@ -50,8 +50,21 @@ join with the auth slice), the addisai SDK singleton.
 
 ## Slice roadmap after P1
 
-1. Auth area: backend §26 foundation + §27 chain + §28 auth ↔ frontend
-   network layer + login/register pages + guards.
+1. **Slice 1 — Auth area (branch `phase-2-auth-area`, ACTIVE):** backend
+   §26 foundation + §27 chain + §19 user model + §28 auth core
+   (register/login/refresh/logout/google stub) + §29 harness/user chains →
+   sync walk → frontend entry/store/network/auth pages integrated live.
+   Amendments recorded this slice: bridge `/dashboard` placeholder
+   (temporary, replaced by §49); landing structural with statically-drawn
+   hero (animation polish later); profile/avatar, sweeper, mock routes
+   deferred to their consumers. One branch, two commits; step-5 gate
+   before merge.
 2. Branches area (backend §30 ↔ frontend branches pages).
 3. Reports area (backend §31/§32/§33/§34/§35 ↔ frontend reports
    workspace) — scope re-confirmed per area before it opens.
+
+## Increment 1 — P1 (branch phase-1-foundations) — CLOSED
+
+Merged to main at `86cbd22` on 2026-08-24: AGENTS.md standing rule,
+§69.3.6 record, env/constants/httpStatus skeletons, boot prototype,
+working files. All gates green.
