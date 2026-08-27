@@ -185,3 +185,19 @@
     feature-independent, consumed by every slice.
   - `server.js` is a ~10-line fail-fast prototype, superseded by the
     §26 foundation when the auth slice opens.
+
+## Session 2026-08-26 — Redux transform architecture
+
+- **Two-stage pipeline problem:** `normalizeResult` (apiSlice) stripped
+  envelope; `extractUser` (userSlice) plucked `.data.user` from auth
+  endpoints. Owner directive: single centralized function in apiSlice.
+- **Refresh data discarded:** `baseQueryWithReauth` checked
+  `refreshResult.data` but never stored the fresh user — session went
+  stale after token rotation. Fixed by dispatching `authenticated`
+  from the reauth chain.
+- **Dead mutation:** `refresh` endpoint in userSlice exported
+  `useRefreshMutation` — never imported anywhere. Refresh is purely
+  internal to baseQueryWithReauth. Removed.
+- **Centralized unwrap pattern:** `unwrapEnvelope` enhanced to detect
+  `data.user` shape — auth endpoints return UserDto directly from
+  `.unwrap()`, no endpoint-level transform needed.

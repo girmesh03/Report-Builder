@@ -6,23 +6,11 @@
  * register, logout, and the Google OAuth stub entry. Injected into
  * the single apiSlice descriptor exactly once (§42.2).
  *
- * All auth mutations use transformResponse to extract the flat user
- * object from the envelope — this ensures consumers receive the
- * UserDto with virtuals (fullName, etc.) directly, never nested under
- * `user.user`.
+ * Data unwrapping is centralized in apiSlice's `unwrapEnvelope` —
+ * no endpoint-level `transformResponse` is needed. Auth endpoints
+ * receive the flat UserDto directly from `.unwrap()`.
  */
 import { apiSlice } from "./apiSlice.js";
-
-/**
- * Extracts the flat user object from the §27.4 envelope.
- * Backend returns: { success, message, data: { user: UserDto } }
- * apiSlice normalizes to: { data: { user: UserDto } }
- * This transform returns the flat UserDto so .unwrap() yields the
- * user object directly with virtuals (fullName, etc.) intact.
- * @param {Object} response - The normalized RTK Query response.
- * @returns {Object} The flat UserDto with virtuals.
- */
-const extractUser = (response) => response.data?.user;
 
 const userSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -32,7 +20,6 @@ const userSlice = apiSlice.injectEndpoints({
         method: "POST",
         body: { email, password },
       }),
-      transformResponse: extractUser,
       extraOptions: { skipReauth: true },
       invalidatesTags: ["User"],
     }),
@@ -42,22 +29,14 @@ const userSlice = apiSlice.injectEndpoints({
         method: "POST",
         body: { email, password },
       }),
-      transformResponse: extractUser,
       extraOptions: { skipReauth: true },
     }),
     logout: builder.mutation({
       query: () => ({ url: "/auth/logout", method: "POST" }),
       invalidatesTags: ["User"],
     }),
-    refresh: builder.mutation({
-      query: () => ({ url: "/auth/refresh", method: "POST" }),
-      transformResponse: extractUser,
-      extraOptions: { skipReauth: true },
-      invalidatesTags: ["User"],
-    }),
     googleAuth: builder.mutation({
       query: () => ({ url: "/auth/google", method: "GET" }),
-      transformResponse: extractUser,
       extraOptions: { skipReauth: true },
     }),
   }),
@@ -67,6 +46,5 @@ export const {
   useLoginMutation,
   useRegisterMutation,
   useLogoutMutation,
-  useRefreshMutation,
   useGoogleAuthMutation,
 } = userSlice;

@@ -25,6 +25,10 @@ import { apiSlice } from "../features/apiSlice.js";
 import authReducer, { authActions } from "../features/authSlice.js";
 import { AUTH_STATUSES } from "../../utils/constants.js";
 
+// Side-effect: injects login/register/logout/googleAuth endpoints into apiSlice.
+// Must run before listener registration so apiSlice.endpoints.login exists.
+import "../features/userSlice.js";
+
 /**
  * Minimal sessionStorage adapter meeting redux-persist's async
  * storage contract — every method returns a Promise (getStoredState
@@ -81,6 +85,18 @@ listenerMiddleware.startListening({
     ) {
       api.dispatch(authActions.setGuest());
     }
+  },
+});
+
+/**
+ * Login fulfilled → promotes the session mirror.  The centralized
+ * `unwrapEnvelope` in apiSlice already extracts the UserDto, so
+ * `action.payload` is the flat user object ready for the auth slice.
+ */
+listenerMiddleware.startListening({
+  matcher: apiSlice.endpoints.login.matchFulfilled,
+  effect: (action, api) => {
+    api.dispatch(authActions.authenticated(action.payload));
   },
 });
 

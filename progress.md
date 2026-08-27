@@ -286,3 +286,55 @@
 - NEXT: none — increment closed. Next session opens slice 1 (auth):
   read these working files first per §66.3. Servers never started;
   ports free.
+
+## Session 2026-08-26 — Phase 1 Shell Committed + Pushed
+
+- 22 files committed as `feat: phase 1 shell and navigation` (`e9dfb97`)
+- Pushed to `phase-3-branches` (not merged)
+- Content: AppShell, MuiSidebar, AvatarMenu, MuiEmptyState, 6 page stubs,
+  MuiAppbar search placeholder, Logo/PublicLayout/Main.jsx wiring,
+  auth review fixes (LoginForm, RegisterForm, userSlice), constants
+
+## Session 2026-08-26 — Redux Layer Fix (normalizeResult + refresh cleanup)
+
+**Owner directive:** "I don't want extractUser. Only centralized in apiSlice
+that will work for both error and data transform."
+
+### Issues identified:
+1. `refresh` mutation exported from userSlice — dead code (never imported);
+   refresh is handled internally by `baseQueryWithReauth` but fresh user
+   data was discarded on success.
+2. `normalizeResult` mixes two concerns: envelope unwrapping (success) +
+   error transformation (failure). Owner wants single centralized function.
+
+### Fix applied:
+- Split `normalizeResult` → `unwrapEnvelope` (success, detects `data.user`
+  pattern) + `normalizeError` (error, `{ status, message, fieldErrors }`)
+- Deleted `extractUser` function from userSlice.js
+- Deleted `refresh` mutation + `useRefreshMutation` export
+- Removed `transformResponse` from login/register/googleAuth
+- `baseQueryWithReauth`: dispatches `authenticated(freshUser)` on refresh
+  success; uses `normalizeError` for error path only
+- Added `login.matchFulfilled` listener in store.js → dispatches
+  `authenticated` automatically
+- Simplified LoginForm: removed manual dispatch, `useDispatch`, authActions
+
+### Gates: lint 0, build 0, dist deleted
+
+## Session 2026-08-26 — Login Redirect Bug Fix
+
+**Symptom:** After login, redirected back to login; `selectAuthUser` is null.
+
+**Root cause (2 issues in store.js):**
+1. Missing side-effect import: `userSlice.js` not imported in `store.js`,
+   so `apiSlice.endpoints.login` was `undefined` when the listener
+   registered — the matcher never fired.
+2. Custom string matcher (`action.type?.includes?.("login")`) instead
+   of idiomatic `apiSlice.endpoints.login.matchFulfilled`.
+
+**Fix applied:**
+- Added `import "../features/userSlice.js"` to store.js (side-effect,
+  runs before listener registration → injects login endpoint)
+- Replaced custom matcher with `apiSlice.endpoints.login.matchFulfilled`
+
+### Gates: node --check OK, lint 0, build 0, dist deleted

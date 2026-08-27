@@ -125,3 +125,14 @@ join with the auth slice), the addisai SDK singleton.
 Merged to main at `86cbd22` on 2026-08-24: AGENTS.md standing rule,
 §69.3.6 record, env/constants/httpStatus skeletons, boot prototype,
 working files. All gates green.
+
+## Redux Layer Fix — Session 2026-08-26
+
+**Owner directive:** Centralized transform in apiSlice — no extractUser.
+
+| File | Change | Status |
+|------|--------|--------|
+| `apiSlice.js` | Split `normalizeResult` → `unwrapEnvelope` + `normalizeError`; refresh dispatches `authenticated` | pending |
+| `userSlice.js` | Delete `extractUser`, `refresh` mutation, all `transformResponse` | pending |
+| `store.js` | Add `login.matchFulfilled` listener → dispatches `authenticated` | pending |
+| `LoginForm.jsx` | Remove manual `dispatch(authActions.authenticated(user))` | pending |

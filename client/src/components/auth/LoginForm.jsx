@@ -14,8 +14,6 @@ import MuiButton from "../reusable/MuiButton.jsx";
 import CircularProgress from "@mui/material/CircularProgress";
 import { validateEmail, validatePasswordRequired } from "./validators.js";
 import { useLoginMutation } from "../../redux/features/userSlice.js";
-import { authActions } from "../../redux/features/authSlice.js";
-import { useDispatch } from "react-redux";
 import { showToast } from "../../utils/toast.js";
 import {
   TOAST_CATALOGUE,
@@ -36,7 +34,6 @@ const LOCK_ADORNMENT = (
  */
 const LoginForm = () => {
   const [login, { isLoading }] = useLoginMutation();
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -47,15 +44,15 @@ const LoginForm = () => {
   } = useForm({ mode: "onBlur" });
 
   /**
-   * Submits credentials; promotes the session mirror, toasts once,
-   * and lands on `state.from` when it is a same-site route.
+   * Submits credentials; toasts once and lands on `state.from` when
+   * it is a same-site route. Session promotion is handled centrally
+   * by the login.matchFulfilled listener in store.js.
    * @param {{email: string, password: string}} values - Form values.
    * @returns {Promise<void>}
    */
   async function onSubmit(values) {
     try {
-      const user = await login(values).unwrap();
-      dispatch(authActions.authenticated(user));
+      await login(values).unwrap();
       showToast("success", TOAST_CATALOGUE.auth.loggedIn);
       const from = location.state?.from;
       if (from?.pathname && !String(from.pathname).startsWith("http")) {

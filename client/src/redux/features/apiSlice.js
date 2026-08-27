@@ -8,7 +8,7 @@
  * Domain endpoint sets inject themselves here — never elsewhere.
  */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { AUTH_SESSION_EXPIRED, selectAuthStatus } from "./authSlice.js";
+import { AUTH_SESSION_EXPIRED, authActions, selectAuthStatus } from "./authSlice.js";
 import { AUTH_STATUSES, TOAST_CATALOGUE } from "../../utils/constants.js";
 import { HTTP_STATUS } from "../../utils/httpStatus.js";
 
@@ -35,29 +35,36 @@ const expireSession = (api) => {
   if (selectAuthStatus(api.getState()) === AUTH_STATUSES.AUTHENTICATED) {
     api.dispatch({ type: AUTH_SESSION_EXPIRED });
   }
-}
+};
 
 /**
- * Normalizes a raw result into page-ready shape (§42.4): success
- * unwraps the `{ success, message, data }` envelope to `data`;
- * errors become `{ status, message, fieldErrors }` with plain
- * end-user language; 401s stay silent for the pages (expiry is the
- * chain's job).
- * @param {{data?: unknown, error?: unknown}} result - Raw result.
- * @returns {{data?: unknown, error?: {status: number|string,
- *   message: string, fieldErrors?: Object<string,string>}}} Normalized.
+ * Unwraps the §27.4 envelope on success: `{ success, message, data }`
+ * → `data`.  Detects the auth `data.user` shape and returns the
+ * UserDto directly so every consumer gets a flat object.
+ * @param {unknown} envelope - The raw `result.data` from fetchBaseQuery.
+ * @returns {unknown} The inner `data` value.
  */
-const normalizeResult = (result) => {
-  if (!result.error) {
-    const envelope = result.data;
-    return {
-      data:
-        envelope && typeof envelope === "object" && "data" in envelope
-          ? envelope.data
-          : envelope,
-    };
+const unwrapEnvelope = (envelope) => {
+  if (envelope && typeof envelope === "object" && "data" in envelope) {
+    const inner = envelope.data;
+    if (inner && typeof inner === "object" && "user" in inner) {
+      return inner.user;
+    }
+    return inner;
   }
-  const raw = result.error;
+  return envelope;
+};
+
+/**
+ * Normalizes a raw error into the §42.4 consumer shape: plain
+ * end-user language, field-level details for 422s, FETCH_ERROR
+ * mapping.  Success path is NOT handled here — use `unwrapEnvelope`.
+ * @param {{status: number|string, data?: unknown}} raw - The error
+ *   object from fetchBaseQuery.
+ * @returns {{status: number|string, message: string,
+ *   fieldErrors?: Object<string,string>}} Normalized error.
+ */
+const normalizeError = (raw) => {
   const payload =
     raw.data && typeof raw.data === "object" ? raw.data : undefined;
   let message = TOAST_CATALOGUE.common.unexpectedError;
@@ -77,12 +84,17 @@ const normalizeResult = (result) => {
     );
   }
   return {
-    error: { status: raw.status, message, ...(fieldErrors ? { fieldErrors } : {}) },
+    status: raw.status,
+    message,
+    ...(fieldErrors ? { fieldErrors } : {}),
   };
-}
+};
 
 /**
  * The §42.3 reauth chain wrapped around the base query.
+ * On success: returns `{ data }` with the unwrapped envelope.
+ * On error: returns `{ error }` with the normalized error shape.
+ * On refresh success: dispatches `authenticated` with the fresh UserDto.
  * @param {string|Object} args - Request args (url + method + body).
  * @param {import("@reduxjs/toolkit/query").ApiInternal} api - Api handle.
  * @param {Object} extraOptions - Carries `skipReauth` markers.
@@ -106,6 +118,8 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
     }
     const refreshResult = await refreshPromise;
     if (refreshResult.data) {
+      const freshUser = unwrapEnvelope(refreshResult.data);
+      api.dispatch(authActions.authenticated(freshUser));
       result = await baseQuery(args, api, {
         ...extraOptions,
         skipReauth: true,
@@ -115,12 +129,15 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
       }
     } else {
       expireSession(api);
-      return normalizeResult(refreshResult);
+      return { error: normalizeError(refreshResult.error) };
     }
   }
 
-  return normalizeResult(result);
-}
+  if (result.error) {
+    return { error: normalizeError(result.error) };
+  }
+  return { data: unwrapEnvelope(result.data) };
+};
 
 /**
  * The one API descriptor of the application (§41.6). Tag families
