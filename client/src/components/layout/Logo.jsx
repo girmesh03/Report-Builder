@@ -1,83 +1,74 @@
 /**
  * Logo — the product mark (§47.4 header motif): the report-header
- * line structure above the app name. Navigation target is decided by
- * the consumer via `onClick` (logo → /dashboard when authenticated,
- * else `/` — locked decision 10).
+ * line structure beside the app name. Navigation target is supplied
+ * by the consumer via `to` — this component carries no auth coupling.
+ * Used by PublicLayout (public app-bar) and MuiSidebar (protected
+ * sidebar header).
  */
-import { useNavigate } from "react-router";
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { selectAuthStatus } from "../../redux/features/authSlice.js";
-import { useSelector } from "react-redux";
-import {
-  AUTH_STATUSES,
-  APP_NAME,
-  LOGIN_REDIRECT_ROUTE,
-} from "../../utils/constants.js";
+import { APP_NAME, DASHBOARD_ROUTE } from "../../utils/constants.js";
 
 /**
- * Renders the logo block.
+ * Renders the logo block as a router link.
  * @param {Object} props - Component props.
  * @param {boolean} [props.showName] - Render the app name beside the
- *   mark (sidebar header true, compact bars false).
- * @returns {JSX.Element} The clickable logo.
+ *   mark (full sidebar/app-bar true, compact/minimal surfaces false).
+ * @param {string} [props.to] - Router target (default: dashboard).
+ * @param {Object} [props.sx] - Extra styles.
+ * @returns {JSX.Element} The logo link.
  */
-const Logo = ({ showName = true }) => {
-  const navigate = useNavigate();
-  const authStatus = useSelector(selectAuthStatus);
-  const target =
-    authStatus === AUTH_STATUSES.AUTHENTICATED ? LOGIN_REDIRECT_ROUTE : "/";
-  return (
+const Logo = ({ showName = true, to = DASHBOARD_ROUTE, sx }) => (
+  <Box
+    component={RouterLink}
+    to={to}
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1.25,
+      textDecoration: "none",
+      color: "inherit",
+      minWidth: 0,
+      ...sx,
+    }}
+  >
     <Box
-      component="button"
-      type="button"
-      onClick={() => navigate(target)}
+      aria-hidden
       sx={{
-        display: "inline-flex",
+        width: 26,
+        height: 26,
+        flexShrink: 0,
+        borderRadius: 1,
+        border: 1,
+        borderColor: "divider",
+        display: "grid",
+        gridTemplateRows: "repeat(3, 1fr)",
         alignItems: "center",
-        gap: 1.25,
-        bgcolor: "transparent",
-        border: 0,
-        p: 0,
-        cursor: "pointer",
+        px: 0.5,
+        "& span": {
+          display: "block",
+          height: 0,
+          borderTop: 1,
+          borderColor: "text.disabled",
+        },
+        "& span:last-of-type": {
+          borderTopWidth: 2,
+          borderColor: "primary.main",
+          width: "62%",
+        },
       }}
     >
-      <Box
-        aria-hidden
-        sx={{
-          width: 26,
-          height: 26,
-          borderRadius: 1,
-          border: 1,
-          borderColor: "divider",
-          display: "grid",
-          gridTemplateRows: "repeat(3, 1fr)",
-          alignItems: "center",
-          px: 0.5,
-          "& span": {
-            display: "block",
-            height: 0,
-            borderTop: 1,
-            borderColor: "text.disabled",
-          },
-          "& span:last-of-type": {
-            borderTopWidth: 2,
-            borderColor: "primary.main",
-            width: "62%",
-          },
-        }}
-      >
-        <span />
-        <span />
-        <span />
-      </Box>
-      {showName ? (
-        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-          {APP_NAME}
-        </Typography>
-      ) : null}
+      <span />
+      <span />
+      <span />
     </Box>
-  );
-}
+    {showName ? (
+      <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>
+        {APP_NAME}
+      </Typography>
+    ) : null}
+  </Box>
+);
 
 export default Logo;

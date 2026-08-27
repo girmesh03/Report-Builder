@@ -63,20 +63,62 @@ Deferred to their first consuming slice (recorded decision): all of
 `client/src/utils/*`, every domain constant group (auth/rate-limits
 join with the auth slice), the addisai SDK singleton.
 
-## Slice roadmap after P1
+## Slice roadmap after P1 — Iterative Page-Driven Rebuild (branch `phase-rebuild-branches`)
 
-1. **Slice 1 — Auth area (branch `phase-2-auth-area`, ACTIVE):** backend
-   §26 foundation + §27 chain + §19 user model + §28 auth core
-   (register/login/refresh/logout/google stub) + §29 harness/user chains →
-   sync walk → frontend entry/store/network/auth pages integrated live.
-   Amendments recorded this slice: bridge `/dashboard` placeholder
-   (temporary, replaced by §49); landing structural with statically-drawn
-   hero (animation polish later); profile/avatar, sweeper, mock routes
-   deferred to their consumers. One branch, two commits; step-5 gate
-   before merge.
-2. Branches area (backend §30 ↔ frontend branches pages).
-3. Reports area (backend §31/§32/§33/§34/§35 ↔ frontend reports
-   workspace) — scope re-confirmed per area before it opens.
+### Phase 0: Reversion — COMPLETE ✓
+- All branch-specific files deleted, modified files restored to main branch state
+- Gates: build 0, lint 0, dist deleted, node --check pass
+
+### Phase 1: Branches Page (`/branches`) — Top-to-Bottom Sections
+
+| Section | Spec | Status |
+|---------|------|--------|
+| 1.1 Page Header (MuiPageHeader + Filter ButtonGroup + New Branch) | §56.2, §56.4, §46.12 | pending |
+| 1.2 Presentation Toggle (Grid ↔ Ledger, device-first default) | §56.3, §56.7 | pending |
+| 1.3 MuiDataGrid View (columns, toolbar, selection, hover actions, pagination) | §56.3, §46.8, §56.6 | pending |
+| 1.4 Branch Ledger Cards View (ruled entries, identity row, inline actions) | §56.3, §56.7 | pending |
+| 1.5 Filter Dialog — PROVISIONAL (Show-Archived only, OQ-017) | §56.4, OQ-017 | pending |
+| 1.6 Create/Edit Branch Dialog (MuiDialog + form, validation, submit) | §56.4, §46.17 | pending |
+| 1.7 Confirm Dialogs (Archive/Restore/Delete copy, variants) | §56.6 | pending |
+| 1.8 States & Empty States (loading, error, empty, archived-empty) | §56.7, §60 | pending |
+| 1.9 Branch Slice (RTK Query: 7 endpoints, Branches tags) | §56, §42 | pending |
+
+### Phase 2: Branch Details Page (`/branches/:branchId`) — Top-to-Bottom
+
+| Section | Spec | Status |
+|---------|------|--------|
+| 2.1 Route & Data Fetch (single aggregate call, states) | §56.5, §30.2.1 | pending |
+| 2.2 Signboard Header (Noto Serif Ethiopic name, location, status badge) | §56.5, §43.2 | pending |
+| 2.3 Reports Grid (exact §50 surface, OQ-016 suppress pagination) | §56.5, §50, OQ-016 | pending |
+| 2.4 Analytics (charts per §49.4 conventions) | §56.5, §49.4 | pending |
+| 2.5 Items (activities/issues/comments groups per §24A) | §56.5, §24A | pending |
+
+### Phase 3: Profile Page (`/profile`) — Top-to-Bottom (§57)
+
+| Section | Spec | Status |
+|---------|------|--------|
+| 3.1 Page Header (title, subtitle, Logout action) | §57.2 | pending |
+| 3.2 ID-Card Face (48px avatar + camera, fullName serif, position, hairline) | §57.3, §43.2 | pending |
+| 3.3 Profile Form (position display-only, names editable, avatar upload) | §57.3, §46.4, §46.17 | pending |
+| 3.4 States (loading, error, failed PATCH keeps values) | §57.6 | pending |
+
+### Phase 4: Routing Integration
+- Protected branch: AppShell → Dashboard, Branches, BranchDetails, Profile
+- Catch-all as LAST CHILD of root layout (§41.3)
+
+---
+
+**Methodology per section (Plan Mode → Build Mode):**
+1. Read spec + cross-refs
+2. mui-mcp research for exact MUI v9 APIs
+3. Define component structure, props, sx, behavior, integration points
+4. Present section plan → OWNER APPROVAL
+5. Build → gates (lint 0, build 0, dist deleted) → owner browser review
+6. If changes → back to Plan Mode for that section
+
+**Reusable components emerge on second use:** MuiDialog, MuiConfirmDialog, MuiStatusBadge, MuiDataGrid, MuiDataGridToolbar → `components/reusable/` when needed by multiple pages.
+
+---
 
 ## Increment 1 — P1 (branch phase-1-foundations) — CLOSED
 

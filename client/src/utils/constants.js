@@ -64,3 +64,30 @@ export const REGISTER_REDIRECT_ROUTE = "/login";
 
 /** The app-shell entry route — bridge page until the §49 dashboard slice. */
 export const DASHBOARD_ROUTE = "/dashboard";
+
+/** Public landing route (§41.5). */
+export const LANDING_ROUTE = "/";
+
+/** Profile page route (§57). */
+export const PROFILE_ROUTE = "/profile";
+
+/**
+ * Responsive app-bar/sidebar-header min heights in px (owner directive
+ * 2026-08-26): xs=48, sm=56, md=64. Consumed by MuiAppbar and the
+ * MuiSidebar header so both headers align at every breakpoint.
+ * @type {Object<string, number>}
+ */
+export const APPBAR_MIN_HEIGHT = Object.freeze({ xs: 48, sm: 56, md: 64 });
+
+/**
+ * The same ladder in theme-spacing units (8px base) for containers that
+ * must offset the fixed public app-bar (PublicLayout content margin).
+ * @type {Object<string, number>}
+ */
+export const APPBAR_MIN_HEIGHT_SPACING = Object.freeze({ xs: 6, sm: 7, md: 8 });
+
+/** @type {number} Permanent sidebar width when collapsed (px). */
+export const SIDEBAR_MINI_WIDTH = Object.freeze(72);
+
+/** @type {number} Permanent sidebar width when expanded (px). */
+export const SIDEBAR_FULL_WIDTH = Object.freeze(240);

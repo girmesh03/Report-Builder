@@ -11,10 +11,8 @@ import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import MuiTextField from "../reusable/MuiTextField.jsx";
 import MuiButton from "../reusable/MuiButton.jsx";
-import {
-  validateEmail,
-  validatePasswordRequired,
-} from "./validators.js";
+import CircularProgress from "@mui/material/CircularProgress";
+import { validateEmail, validatePasswordRequired } from "./validators.js";
 import { useLoginMutation } from "../../redux/features/userSlice.js";
 import { authActions } from "../../redux/features/authSlice.js";
 import { useDispatch } from "react-redux";
@@ -104,13 +102,13 @@ const LoginForm = () => {
           fullWidth
           loading={isLoading || isSubmitting}
           disabled={isLoading || isSubmitting}
-          loadingIndicator="Logging in…"
+          loadingIndicator={<CircularProgress size={20} />}
         >
           Log in
         </MuiButton>
       </Stack>
     </form>
   );
-}
+};
 
 export default LoginForm;

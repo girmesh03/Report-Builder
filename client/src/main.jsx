@@ -25,6 +25,7 @@ import NotFound from "./pages/NotFound.jsx";
 import ProtectedRoute from "./components/layout/ProtectedRoute.jsx";
 import PublicRoute from "./components/layout/PublicRoute.jsx";
 import PublicLayout from "./components/layout/PublicLayout.jsx";
+import AppShell from "./components/layout/AppShell.jsx";
 import { store, persistor } from "./redux/app/store.js";
 import LoadingSpinner from "./components/reusable/LoadingSpinner.jsx";
 
@@ -73,16 +74,56 @@ const router = createBrowserRouter([
           },
         ],
       },
-      // Protected branch — bridge until the shell/dashboard slice.
+      // Protected branch — AppShell owns navigation (S3-R2).
       {
         element: <ProtectedRoute />,
         children: [
           {
-            path: "dashboard",
-            lazy: {
-              Component: () =>
-                import("./pages/Dashboard.jsx").then((m) => m.default),
-            },
+            element: <AppShell />,
+            children: [
+              {
+                path: "dashboard",
+                lazy: {
+                  Component: () =>
+                    import("./pages/Dashboard.jsx").then((m) => m.default),
+                },
+              },
+              {
+                path: "reports",
+                lazy: {
+                  Component: () =>
+                    import("./pages/Reports.jsx").then((m) => m.default),
+                },
+              },
+              {
+                path: "reports/:reportId",
+                lazy: {
+                  Component: () =>
+                    import("./pages/ReportDetails.jsx").then((m) => m.default),
+                },
+              },
+              {
+                path: "branches",
+                lazy: {
+                  Component: () =>
+                    import("./pages/Branches.jsx").then((m) => m.default),
+                },
+              },
+              {
+                path: "branches/:branchId",
+                lazy: {
+                  Component: () =>
+                    import("./pages/BranchDetails.jsx").then((m) => m.default),
+                },
+              },
+              {
+                path: "profile",
+                lazy: {
+                  Component: () =>
+                    import("./pages/Profile.jsx").then((m) => m.default),
+                },
+              },
+            ],
           },
         ],
       },

@@ -24,6 +24,9 @@ import useLogout from "../../hooks/useLogout.js";
 import {
   AUTH_STATUSES,
   LOGIN_ROUTE,
+  APPBAR_MIN_HEIGHT_SPACING,
+  LOGIN_REDIRECT_ROUTE,
+  LANDING_ROUTE,
 } from "../../utils/constants.js";
 
 /**
@@ -98,12 +101,21 @@ const PublicLayout = ({ children }) => {
 
   return (
     <Box sx={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <MuiAppbar variant="public" leading={<Logo showName />} actions={actions} />
+      <MuiAppbar
+        variant="public"
+        leading={
+          <Logo
+            showName
+            to={isAuthenticated ? LOGIN_REDIRECT_ROUTE : LANDING_ROUTE}
+          />
+        }
+        actions={actions}
+      />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          mt: 8,
+          mt: APPBAR_MIN_HEIGHT_SPACING,
           overflowY: "auto",
         }}
       >

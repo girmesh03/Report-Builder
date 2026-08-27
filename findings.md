@@ -1,5 +1,27 @@
 # Findings — Report Builder
 
+## Session 2026-08-25 — S2 branches backend walk
+
+- **Matrix green:** create 201 · folded-dup 409 (`SARIS ኮፌ`≡`Saris
+  ኮፌ`) · transliteration pair correctly ALLOWED (Amharic ≠ Latin) ·
+  self-rename conflict-free · rename-onto-sibling 409 (verified by
+  exact-name probe) · archive/re-archive-409 · archived-list filter
+  both ways · restore/not-archived-409 · DELETE retention copy ·
+  foreign-id 404 · bad-limit & non-ObjectId id 422.
+- **UTF-8 proof:** git-bash curl -d mangles Amharic args (codepage)
+  — node-fetch insert round-trips perfectly (`amharic-intact:true`).
+  Test harness lesson: never send non-ASCII through bash curl args;
+  use node fetch drivers.
+- **Defects caught & fixed during walk:** (1) `authenticate` missing
+  on branch router (req.user undefined → 500) — now mounted
+  router-wide; (2) `nameFolded` leaked into DTOs despite select:false
+  (direct-create docs bypass query projection) — transforms now strip
+  it; (3) global 11000 copy neutralized ("This value already
+  exists"), auth register owns its email-specific 409 catch.
+- **Windows spawn technique:** `cmd /c start` and relative-path
+  PowerShell Start-Process both misbehaved; working pattern is
+  Start-Process with ABSOLUTE WorkingDirectory.
+
 ## Session 2026-08-24 — Arrow-function sweep (R4 execution)
 
 - Repo-wide conversion done: ~50 declarations → arrow consts across

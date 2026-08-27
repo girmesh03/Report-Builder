@@ -85,6 +85,7 @@ Before each implementation, invoke the applicable skills/MCPs — do not skip th
 
 ## Hard engineering gates (every change — SC-6/SC-7)
 
+- **No deprecated MUI props:** never `PaperProps` / `primaryTypographyProps` / `ModalProps` / `TransitionProps` etc. — v9 slot form only (`slotProps={{ paper: … }}`, direct child Typography). mui-mcp is the mandatory first stop for every MUI/MUI X API (owner directive 2026-08-26).
 - **No magic values:** literals live in `utils/constants.js` (UPPER_SNAKE_CASE) or `config/env.js`; both objects frozen. Nothing inline in controllers/components.
 - **No `console.log` in backend** — Winston logger only.
 - **No numeric HTTP status codes** — semantic names from `utils/httpStatus.js` only.
