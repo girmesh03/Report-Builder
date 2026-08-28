@@ -6596,15 +6596,18 @@ the reference discipline (BR-14) starts here.
 `GET /branches` (access, global tier §27.3) — paginated
 (§27.6). Filters:
 
-- `isArchived` **absent or `false`** → **active only** (default,
-  BR-14 semantic: archived hidden unless explicitly asked);
-  `isArchived=true` → archived only. Query items: `page`,
-  `limit`, `sort` (`name` asc default), `isArchived`.
+- `isArchived` **absent or `all`** → **all branches** (default,
+  amended from `false`; management view shows all; pickers pass `active`);
+  `isArchived=active` → active only; `isArchived=archived` → archived only.
+- `sort` — allowed values: `name` (default), `-name`, `createdAt`, `-createdAt`.
+- **No local `search` parameter** — global search (Cmd+K) only (§39).
+- **No `name`/`location`/`createdAt` range filters** — sort + paginate covers needs.
+- Query items: `page`, `limit`, `sort`, `isArchived`.
 - Response: §27.4 envelope with `data: { docs, page, limit,
 totalDocs, totalPages }`; each `docs` item is the BranchDto:
   `{ _id, user, name, location, isArchived, archivedAt,
 createdAt, updatedAt }` — the model's serialized surface
-  (§27.4), no additions.
+(§27.4), no additions.
 - Errors: 422 invalid filter values; 401 unauthenticated.
 
 `GET /branches/:branchId` (access) — BranchDto; 404 when not
@@ -6741,16 +6744,18 @@ row removal happens only in the sweeper after
 
 ### 30.8 Endpoints matrix
 
-| Method+Path                        | Auth   | Request                                   | Success                  | Errors        |
-| ---------------------------------- | ------ | ----------------------------------------- | ------------------------ | ------------- |
-| `GET /branches`                    | access | query `{ page, limit, sort, isArchived }` | 200 paginated BranchDtos | 401, 422      |
-| `GET /branches/:branchId`          | access | —                                         | 200 BranchDto            | 401, 404      |
-| `GET /branches/:branchId/detail`   | access | query `{ page, limit }`                   | 200 aggregate (§30.2.1)  | 401, 404      |
-| `POST /branches`                   | access | `{ name, location }`                      | 201 BranchDto            | 400/422       |
-| `PATCH /branches/:branchId`        | access | `{ name?, location? }`                    | 200 BranchDto            | 400/422, 404  |
-| `POST /branches/:branchId/archive` | access | —                                         | 200 BranchDto            | 401, 404, 409 |
-| `POST /branches/:branchId/restore` | access | —                                         | 200 BranchDto            | 401, 404, 409 |
-| `DELETE /branches/:branchId`       | access | —                                         | 200 (archived→retention) | 401, 404, 409 |
+| Method+Path                        | Auth   | Request                                   | Success                  | Errors        | Status       |
+| ---------------------------------- | ------ | ----------------------------------------- | ------------------------ | ------------- | ------------ |
+| `GET /branches`                    | access | query `{ page, limit, sort, isArchived }` | 200 paginated BranchDtos | 401, 422      | Implemented  |
+| `GET /branches/:branchId`          | access | —                                         | 200 BranchDto            | 401, 404      | Implemented  |
+| `GET /branches/:branchId/detail`   | access | query `{ page, limit }`                   | 200 aggregate (§30.2.1)  | 401, 404      | Deferred     |
+| `POST /branches`                   | access | `{ name, location }`                      | 201 BranchDto            | 400/422       | Implemented  |
+| `PATCH /branches/:branchId`        | access | `{ name?, location? }`                    | 200 BranchDto            | 400/422, 404  | Implemented  |
+| `POST /branches/:branchId/archive` | access | —                                         | 200 BranchDto            | 401, 404, 409 | Implemented  |
+| `POST /branches/:branchId/restore` | access | —                                         | 200 BranchDto            | 401, 404, 409 | Implemented  |
+| `DELETE /branches/:branchId`       | access | —                                         | 200 (archived→retention) | 401, 404, 409 | Implemented  |
+
+**Status legend:** "Implemented" = independent routes done in Phase 4; "Deferred" = cross-domain/model dependencies (Phase 5+).
 
 **Contract JSON** (folded from the route-contract review,
 2026-08-19): BranchDto is `{ _id, user, name, location,
@@ -14398,10 +14403,29 @@ closed 2026-08-20, suite `scripts/test-04-domains.mjs` all green):**
 - **SDK surface fact (recorded in §16.4, 2026-08-20):** the shipped
   addisai ^0.2.0 returns the OpenAI-style `ChatCompletion` for
   `chat.completions.create` (the adapter maps `choices[0].message.
-content`); the STT surface (`speech.transcribe` → `{ text,
-confidence, usage }`) matches the §16.4 normalization — the
+  content`); the STT surface (`speech.transcribe` → `{ text,
+  confidence, usage }`) matches the §16.4 normalization — the
   `requestId` rides `usage_metadata.requestId` (verified live in the
   suite).
+
+**Sub-phase-4.1 implementation record (Branch API independent routes —
+closed 2026-08-28, all gates green):**
+
+- **Amendments from spec (brainstorming decisions, owner-approved):**
+  1. `GET /branches`: `isArchived` default changed from `false` (active only) to `all`; values are `active` | `archived` | `all` (not boolean).
+  2. `GET /branches`: `sort` allowlist explicitly defined: `name` | `-name` | `createdAt` | `-createdAt`.
+  3. `GET /branches`: local `search` parameter removed — global search (Cmd+K) only.
+  4. `GET /branches`: no `name`/`location`/`createdAt` range filters.
+  5. Branch name uniqueness: exact match after trim, case-sensitive, per user (`Saris` ≠ `saris` ≠ `ሳሪስ`).
+  6. `POST`/`PATCH /branches`: duplicate name → 409 CONFLICT with exact message "A branch with this name already exists".
+  7. `POST /branches/:branchId/archive|restore`: idempotent-ish — re-archive = 409, restore active = 409.
+  8. `DELETE /branches/:branchId`: IMPLEMENTED (archive-first, reference check on Report/Item, sweeper hard-delete after 30 days per BR-15).
+  9. `GET /branches/:branchId/detail`: NOT implemented (cross-domain aggregation — Phase 5).
+  10. `GET /branches/:branchId/timeline`: REMOVED (not in spec, brainstorming added then removed).
+- **New constants added to §11.3:** `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT`, `PAGINATION_MAX_LIMIT`, `BRANCH_NAME_MAX_LENGTH`, `BRANCH_LOCATION_MAX_LENGTH`.
+- **Files created:** `backend/models/branch.model.js`, `backend/validators/branch.validator.js`, `backend/controllers/branch.controller.js`, `backend/routes/branch.routes.js`.
+- **Files modified:** `backend/utils/constants.js`, `backend/routes/index.js`, `docs/project-specification.md` (§30.2, §30.8, §69).
+- **All gates passed:** `node --check` ×7 backend files, `npx vite build` (0 errors), `npx eslint src/` (0 warnings), `dist/` deleted.
 - **Verification gate (2026-08-20, §63.10):** every group green —
   unit 9, branches 17, reports 35, audio 11, transcription 7,
   realpipeline 22 (the owner-provided 187.7 s webm → ffmpeg

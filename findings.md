@@ -1,5 +1,28 @@
 # Findings — Report Builder
 
+## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
+
+- **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
+  `GET /branches`, `GET /branches/:branchId`, `POST /branches`, `PATCH /branches/:branchId`, `POST /branches/:branchId/archive`, `POST /branches/:branchId/restore`, `DELETE /branches/:branchId`.
+- **Deferred (cross-model/domain dependencies):** `GET /branches/:branchId/detail` (Report+Item+Analytics aggregation).
+- **Removed:** `GET /branches/:branchId/timeline` (added during brainstorming, not in spec, removed per owner directive).
+- **Amendments from spec (owner-approved brainstorming):**
+  1. `GET /branches`: `isArchived` default = `all` (not `false`); values `active`|`archived`|`all` (not boolean).
+  2. `GET /branches`: `sort` allowlist = `name`|`-name`|`createdAt`|`-createdAt`.
+  3. `GET /branches`: local `search` removed — global search only.
+  4. `GET /branches`: no `name`/`location`/`createdAt` range filters.
+  5. Branch name uniqueness: exact match after trim, case-sensitive, per user (`Saris` ≠ `saris` ≠ `ሳሪስ`).
+  6. `POST`/`PATCH`: duplicate name → 409 CONFLICT "A branch with this name already exists".
+  7. Archive/Restore idempotent-ish: re-archive = 409, restore active = 409.
+- **Fixes applied:**
+  - Removed `index: true` on `user` field (spec §18.3 — redundant with compound indexes).
+  - Fixed pagination: removed invalid `leanWithId`, fixed page cap bug.
+  - Added race condition handling for E11000 (returns correct 409 message).
+- **New constants (§11.3):** `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT`, `PAGINATION_MAX_LIMIT`, `BRANCH_NAME_MAX_LENGTH`, `BRANCH_LOCATION_MAX_LENGTH`.
+- **Files created:** `backend/models/branch.model.js`, `backend/validators/branch.validator.js`, `backend/controllers/branch.controller.js`, `backend/routes/branch.routes.js`.
+- **Files modified:** `backend/utils/constants.js`, `backend/routes/index.js`, `docs/project-specification.md` (§30.2, §30.8, §69).
+- **Gates passed:** `node --check` ×8 backend files, `npx vite build` (0 errors), `npx eslint src/` (0 warnings), `dist/` deleted.
+
 ## Session 2026-08-25 — S2 branches backend walk
 
 - **Matrix green:** create 201 · folded-dup 409 (`SARIS ኮፌ`≡`Saris

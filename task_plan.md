@@ -126,6 +126,30 @@ Merged to main at `86cbd22` on 2026-08-24: AGENTS.md standing rule,
 §69.3.6 record, env/constants/httpStatus skeletons, boot prototype,
 working files. All gates green.
 
+## Increment 2 — Phase 4.1 Branch API Independent Routes (branch: phase-4-branches-backend-independent)
+
+| # | Sub-task | Status |
+|---|----------|--------|
+| 1 | Pre-git: branch `phase-4-branches-backend-independent` | done |
+| 2 | `backend/utils/constants.js` — add PAGINATION_*, BRANCH_* constants | done |
+| 3 | `backend/models/branch.model.js` — schema, indexes, transforms per §20 | done |
+| 4 | `backend/validators/branch.validator.js` — chains per §29, §30 | done |
+| 5 | `backend/controllers/branch.controller.js` — 7 handlers (list, get, create, update, archive, restore, delete) | done |
+| 6 | `backend/routes/branch.routes.js` — routes + validator mounting | done |
+| 7 | `backend/routes/index.js` — mount `/branches` router | done |
+| 8 | Docs: `docs/project-specification.md` (§30.2, §30.8, §69), `findings.md`, `progress.md`, `task_plan.md` | done |
+| 9 | Gates: `node --check` ×8 backend files, `npx vite build` 0 errors, `npx eslint src/` 0 warnings, `dist/` deleted | done |
+| 10 | Delete `docs/branches-backend-exhaustive-analysis.md` | done |
+| 11 | Step-5 diff presentation → owner approval → post-git | pending |
+
+**Deferred (cross-model/domain — Phase 5):**
+- `GET /branches/:branchId/detail` (Report+Item+Analytics aggregation)
+
+**Removed:**
+- `GET /branches/:branchId/timeline` (brainstorming added, not in spec, removed)
+
+---
+
 ## Redux Layer Fix — Session 2026-08-26
 
 **Owner directive:** Centralized transform in apiSlice — no extractUser.

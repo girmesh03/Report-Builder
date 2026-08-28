@@ -73,4 +73,13 @@ export const RATE_LIMIT_AUTH_MAX = deepFreeze(20);
 export const RATE_LIMIT_AI_WINDOW_MIN = deepFreeze(1);
 export const RATE_LIMIT_AI_MAX = deepFreeze(10);
 
+/** Pagination defaults (§11.3, §30). */
+export const PAGINATION_DEFAULT_PAGE = deepFreeze(1);
+export const PAGINATION_DEFAULT_LIMIT = deepFreeze(10);
+export const PAGINATION_MAX_LIMIT = deepFreeze(100);
+
+/** Branch field limits (§11.3, §20.2). */
+export const BRANCH_NAME_MAX_LENGTH = deepFreeze(100);
+export const BRANCH_LOCATION_MAX_LENGTH = deepFreeze(200);
+
 export { deepFreeze };

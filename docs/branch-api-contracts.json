@@ -1,0 +1,909 @@
+{
+  "basePath": "/api/v1",
+  "authentication": "All endpoints require 'access' token cookie",
+  "rateLimitTier": "global (15 min, 100 req)",
+  "endpoints": {
+    "GET /branches": {
+      "description": "List branches with pagination, filter, sort",
+      "method": "GET",
+      "path": "/branches",
+      "queryParameters": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Page number"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Items per page"
+        },
+        "sort": {
+          "type": "string",
+          "enum": ["name", "-name", "createdAt", "-createdAt"],
+          "default": "name",
+          "description": "Sort field and direction (prefix - for desc)"
+        },
+        "isArchived": {
+          "type": "string",
+          "enum": ["active", "archived", "all"],
+          "default": "all",
+          "description": "Filter by archive state"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branches",
+          "data": {
+            "docs": [
+              {
+                "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+                "name": "Saris ኮፌ",
+                "location": "Saris Area, Addis Ababa",
+                "isArchived": false,
+                "archivedAt": null,
+                "createdAt": "2026-08-19T08:00:00.000Z",
+                "updatedAt": "2026-08-19T08:00:00.000Z"
+              }
+            ],
+            "page": 1,
+            "limit": 10,
+            "totalDocs": 14,
+            "totalPages": 2
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 422,
+          "body": {
+            "success": false,
+            "message": "Check the highlighted fields",
+            "data": null,
+            "details": [
+              {
+                "field": "page",
+                "message": "Page must be a positive integer"
+              },
+              {
+                "field": "limit",
+                "message": "Limit must be between 1 and 100"
+              },
+              {
+                "field": "sort",
+                "message": "Invalid sort value"
+              },
+              {
+                "field": "isArchived",
+                "message": "Invalid archive filter value"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "GET /branches/:branchId": {
+      "description": "Get single branch by ID (lightweight)",
+      "method": "GET",
+      "path": "/branches/:branchId",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch",
+          "data": {
+            "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+            "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+            "name": "Saris ኮፌ",
+            "location": "Saris Area, Addis Ababa",
+            "isArchived": false,
+            "archivedAt": null,
+            "createdAt": "2026-08-19T08:00:00.000Z",
+            "updatedAt": "2026-08-19T08:00:00.000Z"
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        }
+      ]
+    },
+    "GET /branches/:branchId/detail": {
+      "description": "Get branch detail aggregate (branch + reports + analytics + items)",
+      "method": "GET",
+      "path": "/branches/:branchId/detail",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "queryParameters": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Page number for reports pagination"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Items per page for reports pagination"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch details",
+          "data": {
+            "branch": {
+              "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+              "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+              "name": "Saris ኮፌ",
+              "location": "Saris Area, Addis Ababa",
+              "isArchived": false,
+              "archivedAt": null,
+              "createdAt": "2026-08-19T08:00:00.000Z",
+              "updatedAt": "2026-08-19T08:00:00.000Z"
+            },
+            "reports": {
+              "docs": [
+                {
+                  "_id": "64f1a2b3c4d5e6f7a8b9c0d4",
+                  "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+                  "date": "2026-08-19T00:00:00.000Z",
+                  "branch": {
+                    "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                    "name": "Saris ኮፌ",
+                    "location": "Saris Area, Addis Ababa"
+                  },
+                  "clockIn": "08:30",
+                  "clockOut": "17:30",
+                  "visits": [
+                    {
+                      "branch": {
+                        "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                        "name": "Saris ኮፌ",
+                        "location": "Saris Area, Addis Ababa"
+                      },
+                      "clockIn": "08:30",
+                      "clockOut": "17:30"
+                    }
+                  ],
+                  "status": "generated",
+                  "transcription": "64f1a2b3c4d5e6f7a8b9c0d5",
+                  "isArchived": false,
+                  "archivedAt": null,
+                  "createdAt": "2026-08-19T08:00:00.000Z",
+                  "updatedAt": "2026-08-19T08:00:00.000Z"
+                }
+              ],
+              "page": 1,
+              "limit": 10,
+              "totalDocs": 3,
+              "totalPages": 1
+            },
+            "analytics": {
+              "reportsTotal": 3,
+              "reportsThisMonth": 2,
+              "statusDistribution": [
+                {
+                  "status": "draft",
+                  "count": 0
+                },
+                {
+                  "status": "audio_attached",
+                  "count": 0
+                },
+                {
+                  "status": "transcribed",
+                  "count": 1
+                },
+                {
+                  "status": "generated",
+                  "count": 2
+                }
+              ],
+              "openIssues": 1,
+              "activitiesCompleted": 4,
+              "commentCount": 1,
+              "issuesTrend": [
+                {
+                  "date": "2026-08-19",
+                  "count": 1
+                }
+              ]
+            },
+            "items": {
+              "activities": [
+                {
+                  "_id": "64f1a2b3c4d5e6f7a8b9c0d6",
+                  "report": "64f1a2b3c4d5e6f7a8b9c0d4",
+                  "type": "activity",
+                  "text": "Checked cleanliness",
+                  "status": "completed",
+                  "branch": {
+                    "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                    "name": "Saris ኮፌ",
+                    "location": "Saris Area, Addis Ababa"
+                  },
+                  "date": "2026-08-19T00:00:00.000Z",
+                  "createdAt": "2026-08-19T08:00:00.000Z"
+                }
+              ],
+              "issues": [
+                {
+                  "_id": "64f1a2b3c4d5e6f7a8b9c0d7",
+                  "report": "64f1a2b3c4d5e6f7a8b9c0d4",
+                  "type": "issue",
+                  "text": "Locker room fan broken",
+                  "status": "reported",
+                  "branch": {
+                    "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                    "name": "Saris ኮፌ",
+                    "location": "Saris Area, Addis Ababa"
+                  },
+                  "date": "2026-08-19T00:00:00.000Z",
+                  "createdAt": "2026-08-19T08:00:00.000Z"
+                }
+              ],
+              "comments": [
+                {
+                  "_id": "64f1a2b3c4d5e6f7a8b9c0d8",
+                  "report": "64f1a2b3c4d5e6f7a8b9c0d4",
+                  "type": "comment",
+                  "text": "Overall good performance",
+                  "rating": 4,
+                  "branch": {
+                    "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+                    "name": "Saris ኮፌ",
+                    "location": "Saris Area, Addis Ababa"
+                  },
+                  "date": "2026-08-19T00:00:00.000Z",
+                  "createdAt": "2026-08-19T08:00:00.000Z"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        }
+      ]
+    },
+    "GET /branches/:branchId/timeline": {
+      "description": "Get chronological activity timeline for branch",
+      "method": "GET",
+      "path": "/branches/:branchId/timeline",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch timeline",
+          "data": [
+            {
+              "id": "evt_001",
+              "type": "report_created",
+              "title": "Report Created",
+              "description": "Draft report created for Saris ኮፌ, 08:30-17:30",
+              "timestamp": "2026-08-19T08:30:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4"
+            },
+            {
+              "id": "evt_002",
+              "type": "audio_added",
+              "title": "Audio Clip Added",
+              "description": "2:45 min audio clip uploaded",
+              "timestamp": "2026-08-19T14:20:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4"
+            },
+            {
+              "id": "evt_003",
+              "type": "transcription",
+              "title": "Transcription Completed",
+              "description": "Audio transcribed and merged",
+              "timestamp": "2026-08-19T15:00:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4"
+            },
+            {
+              "id": "evt_004",
+              "type": "item_status",
+              "title": "Activity Status Changed",
+              "description": "\"Checked cleanliness\" → Completed",
+              "timestamp": "2026-08-19T16:00:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4",
+              "itemId": "64f1a2b3c4d5e6f7a8b9c0d6"
+            },
+            {
+              "id": "evt_005",
+              "type": "item_status",
+              "title": "Issue Status Changed",
+              "description": "\"Locker room fan\" → In Progress",
+              "timestamp": "2026-08-19T16:30:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4",
+              "itemId": "64f1a2b3c4d5e6f7a8b9c0d7"
+            },
+            {
+              "id": "evt_006",
+              "type": "report_generated",
+              "title": "Report Generated",
+              "description": "Report generated with 4 activities, 5 issues, 1 comment",
+              "timestamp": "2026-08-19T17:30:00.000Z",
+              "reportId": "64f1a2b3c4d5e6f7a8b9c0d4"
+            }
+          ]
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        }
+      ]
+    },
+    "POST /branches": {
+      "description": "Create a new branch",
+      "method": "POST",
+      "path": "/branches",
+      "requestBody": {
+        "contentType": "application/json",
+        "required": ["name", "location"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Branch name (trimmed, unique per user)"
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Branch location (trimmed)"
+          }
+        },
+        "example": {
+          "name": "Saris ኮፌ",
+          "location": "Saris Area, Addis Ababa"
+        }
+      },
+      "successResponse": {
+        "statusCode": 201,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch created",
+          "data": {
+            "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+            "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+            "name": "Saris ኮፌ",
+            "location": "Saris Area, Addis Ababa",
+            "isArchived": false,
+            "archivedAt": null,
+            "createdAt": "2026-08-19T08:00:00.000Z",
+            "updatedAt": "2026-08-19T08:00:00.000Z"
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 422,
+          "body": {
+            "success": false,
+            "message": "Check the highlighted fields",
+            "data": null,
+            "details": [
+              {
+                "field": "name",
+                "message": "Branch name is required"
+              },
+              {
+                "field": "name",
+                "message": "Branch name must be 1-100 characters"
+              },
+              {
+                "field": "location",
+                "message": "Location is required"
+              },
+              {
+                "field": "location",
+                "message": "Location must be 1-200 characters"
+              }
+            ]
+          }
+        },
+        {
+          "statusCode": 409,
+          "body": {
+            "success": false,
+            "message": "A branch with this name already exists",
+            "data": null
+          }
+        }
+      ]
+    },
+    "PATCH /branches/:branchId": {
+      "description": "Update branch name and/or location",
+      "method": "PATCH",
+      "path": "/branches/:branchId",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "requestBody": {
+        "contentType": "application/json",
+        "required": [],
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Branch name (trimmed, unique per user)"
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Branch location (trimmed)"
+          }
+        },
+        "example": {
+          "name": "Saris ኮፌ Updated",
+          "location": "New Saris Area, Addis Ababa"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch updated",
+          "data": {
+            "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+            "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+            "name": "Saris ኮፌ Updated",
+            "location": "New Saris Area, Addis Ababa",
+            "isArchived": false,
+            "archivedAt": null,
+            "createdAt": "2026-08-19T08:00:00.000Z",
+            "updatedAt": "2026-08-19T09:30:00.000Z"
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 422,
+          "body": {
+            "success": false,
+            "message": "Check the highlighted fields",
+            "data": null,
+            "details": [
+              {
+                "field": "name",
+                "message": "Branch name must be 1-100 characters"
+              },
+              {
+                "field": "location",
+                "message": "Location must be 1-200 characters"
+              },
+              {
+                "field": "body",
+                "message": "At least one field (name or location) is required"
+              }
+            ]
+          }
+        },
+        {
+          "statusCode": 409,
+          "body": {
+            "success": false,
+            "message": "A branch with this name already exists",
+            "data": null
+          }
+        }
+      ]
+    },
+    "POST /branches/:branchId/archive": {
+      "description": "Archive a branch (soft delete)",
+      "method": "POST",
+      "path": "/branches/:branchId/archive",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch archived",
+          "data": {
+            "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+            "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+            "name": "Saris ኮፌ",
+            "location": "Saris Area, Addis Ababa",
+            "isArchived": true,
+            "archivedAt": "2026-08-19T10:00:00.000Z",
+            "createdAt": "2026-08-19T08:00:00.000Z",
+            "updatedAt": "2026-08-19T10:00:00.000Z"
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 409,
+          "body": {
+            "success": false,
+            "message": "Branch is already archived",
+            "data": null
+          }
+        }
+      ]
+    },
+    "POST /branches/:branchId/restore": {
+      "description": "Restore an archived branch",
+      "method": "POST",
+      "path": "/branches/:branchId/restore",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch restored",
+          "data": {
+            "_id": "64f1a2b3c4d5e6f7a8b9c0d3",
+            "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+            "name": "Saris ኮፌ",
+            "location": "Saris Area, Addis Ababa",
+            "isArchived": false,
+            "archivedAt": null,
+            "createdAt": "2026-08-19T08:00:00.000Z",
+            "updatedAt": "2026-08-19T10:00:00.000Z"
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 409,
+          "body": {
+            "success": false,
+            "message": "Branch is not archived",
+            "data": null
+          }
+        }
+      ]
+    },
+    "DELETE /branches/:branchId": {
+      "description": "Delete branch (archives first, sweeper hard-deletes after 30 days if no references)",
+      "method": "DELETE",
+      "path": "/branches/:branchId",
+      "pathParameters": {
+        "branchId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "description": "MongoDB ObjectId of the branch"
+        }
+      },
+      "successResponse": {
+        "statusCode": 200,
+        "contentType": "application/json",
+        "body": {
+          "success": true,
+          "message": "Branch archived — it will be permanently removed after the retention period",
+          "data": {
+            "archived": true
+          }
+        }
+      },
+      "errorResponses": [
+        {
+          "statusCode": 401,
+          "body": {
+            "success": false,
+            "message": "Sign in to continue",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 404,
+          "body": {
+            "success": false,
+            "message": "Branch not found",
+            "data": null
+          }
+        },
+        {
+          "statusCode": 409,
+          "body": {
+            "success": false,
+            "message": "Cannot delete branch — it is referenced by reports, visits, or items",
+            "data": null
+          }
+        }
+      ]
+    }
+  },
+  "dtoDefinitions": {
+    "BranchDto": {
+      "_id": "string (ObjectId)",
+      "user": "string (ObjectId)",
+      "name": "string (1-100 chars, trimmed)",
+      "location": "string (1-200 chars, trimmed)",
+      "isArchived": "boolean",
+      "archivedAt": "string (ISO datetime) | null",
+      "createdAt": "string (ISO datetime)",
+      "updatedAt": "string (ISO datetime)"
+    },
+    "BranchDetailDto": {
+      "branch": "BranchDto",
+      "reports": "PaginatedResponse<ReportListDto>",
+      "analytics": "AnalyticsDto",
+      "items": "ItemsGroupDto"
+    },
+    "ReportListDto": {
+      "_id": "string (ObjectId)",
+      "user": "string (ObjectId)",
+      "date": "string (ISO datetime)",
+      "branch": {
+        "_id": "string (ObjectId)",
+        "name": "string",
+        "location": "string"
+      },
+      "clockIn": "string (HH:mm)",
+      "clockOut": "string (HH:mm)",
+      "visits": [
+        {
+          "branch": {
+            "_id": "string (ObjectId)",
+            "name": "string",
+            "location": "string"
+          },
+          "clockIn": "string (HH:mm)",
+          "clockOut": "string (HH:mm)"
+        }
+      ],
+      "status": "string (draft | audio_attached | transcribed | generated)",
+      "transcription": "string (ObjectId) | null",
+      "isArchived": "boolean",
+      "archivedAt": "string (ISO datetime) | null",
+      "createdAt": "string (ISO datetime)",
+      "updatedAt": "string (ISO datetime)"
+    },
+    "AnalyticsDto": {
+      "reportsTotal": "integer",
+      "reportsThisMonth": "integer",
+      "statusDistribution": [
+        {
+          "status": "string",
+          "count": "integer"
+        }
+      ],
+      "openIssues": "integer",
+      "activitiesCompleted": "integer",
+      "commentCount": "integer",
+      "issuesTrend": [
+        {
+          "date": "string (YYYY-MM-DD)",
+          "count": "integer"
+        }
+      ]
+    },
+    "ItemsGroupDto": {
+      "activities": "ItemDto[]",
+      "issues": "ItemDto[]",
+      "comments": "ItemDto[]"
+    },
+    "ItemDto": {
+      "_id": "string (ObjectId)",
+      "report": "string (ObjectId)",
+      "type": "string (activity | issue | comment)",
+      "text": "string",
+      "status": "string (reported | in_progress | completed) | null",
+      "rating": "integer (0-5) | null",
+      "branch": {
+        "_id": "string (ObjectId)",
+        "name": "string",
+        "location": "string"
+      },
+      "date": "string (ISO datetime)",
+      "createdAt": "string (ISO datetime)"
+    },
+    "PaginatedResponse<T>": {
+      "docs": "T[]",
+      "page": "integer",
+      "limit": "integer",
+      "totalDocs": "integer",
+      "totalPages": "integer"
+    }
+  },
+  "validationRules": {
+    "branchName": {
+      "trim": true,
+      "minLength": 1,
+      "maxLength": 100,
+      "uniquePerUser": true,
+      "caseSensitive": true,
+      "exactMatchAfterTrim": true
+    },
+    "branchLocation": {
+      "trim": true,
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "pagination": {
+      "page": {
+        "minimum": 1,
+        "default": 1
+      },
+      "limit": {
+        "minimum": 1,
+        "maximum": 100,
+        "default": 10
+      }
+    },
+    "sort": {
+      "allowedValues": ["name", "-name", "createdAt", "-createdAt"],
+      "default": "name"
+    },
+    "isArchived": {
+      "allowedValues": ["active", "archived", "all"],
+      "default": "all"
+    }
+  },
+  "amendmentsFromSpec": [
+    "GET /branches: isArchived default changed from 'false' to 'all'",
+    "GET /branches: isArchived values changed from boolean to ['active','archived','all']",
+    "GET /branches: sort allowlist explicitly defined with 4 values",
+    "GET /branches: local search parameter removed (global search only)",
+    "GET /branches: no name/location/createdAt range filters",
+    "GET /branches/:branchId/detail: reports fetched separately via /reports?branch=... with full filters",
+    "New endpoints added: GET /branches/:branchId/items, GET /items, PATCH /items/:itemId, GET /branches/:branchId/items/export, GET /items/export, GET /branches/:branchId/items/analytics, GET /branches/:branchId/timeline"
+  ]
+}

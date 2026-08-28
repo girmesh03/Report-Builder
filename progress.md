@@ -1,5 +1,36 @@
 # Progress — Report Builder
 
+## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
+
+- **Branch:** `phase-4-branches-backend-independent`
+- **Implemented (7 independent routes):**
+  - `GET /branches` — List with pagination, filter, sort (isArchived default=all, sort allowlist, no local search)
+  - `GET /branches/:branchId` — Lightweight single branch
+  - `POST /branches` — Create with duplicate check (409 exact message)
+  - `PATCH /branches/:branchId` — Update with duplicate check
+  - `POST /branches/:branchId/archive` — Archive (idempotent-ish)
+  - `POST /branches/:branchId/restore` — Restore (idempotent-ish)
+  - `DELETE /branches/:branchId` — Archive-first, reference check on Report/Item, sweeper hard-delete after 30 days
+- **Deferred (cross-model/domain):**
+  - `GET /branches/:branchId/detail` — Report+Item+Analytics aggregation
+- **Removed:** `GET /branches/:branchId/timeline` (brainstorming added, not in spec, removed)
+- **Amendments from spec (brainstorming):**
+  - `isArchived` default = `all`, values `active`|`archived`|`all`
+  - `sort` allowlist: `name`|`-name`|`createdAt`|`-createdAt`
+  - No local `search`, no range filters
+  - Branch name uniqueness: exact match after trim, case-sensitive
+  - Duplicate name 409: "A branch with this name already exists"
+  - Archive/Restore idempotent-ish (re-archive/restore-active = 409)
+- **Fixes applied:**
+  - Removed `index: true` on `user` field (spec §18.3)
+  - Fixed pagination: removed invalid `leanWithId`, fixed page cap bug
+  - Added race condition handling for E11000 (correct 409 message)
+- **New constants:** PAGINATION_*, BRANCH_NAME_MAX_LENGTH, BRANCH_LOCATION_MAX_LENGTH
+- **Files created:** 4 backend files (model, validator, controller, routes)
+- **Files modified:** 2 backend files (constants, routes/index)
+- **Docs updated:** project-specification.md (§30.2, §30.8, §69), findings.md, progress.md, task_plan.md
+- **Gates:** `node --check` ×8 backend files ✓, `npx vite build` 0 errors ✓, `npx eslint src/` 0 warnings ✓, `dist/` deleted ✓
+
 ## Session 2026-08-26 — Branches Area Reversion Complete
 
 - Surgical reversion of S2+S3 Branches slice executed on `phase-3-branches` branch
@@ -104,6 +135,110 @@
 - NEXT: owner browser pass focused on toolbar visibility + selection-
   first export + Amharic CSV in Excel. If still hidden: live pairing
   with owner console (no further blind rounds).
+
+## Session 2026-08-26 — Phase 1 Shell Committed + Pushed
+
+- 22 files committed as `feat: phase 1 shell and navigation` (`e9dfb97`)
+- Pushed to `phase-3-branches` (not merged)
+- Content: AppShell, MuiSidebar, AvatarMenu, MuiEmptyState, 6 page stubs,
+  MuiAppbar search placeholder, Logo/PublicLayout/Main.jsx wiring,
+  auth review fixes (LoginForm, RegisterForm, userSlice), constants
+
+## Session 2026-08-26 — Redux Layer Fix (normalizeResult + refresh cleanup)
+
+**Owner directive:** "I don't want extractUser. Only centralized in apiSlice
+that will work for both error and data transform."
+
+### Issues identified:
+1. `refresh` mutation exported from userSlice — dead code (never imported);
+   refresh is handled internally by `baseQueryWithReauth` but fresh user
+   data was discarded on success.
+2. `normalizeResult` mixes two concerns: envelope unwrapping (success) +
+   error transformation (failure). Owner wants single centralized function.
+
+### Fix applied:
+- Split `normalizeResult` → `unwrapEnvelope` (success, detects `data.user`
+  pattern) + `normalizeError` (error, `{ status, message, fieldErrors }`)
+- Deleted `extractUser` function from userSlice.js
+- Deleted `refresh` mutation + `useRefreshMutation` export
+- Removed `transformResponse` from login/register/googleAuth
+- `baseQueryWithReauth`: dispatches `authenticated(freshUser)` on refresh
+  success; uses `normalizeError` for error path only
+- Added `login.matchFulfilled` listener in store.js → dispatches
+  `authenticated` automatically
+- Simplified LoginForm: removed manual dispatch, `useDispatch`, authActions
+
+### Gates: lint 0, build 0, dist deleted
+
+## Session 2026-08-26 — Login Redirect Bug Fix
+
+**Symptom:** After login, redirected back to login; `selectAuthUser` is null.
+
+**Root cause (2 issues in store.js):**
+1. Missing side-effect import: `userSlice.js` not imported in `store.js`,
+   so `apiSlice.endpoints.login` was `undefined` when the listener
+   registered — the matcher never fired.
+2. Custom string matcher (`action.type?.includes?.("login")`) instead
+   of idiomatic `apiSlice.endpoints.login.matchFulfilled`.
+
+**Fix applied:**
+- Added `import "../features/userSlice.js"` to store.js (side-effect,
+  runs before listener registration → injects login endpoint)
+- Replaced custom matcher with `apiSlice.endpoints.login.matchFulfilled`
+
+### Gates: node --check OK, lint 0, build 0, dist deleted
+
+## Session 2026-08-26 — Phase 1 Shell Committed + Pushed
+
+- 22 files committed as `feat: phase 1 shell and navigation` (`e9dfb97`)
+- Pushed to `phase-3-branches` (not merged)
+- Content: AppShell, MuiSidebar, AvatarMenu, MuiEmptyState, 6 page stubs,
+  MuiAppbar search placeholder, Logo/PublicLayout/Main.jsx wiring,
+  auth review fixes (LoginForm, RegisterForm, userSlice), constants
+
+## Session 2026-08-26 — Redux Layer Fix (normalizeResult + refresh cleanup)
+
+**Owner directive:** "I don't want extractUser. Only centralized in apiSlice
+that will work for both error and data transform."
+
+### Issues identified:
+1. `refresh` mutation exported from userSlice — dead code (never imported);
+   refresh is handled internally by `baseQueryWithReauth` but fresh user
+   data was discarded on success.
+2. `normalizeResult` mixes two concerns: envelope unwrapping (success) +
+   error transformation (failure). Owner wants single centralized function.
+
+### Fix applied:
+- Split `normalizeResult` → `unwrapEnvelope` (success, detects `data.user`
+  pattern) + `normalizeError` (error, `{ status, message, fieldErrors }`)
+- Deleted `extractUser` function from userSlice.js
+- Deleted `refresh` mutation + `useRefreshMutation` export
+- Removed `transformResponse` from login/register/googleAuth
+- `baseQueryWithReauth`: dispatches `authenticated(freshUser)` on refresh
+  success; uses `normalizeError` for error path only
+- Added `login.matchFulfilled` listener in store.js → dispatches
+  `authenticated` automatically
+- Simplified LoginForm: removed manual dispatch, `useDispatch`, authActions
+
+### Gates: lint 0, build 0, dist deleted
+
+## Session 2026-08-26 — Login Redirect Bug Fix
+
+**Symptom:** After login, redirected back to login; `selectAuthUser` is null.
+
+**Root cause (2 issues in store.js):**
+1. Missing side-effect import: `userSlice.js` not imported in `store.js`,
+   so `apiSlice.endpoints.login` was `undefined` when the listener
+   registered — the matcher never fired.
+2. Custom string matcher (`action.type?.includes?.("login")`) instead
+   of idiomatic `apiSlice.endpoints.login.matchFulfilled`.
+
+**Fix applied:**
+- Added `import "../features/userSlice.js"` to store.js (side-effect,
+  runs before listener registration → injects login endpoint)
+- Replaced custom matcher with `apiSlice.endpoints.login.matchFulfilled`
+
+### Gates: node --check OK, lint 0, build 0, dist deleted
 
 ## Session 2026-08-25 — S3 review round 7 (toolbar visibility + selection export) — BUILT
 
@@ -286,55 +421,3 @@
 - NEXT: none — increment closed. Next session opens slice 1 (auth):
   read these working files first per §66.3. Servers never started;
   ports free.
-
-## Session 2026-08-26 — Phase 1 Shell Committed + Pushed
-
-- 22 files committed as `feat: phase 1 shell and navigation` (`e9dfb97`)
-- Pushed to `phase-3-branches` (not merged)
-- Content: AppShell, MuiSidebar, AvatarMenu, MuiEmptyState, 6 page stubs,
-  MuiAppbar search placeholder, Logo/PublicLayout/Main.jsx wiring,
-  auth review fixes (LoginForm, RegisterForm, userSlice), constants
-
-## Session 2026-08-26 — Redux Layer Fix (normalizeResult + refresh cleanup)
-
-**Owner directive:** "I don't want extractUser. Only centralized in apiSlice
-that will work for both error and data transform."
-
-### Issues identified:
-1. `refresh` mutation exported from userSlice — dead code (never imported);
-   refresh is handled internally by `baseQueryWithReauth` but fresh user
-   data was discarded on success.
-2. `normalizeResult` mixes two concerns: envelope unwrapping (success) +
-   error transformation (failure). Owner wants single centralized function.
-
-### Fix applied:
-- Split `normalizeResult` → `unwrapEnvelope` (success, detects `data.user`
-  pattern) + `normalizeError` (error, `{ status, message, fieldErrors }`)
-- Deleted `extractUser` function from userSlice.js
-- Deleted `refresh` mutation + `useRefreshMutation` export
-- Removed `transformResponse` from login/register/googleAuth
-- `baseQueryWithReauth`: dispatches `authenticated(freshUser)` on refresh
-  success; uses `normalizeError` for error path only
-- Added `login.matchFulfilled` listener in store.js → dispatches
-  `authenticated` automatically
-- Simplified LoginForm: removed manual dispatch, `useDispatch`, authActions
-
-### Gates: lint 0, build 0, dist deleted
-
-## Session 2026-08-26 — Login Redirect Bug Fix
-
-**Symptom:** After login, redirected back to login; `selectAuthUser` is null.
-
-**Root cause (2 issues in store.js):**
-1. Missing side-effect import: `userSlice.js` not imported in `store.js`,
-   so `apiSlice.endpoints.login` was `undefined` when the listener
-   registered — the matcher never fired.
-2. Custom string matcher (`action.type?.includes?.("login")`) instead
-   of idiomatic `apiSlice.endpoints.login.matchFulfilled`.
-
-**Fix applied:**
-- Added `import "../features/userSlice.js"` to store.js (side-effect,
-  runs before listener registration → injects login endpoint)
-- Replaced custom matcher with `apiSlice.endpoints.login.matchFulfilled`
-
-### Gates: node --check OK, lint 0, build 0, dist deleted
