@@ -26,6 +26,9 @@ There are **no test suites** and none may be added (see exclusions). `npm test` 
 But the spec's **implementation-status claims are unreliable**. Its §15 tree marks large parts of the backend/frontend `(implemented)` and §13.5/§66 record installs/amendments that do not exist in this working copy (git had zero commits while those markers were written). Therefore:
 
 - Treat spec sections as behavioral canon; treat every "(implemented)" / "installed" / phase-completion claim as **unverified until you check the actual filesystem, git log, and manifests**.
+- **The spec is wrong but not entirely wrong:** While its implementation-status claims are unreliable, it contains foundational truths that cannot be wrong (e.g., JSDoc everywhere, arrow functions, `_id` everywhere, semantic HTTP status names, icon-only buttons on `xs`).
+- **Exhaustive Brainstorm & Identification:** For every implementation task, we must perform deep analysis during brainstorming to explicitly separate these canonical truths (Canon Inventory) from outdated plans (Amendments).
+- **Same-Change Discipline (§66.6):** Every single amendment must be noted down in the planning working files, `AGENTS.md`, and `docs/project-specification.md` (as a physical text amendment) in the same commit as the code changes. Once identified and amended, these rules must be respected throughout the remaining lifecycle.
 - When spec tables conflict with `package.json`, the manifest wins (spec §13.1 agrees).
 - Never silently invent behavior the spec doesn't decide — surface the gap to the user instead.
 
@@ -64,8 +67,8 @@ features, files, directories, dependencies, every artifact alike:
 Work is delivered through the spec §66 phase protocol (P1–P8) using the §9.8 six-step git protocol, broken into small tasks:
 
 1. **Pre-git:** check status, create feature branch `phase-N-description`. No direct commits to `main`.
-2. **Step-1.1 identification:** before writing anything, identify *everything* related to the task — all spec sections it touches, all files it creates/edits, its constants/env/spec-tree mirrors, and its validation gates.
-3. **Deep analysis:** read the current code and all prior-phase commits/working files before executing.
+2. **Deep analysis:** read the current code and all prior-phase commits/working files before executing. Consult mui-mcp for MUI/MUI X APIs when applicable.
+3. **Step-1.1 identification:** after deep analysis, identify *everything* related to the task — all canon items from spec that apply (rules that can't be wrong), all spec amendments, all files it creates/edits, its constants/env/spec-tree mirrors, and its validation gates. Record canon inventory and amendments in working files before any code is written.
 4. **Execute sub-tasks**, each closed by its listed validation (see gates below). **No commit happens in this phase — work stays uncommitted in the working tree.**
 5. **User review + explicit approval BEFORE any commit** — hard gate (owner directive 2026-08-24: the step-5 review precedes committing, always; no interim commits). Show a diff summary and exit-gate results. Only after approval: commit → push → merge → delete branch.
 6. **Post-git:** stage after diff review, commit (`feat: phase N description`; `chore:` for hardening), push branch, merge to main, delete branch. No amending after push.
@@ -85,6 +88,7 @@ Before each implementation, invoke the applicable skills/MCPs — do not skip th
 
 ## Hard engineering gates (every change — SC-6/SC-7)
 
+- **No direct alignItems prop on Stack:** Direct `alignItems` property on `<Stack>` components is forbidden. All layouts using `<Stack>` must specify alignment via the `sx` prop (e.g., `sx={{ alignItems: "center" }}`) to adhere to v9 conventions.
 - **No deprecated MUI props:** never `PaperProps` / `primaryTypographyProps` / `ModalProps` / `TransitionProps` etc. — v9 slot form only (`slotProps={{ paper: … }}`, direct child Typography). mui-mcp is the mandatory first stop for every MUI/MUI X API (owner directive 2026-08-26).
 - **No magic values:** literals live in `utils/constants.js` (UPPER_SNAKE_CASE) or `config/env.js`; both objects frozen. Nothing inline in controllers/components.
 - **No `console.log` in backend** — Winston logger only.
@@ -110,6 +114,7 @@ Dependencies are added only via the owning phase or explicit approval (§13.7) �
 
 - JS modules kebab-case (`httpStatus.js`, `stt.service.js`); React components PascalCase, one exported component per file named after itself; reusable MUI components prefixed `Mui*` in `client/src/components/reusable/`; **no barrel files**.
 - **Arrow functions everywhere** (owner directive 2026-08-24); exceptions only where semantics force otherwise: mongoose hooks/methods/virtuals (`this`), class declarations/constructors.
+- **Event handlers in components use `useCallback`** (owner directive 2026-08-31) with correctly specified deps — empty `[]` when the handler touches only stable setters/log. Apply consistently across all pages and consumer components (matches existing `useLogout.js`, `AppShell.jsx`, `MuiTextField.jsx`; mirrors spec §46.2).
 - **Controllers use `express-async-handler`** — no manual try/catch → `next(error)` boilerplate (owner directive 2026-08-24).
 - RTK Query domain endpoint sets live at `redux/features/<domain>Slice.js` (owner directive 2026-08-24; `userSlice.js` not `authEndpoints.js`).
 - `LocalizationProvider` mounts exactly once in `main.jsx` — never per page/component.

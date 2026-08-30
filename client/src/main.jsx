@@ -34,7 +34,9 @@ const router = createBrowserRouter([
     path: "/",
     element: <App />,
     errorElement: <AppErrorPage />,
-    hydrateFallbackElement: <LoadingSpinner message="Loading…" />,
+    hydrateFallbackElement: (
+      <LoadingSpinner message="Initializing..." minHeight="95vh" />
+    ),
     children: [
       // Public branch — Landing browsable by guests and sessions (§41.5).
       {
@@ -138,7 +140,10 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <Provider store={store}>
-      <PersistGate loading={<LoadingSpinner message="Restoring session…" />} persistor={persistor}>
+      <PersistGate
+        loading={<LoadingSpinner message="Restoring session…" />}
+        persistor={persistor}
+      >
         <LocalizationProvider dateAdapter={AdapterDayjs}>
           <RouterProvider router={router} />
         </LocalizationProvider>

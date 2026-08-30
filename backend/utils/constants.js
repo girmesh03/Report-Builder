@@ -82,4 +82,7 @@ export const PAGINATION_MAX_LIMIT = deepFreeze(100);
 export const BRANCH_NAME_MAX_LENGTH = deepFreeze(100);
 export const BRANCH_LOCATION_MAX_LENGTH = deepFreeze(200);
 
+/** Pagination row-per-page options for MuiDataGrid and MuiPagination (§11.3, §46.7). */
+export const ROWS_PER_PAGE_OPTIONS = deepFreeze([10, 25, 50, 100]);
+
 export { deepFreeze };

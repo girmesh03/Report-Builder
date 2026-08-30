@@ -74,11 +74,11 @@ const AppShell = () => {
           sx={{
             flexGrow: 1,
             overflowY: "auto",
-            p: { xs: 1, sm: 2, md: 3 },
+            p: { xs: 1, sm: 2 },
           }}
         >
           {navigation.state === "loading" ? (
-            <LoadingSpinner message="Loading…" minHeight="100%" />
+            <LoadingSpinner message="Navigating..." minHeight="100%" />
           ) : (
             <Outlet />
           )}

@@ -28,7 +28,7 @@ const LoadingSpinner = ({ message, minHeight = "100vh" }) => {
         gap: 1.5,
       }}
     >
-      <CircularProgress size={36} />
+      <CircularProgress size={36} disableShrink />
       {message ? (
         <Typography variant="body2" color="text.secondary">
           {message}
@@ -36,6 +36,6 @@ const LoadingSpinner = ({ message, minHeight = "100vh" }) => {
       ) : null}
     </Box>
   );
-}
+};
 
 export default LoadingSpinner;

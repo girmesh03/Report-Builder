@@ -224,3 +224,171 @@
 - **Centralized unwrap pattern:** `unwrapEnvelope` enhanced to detect
   `data.user` shape — auth endpoints return UserDto directly from
   `.unwrap()`, no endpoint-level transform needed.
+
+---
+
+## Session 2026-08-28 — Branches Page Frontend Implementation
+
+### Existing Redux Structure Analysis
+
+**apiSlice.js** - Central API with:
+- `baseQueryWithReauth` - handles 401 refresh chain with single-flight refresh
+- `unwrapEnvelope` - unwraps `{ success, message, data }` envelope, handles special `data.user` for auth endpoints
+- `normalizeError` - normalizes errors to consistent shape: `{ status, message, fieldErrors? }`
+- Tag types: `["User"]`
+
+**authSlice.js** - Session state (status + user):
+- Status: INITIALIZING | AUTHENTICATED | GUEST
+- Reducers: `authenticated`, `setGuest`, `logoutCleared`
+- Extra reducers for `AUTH_SESSION_EXPIRED`
+
+**userSlice.js** - Injects auth endpoints into apiSlice:
+- `login`, `register`, `logout`, `googleAuth` mutations
+- Uses centralized `unwrapEnvelope` - no endpoint-level transformResponse
+
+**store.js**:
+- `persistReducer` for auth with sessionStorage adapter
+- `listenerMiddleware` for REHYDRATE and login fulfillment
+- `listenerMiddleware.startListening` with `apiSlice.endpoints.login.matchFulfilled`
+
+### Key Patterns
+1. **Centralized envelope unwrapping** - `unwrapEnvelope` in apiSlice handles all success responses
+2. **Centralized error normalization** - `normalizeError` in apiSlice handles all errors
+3. **Reauth chain** - `baseQueryWithReauth` handles 401 → refresh → retry
+4. **Tag-based invalidation** - `invalidatesTags: ["User"]` for auth mutations
+5. **Session persistence** - redux-persist with sessionStorage adapter
+
+### Branches API Contract (from backend)
+- `GET /branches` - paginated list with filters: page, limit, sort, isArchived (all|active|archived)
+- `GET /branches/:branchId` - lightweight branch
+- `POST /branches` - create branch
+- `PATCH /branches/:branchId` - update branch
+- `POST /branches/:branchId/archive` - archive
+- `POST /branches/:branchId/restore` - restore
+- `DELETE /branches/:branchId` - archive-first, reference check
+
+### UI Requirements (from spec §56)
+- Responsive header with view toggle (List/Grid), filter, new branch
+- List view (Branch cards) on xs/sm, Grid view (MuiDataGrid) on md+
+- Filter dialog (Show Archived switch only, PROVISIONAL OQ-017)
+- Create/Edit branch dialog (RHF + MuiTextField + start adornments)
+- Confirmation dialogs (Archive/Restore/Delete)
+- MuiDataGrid with server-side pagination/sort
+- Card view with MuiPagination
+- View toggle: List/Grid with ToggleButton icons only + Tooltips
+- Filter button: IconButton with Badge
+- New Branch: MuiButton with AddIcon
+- Card view: xs=1, sm=2, md=3, lg=4 columns
+- DataGrid: server-side pagination/sort, checkboxSelection=true
+
+### Issues Identified in Uncommitted Code
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | MuiPagination passes non-standard props to `<Pagination>` (rowsPerPage, rowsPerPageOptions, onRowsPerPageChange) | MuiPagination.jsx | Rewrite with custom rows-per-page selector |
+| 2 | Duplicate loading/error check (early return + inner JSX check) | Branches.jsx | Remove inner dead-code check |
+| 3 | `getBranches` tag path `result.data.docs` wrong after unwrapEnvelope flattens | branchesSlice.js:20 | Change to `result.docs` |
+| 4 | `getBranchDetail` hits non-existent route `/branches/:branchId/detail` (deferred per Phase 4.1) | branchesSlice.js:29-37 | Keep as stub, do not use in UI |
+| 5 | `apiSlice.tagTypes` missing "Branch" | apiSlice.js:149 | Add `"Branch"` to tagTypes |
+| 6 | `onSortModelChange` is no-op (void _sort) | Branches.jsx:456-464 | Wire to query state or remove |
+| 7 | `ButtonGroup` wrapping `ToggleButtonGroup` (two different MUI grouping components) | BranchesHeaderActions.jsx:37 | Replace with `Box sx={{ display: "flex", gap: 1 }}` |
+| 8 | MuiDataGrid uses deprecated `components` prop (v5/v6 API) | MuiDataGrid.jsx:92-101 | Change to `slots={{ noRowsOverlay: ... }}` |
+| 9 | `BranchFormDialog` stale defaultValues (useForm reads initialData only once) | BranchFormDialog.jsx:36-38 | Add `useEffect` to reset form on initialData change |
+| 10 | Missing newline at end of files | MuiEmptyState.jsx, MuiPageHeader.jsx | Add trailing newline |
+| 11 | Planning files overwritten (§66.3 violation) | findings.md, progress.md, task_plan.md | Revert + append |
+| 12 | `task_plan.md` stale statuses (all "pending" but code is implemented) | task_plan.md | Update statuses |
+
+---
+
+## Session 2026-08-28 — MuiPageHeader + Branches Page Header (Step-1.1 Identification)
+
+### Task: Re-work MuiPageHeader and Branches page header
+
+### Canon Inventory (spec — must be respected)
+
+| # | Source | Canon Item |
+|---|--------|------------|
+| C1 | §46.12 | Props: `title`, `subtitle`, `actions`, `hideSubtitle` (auto: subtitle hidden below 600px portrait) |
+| C2 | §46.12 | Title (h4) + optional subtitle on one line; `mb: 2` |
+| C3 | §46.12 | One-line rule: title `noWrap` with ellipsis; actions slot `flexShrink: 0` |
+| C4 | §46.12 | No eyebrow (removed in R3-fix) |
+| C5 | §43.2 | Header-strip motif: hairline rule above a title |
+| C6 | §56.2 | Branches title: "Branches", subtitle: "Your supervision branches" |
+| C7 | AGENTS.md | JSDoc on new/edited functions, `@module` tag, arrow functions, no magic values |
+
+### Amendments (owner-approved)
+
+| # | Amendment | Rationale |
+|---|-----------|-----------|
+| A1 | Use `useTheme` + `breakpoints.down("xs")` for subtitle visibility | Equivalent to `hideSubtitle` auto behavior |
+| A2 | Title variant `h6` on xs | Prevents overflow; owner decides after seeing it |
+| A3 | Branches actions slot has view toggle + filter + new branch | Full Branches page functionality |
+| A4 | Use `Stack` instead of `Box` for MuiPageHeader layout | Better semantic layout |
+| A5 | No bottom border line on MuiPageHeader | Owner design decision |
+| A6 | Branches page shows only page header (empty body) | Incremental build — content comes later |
+
+### Issues to Fix (this task)
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | MuiPageHeader missing `hideSubtitle` prop (§46.12 canon C1) | MuiPageHeader.jsx | Add `hideSubtitle` prop with auto behavior |
+| 2 | BranchesHeaderActions `ButtonGroup` wrapping `ToggleButtonGroup` | BranchesHeaderActions.jsx:37 | Replace with `Box` |
+| 3 | Branches.jsx duplicate loading/error check | Branches.jsx | Remove inner dead-code check |
+| 4 | Missing newline at end of MuiPageHeader.jsx | MuiPageHeader.jsx | Add trailing newline |
+| 5 | MuiPageHeader uses `Box` instead of `Stack` | MuiPageHeader.jsx | Change to `Stack` |
+| 6 | MuiPageHeader has bottom border | MuiPageHeader.jsx | Remove border |
+| 7 | Branches page has full content instead of header-only | Branches.jsx | Strip to page header only |
+
+---
+
+## Session 2026-08-31 — Responsive Page Header (Step-1.1 Identification)
+
+### Task: Responsive MuiPageHeader + BranchesHeaderActions + Branches.jsx
+
+### Canon Inventory (new items)
+
+| # | Source | Canon Item |
+|---|--------|------------|
+| C8 | §56.7 | xs = Branch cards (1 col), sm = cards (2 col), md+ = MuiDataGrid |
+| C9 | §56.7 | Filter dialog full-width-ish on xs |
+| C10 | §45.2 | Breakpoint buckets: xs, sm, md, lg, lg+ |
+| C11 | §46.12 | Subtitle `text.secondary` |
+| C12 | §46.2 / AGENTS.md | Event handlers in components use `useCallback` with correct deps (`[]` for stable-only setters/log); consistent across all pages/consumers |
+
+### Amendments (owner-approved, 2026-08-31)
+
+| # | Amendment | Amends | Files |
+|---|-----------|--------|-------|
+| A7 | On xs, hide title too | §46.12 — add `hideTitle` prop | MuiPageHeader.jsx, §46.12 |
+| A8 | On xs, no MuiDataGrid — only 1-col card, no toggle | §56.7 breakpoint matrix | Branches.jsx, §56.7 |
+| A9 | On sm+, view toggle present, default MuiDataGrid | §56.7 breakpoint matrix | Branches.jsx, §56.7 |
+| A10 | Auto-switch view on xs ↔ sm transition | NEW behavior | Branches.jsx, §56.7 |
+| A11 | Handler functions with console.log (verification) | §56.4 placeholder | Branches.jsx |
+| A12 | On xs, create button icon-only (no text) | §56.4 header actions | BranchesHeaderActions.jsx, §56.4 |
+| A13 | `alignItems` on Stack in `sx`, not prop | MUI v9 best practice | MuiPageHeader.jsx, AGENTS.md |
+| A14 | Subtitle `text.secondary` (confirmed — already done) | §46.12 | N/A |
+
+### Amendments (supplementary, discovered during exhaustive analysis 2026-08-31)
+
+| # | Amendment | Amends | Files |
+|---|-----------|--------|-------|
+| A15 | `AuthSheet` passes `hideTitle={false}` so auth titles ("Log in" / "Sign up") never hide on `xs` | §46.12 default behavior | AuthSheet.jsx |
+
+### Issues to Fix (this task)
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | MuiPageHeader missing `hideTitle` prop | MuiPageHeader.jsx | Add `hideTitle` prop with auto behavior |
+| 2 | `alignItems` as Stack prop instead of sx | MuiPageHeader.jsx | Move to `sx={{ alignItems: "center" }}` |
+| 3 | BranchesHeaderActions always shows toggle + full button | BranchesHeaderActions.jsx | Conditional render on `viewMode` prop |
+| 4 | Branches.jsx no responsive logic | Branches.jsx | Add useMediaQuery + derived effectiveView + `useCallback` handlers (C12) |
+| 5 | AuthSheet would lose its title on xs (hideTitle default) | AuthSheet.jsx | Pass `hideTitle={false}` |
+
+### Strict Process Requirement (codified 2026-08-31)
+
+- The spec (`docs/*`) is **wrong but not entirely wrong** — codified
+  in `AGENTS.md` and `docs/project-specification.md` §66.6.
+- Every implementation identifies canon (Canon Inventory) vs
+  amendments during brainstorm and records them in the planning
+  working files, `AGENTS.md`, and the spec in the same commit (§66.6).
+- Respect the amended text once recorded.

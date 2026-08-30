@@ -9795,6 +9795,13 @@ mode: 'onBlur' })` with `register` by default; `Controller` is
   try/catch and calls `reset()` on success (§9.6).
 - **Adornments.** Every text input carries a start adornment
   (§44.2).
+- **Event handlers use `useCallback`** (owner directive
+  2026-08-31): any handler function defined inside a component is
+  wrapped in `useCallback` with correctly specified deps — empty
+  `[]` when the handler touches only stable setters/log. Applied
+  consistently across every page and consumer component (mirrors
+  AGENTS.md; existing examples: `useLogout.js`, `AppShell.jsx`,
+  `MuiTextField.jsx` §46.4, `MuiPageHeader.jsx` §46.12).
 - **Themes & fonts.** Thematic: chrome Inter, content Ethiopic per
   §43.5; no inline `style` anywhere; `sx`/`styled` only (§9.6).
 
@@ -10090,7 +10097,9 @@ AdapterDayjs` — the pickers render no provider of their own
   `actions` slot is `flexShrink: 0` at the right end.
 - **Props:** `title`, `subtitle`, `actions`,
   `hideSubtitle` (auto: subtitle hidden below 600px portrait — the
-  header stays a single line on xs).
+  header stays a single line on xs), `hideTitle` (auto: title hidden
+  below 600px portrait so the header reduces to the actions slot on
+  xs; **amended 2026-08-31**).
 - **States:** default only — loading/empty/error belong to the
   page sections.
 
@@ -12260,7 +12269,11 @@ row's **Name** cell links to the Branch Details page
   switch (default off — active-only, §30.2; the authoritative
   filter), with further filters noted under design. Filter change
   resets to page 1 (server pages, §46.7). No inline search/narrowing
-  on this page.
+  on this page. **Responsive (amended 2026-08-31):** on `sm+` the
+  create control is the labeled `MuiButton` ("New branch" with `Add`
+  icon); on `xs` it collapses to an icon-only `IconButton` (with
+  tooltip) — the small-screen icon-only convention (§45.4), and the
+  view toggle is hidden entirely (§56.7).
 - **Toolbar:** `GridToolbar` subset per §46.8 (columns toggle,
   density, filter, CSV export of selected rows through the §58
   export surface).
@@ -12359,14 +12372,20 @@ the route + placeholder only.
   ("No branches yet — add your first branch"); Show-Archived
   with nothing archived — "No archived branches." (chrome
   copy, §7.6).
-- Breakpoint matrix (the §45.2 five buckets):
+- Breakpoint matrix (the §45.2 five buckets) — **amended 2026-08-31**
+  (small-screen icon-only convention §45.4; `hideTitle` on xs §46.12;
+  view toggle hidden on xs, auto-switch view across the `xs`↔`sm`
+  boundary driven by `useMediaQuery`, default view on `sm+` is the
+  MuiDataGrid):
 
-| Region        | xs                            | sm                   | md                         | lg                         | lg+                        |
-| ------------- | ----------------------------- | -------------------- | -------------------------- | -------------------------- | -------------------------- |
-| Page header   | stacked + ButtonGroup own row | stacked              | inline right (ButtonGroup) | inline right (ButtonGroup) | inline right (ButtonGroup) |
-| Presentation  | Branch cards (1 col)          | Branch cards (2 col) | MuiDataGrid full           | MuiDataGrid full           | MuiDataGrid full           |
-| Filter dialog | full-width-ish (maxWidth sm)  | sm                   | sm                         | sm                         | sm                         |
-| Create dialog | full-width (maxWidth sm)      | sm                   | sm                         | sm                         | sm                         |
+| Region        | xs                                | sm                       | md                         | lg                         | lg+                        |
+| ------------- | --------------------------------- | ------------------------ | -------------------------- | -------------------------- | -------------------------- |
+| Page header   | actions slot only (title+sub hidden, §46.12) | title+sub inline; toggle shown, default grid | inline right (toggle)     | inline right (toggle)     | inline right (toggle)     |
+| Presentation  | Branch cards (1 col)              | MuiDataGrid (default)    | MuiDataGrid full           | MuiDataGrid full           | MuiDataGrid full           |
+| View toggle   | hidden (forces list view)         | visible (default grid)   | visible                    | visible                    | visible                    |
+| Create button | icon-only `IconButton` (tooltip)  | labeled `MuiButton`       | labeled `MuiButton`        | labeled `MuiButton`        | labeled `MuiButton`        |
+| Filter dialog | full-width-ish (maxWidth sm)      | sm                       | sm                         | sm                         | sm                         |
+| Create dialog | full-width (maxWidth sm)          | sm                       | sm                         | sm                         | sm                         |
 
 ### 56.8 Verification usage
 
@@ -13822,6 +13841,20 @@ and removals (§13.7); the §14.3 ADR index with owner-section
 amendments (§14.5); the schema-era sections with model changes
 (§18.9); the §11 constants with their consumers (§11.7). The
 §63.5 owner-mirror checks are the review instrument.
+
+- **Spec trust rule (amended 2026-08-31):** this document is
+  **wrong but not entirely wrong**. Its implementation-status
+  claims and some UI/breakpoint mechanics are unreliable and may be
+  superseded; yet it contains foundational truths that cannot be
+  wrong (e.g., JSDoc everywhere, arrow functions, `_id` everywhere,
+  semantic HTTP status names, the icon-only `xs` convention). Every
+  implementation task must, during its brainstorm/analysis step,
+  separate these canonical truths (Canon Inventory) from outdated
+  plans (Amendments), record both in the planning working files and
+  `AGENTS.md`, and mirror any amendment here **in the same commit**
+  as its code change. Once identified and amended, the amended text
+  becomes the authoritative truth and is respected throughout the
+  remaining lifecycle.
 
 ### 66.7 Deferred-feature re-admission (D1–D5, §4.2)
 

@@ -421,3 +421,59 @@ that will work for both error and data transform."
 - NEXT: none — increment closed. Next session opens slice 1 (auth):
   read these working files first per §66.3. Servers never started;
   ports free.
+
+## Session 2026-08-28 — Branches Page Frontend Implementation
+
+- **Branch:** `phase-5-branches-frontend`
+- **Created (14 new files):**
+  - `components/reusable/MuiDialog.jsx` — Standard dialog wrapper (fullscreen on xs/sm)
+  - `components/reusable/MuiConfirmDialog.jsx` — Confirmation dialog on MuiDialog
+  - `components/reusable/MuiDataGrid.jsx` — Server-side paginated DataGrid wrapper
+  - `components/reusable/MuiDataGridToolbar.jsx` — DataGrid toolbar (columns, filters, export, print)
+  - `components/reusable/MuiPagination.jsx` — Card-view pagination
+  - `components/reusable/MuiStatusBadge.jsx` — Color-coded status chip
+  - `components/branches/BranchesFilterDialog.jsx` — Show Archived switch dialog
+  - `components/branches/BranchFormDialog.jsx` — RHF create/edit branch form
+  - `components/branches/BranchesHeaderActions.jsx` — View toggle + filter + new branch
+  - `components/branches/BranchLedgerCard.jsx` — Branch card for list view
+  - `components/branches/BranchRowActions.jsx` — DataGrid row action icons
+  - `components/columns/branches.jsx` — DataGrid column definitions
+  - `redux/features/branchesSlice.js` — RTK Query endpoints (8 hooks)
+  - `pages/Branches.jsx` — Full page (399 lines, replacing 13-line placeholder)
+- **Modified (5 files):**
+  - `backend/utils/constants.js` — Added `ROWS_PER_PAGE_OPTIONS`
+  - `client/src/utils/constants.js` — Mirrored `ROWS_PER_PAGE_OPTIONS`
+  - `components/reusable/LoadingSpinner.jsx` — Added `disableShrink`, arrow syntax
+  - `components/reusable/MuiEmptyState.jsx` — Added `icon`, `minHeight`, `sx` props
+  - `components/reusable/MuiPageHeader.jsx` — Responsive xs title, single-line noWrap
+- **Status:** All code written, uncommitted. 12 issues identified (see findings.md).
+- **Gates:** Pending — issues must be fixed before step-5 review.
+
+## Session 2026-08-28 — MuiPageHeader + Branches Page Header (Task 1)
+
+- **Task:** Re-work MuiPageHeader and Branches page header
+- **Protocol step:** Step-1.1 identification complete, implementing
+- **Canon items:** 7 (C1-C7 from findings.md)
+- **Amendments:** 6 (A1-A6 from findings.md)
+- **Files to modify:** 3 (MuiPageHeader.jsx, BranchesHeaderActions.jsx, Branches.jsx)
+- **Fixes:** 7 issues (see findings.md session entry)
+- **Gates:** `node --check` ✓, `npx vite build` 0 errors ✓, `npx eslint src/` 0 warnings ✓, `dist/` deleted ✓
+- **Status:** Complete — awaiting step-5 user review
+
+## Session 2026-08-31 — Responsive Page Header (Task 1.1)
+
+- **Task:** Responsive MuiPageHeader + BranchesHeaderActions + Branches.jsx
+- **Protocol step:** Implementation complete, step-5 approved → committing
+- **Commit disposition:** **INTERMEDIATE — NOT DONE YET** (owner
+  directive 2026-08-31: one thing at a time; no merge; add-commit-push
+  only on `phase-5-branches-frontend`). Remaining phase work
+  (BranchesFilterDialog, BranchFormDialog, BranchLedgerCard,
+  BranchRowActions, MuiDialog, MuiStatusBadge, columns, branchesSlice,
+  other Mui components) continues in later increments.
+- **Canon items:** C8-C12 (from findings.md)
+- **Amendments:** A7-A15 (from findings.md)
+- **Convention codified:** C12 — event handlers in components use `useCallback` (owner directive 2026-08-31)
+- **Files to modify:** 4 code + 1 docs + AGENTS (MuiPageHeader, BranchesHeaderActions, Branches, AuthSheet, spec.md, AGENTS.md)
+- **Fixes:** 5 issues (see findings.md session entry)
+- **Gates:** Pending step-5 re-run
+- **Status:** Implementing → Complete (code + docs written)

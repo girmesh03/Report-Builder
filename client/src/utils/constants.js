@@ -91,3 +91,6 @@ export const SIDEBAR_MINI_WIDTH = Object.freeze(72);
 
 /** @type {number} Permanent sidebar width when expanded (px). */
 export const SIDEBAR_FULL_WIDTH = Object.freeze(240);
+
+/** Pagination row-per-page options for MuiDataGrid and MuiPagination (§11.3, §46.7). */
+export const ROWS_PER_PAGE_OPTIONS = Object.freeze([10, 25, 50, 100]);

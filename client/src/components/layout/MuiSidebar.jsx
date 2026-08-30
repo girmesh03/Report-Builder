@@ -353,6 +353,8 @@ const MuiSidebar = ({ mode, onToggleMode, mobileOpen, onMobileClose }) => {
         anchor="left"
         open={mobileOpen}
         onClose={onMobileClose}
+        disableEnforceFocus
+        disableRestoreFocus
         slotProps={{
           paper: {
             sx: { width: SIDEBAR_FULL_WIDTH },

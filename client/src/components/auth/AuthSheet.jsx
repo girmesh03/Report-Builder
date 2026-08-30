@@ -46,6 +46,7 @@ const AuthSheet = ({ title, children }) => {
       />
       <MuiPageHeader
         title={title}
+        hideTitle={false}
         actions={
           <Typography
             variant="caption"

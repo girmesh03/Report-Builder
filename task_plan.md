@@ -18,6 +18,18 @@ Governing Rule #2 — **STEP-5 REVIEW BEFORE COMMIT** (owner directive,
 2026-08-24): no commit of any kind until the owner reviews the diff
 and approves. One commit set per increment, post-approval only.
 
+Governing Rule #4 — **ADD → COMMIT → PUSH ONLY, NO MERGE** (owner
+directive, 2026-08-31): increments are pushed to their feature branch
+and **never merged / never deleted** during active work. Interim
+commits on `phase-N-description` are intermediate, not done yet; the
+branch is merged only when the owner closes the phase.
+
+Governing Rule #5 — **ONE THING AT A TIME** (owner directive,
+2026-08-31): each commit is a single-scope increment. We are not done
+yet; later phases/tasks continue from the pushed state. Respect the
+"still in progress" status — do not treat an intermediate commit as a
+closed increment (see progress.md).
+
 Governing Rule #3 — **NO LONG-BLOCKING COMMANDS** (owner directive,
 2026-08-24): never run `node server.js` (even backgrounded with
 redirection) through the session shell — it holds the pipe. Spawn
@@ -160,3 +172,83 @@ working files. All gates green.
 | `userSlice.js` | Delete `extractUser`, `refresh` mutation, all `transformResponse` | pending |
 | `store.js` | Add `login.matchFulfilled` listener → dispatches `authenticated` | pending |
 | `LoginForm.jsx` | Remove manual `dispatch(authActions.authenticated(user))` | pending |
+
+---
+
+## Phase 5: Branches Page Frontend
+
+### Phase 5.1: Core Reusable Components
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Create `MuiDialog` reusable component | done |
+| 2 | Create `MuiConfirmDialog` reusable component | done |
+| 3 | Create `MuiStatusBadge` reusable component | done |
+| 4 | Enhance `MuiEmptyState` with icon/minHeight/sx props | done |
+| 5 | Fix `MuiPageHeader` for single line on xs | done |
+| 6 | Create `MuiDataGrid` wrapper component | done (needs fix: components → slots) |
+| 7 | Create `MuiDataGridToolbar` reusable component | done |
+| 8 | Create `MuiPagination` reusable component | done (needs fix: non-standard props) |
+| 9 | Update `LoadingSpinner` with disableShrink | done |
+
+### Phase 5.2: Branch Domain Components
+
+| # | Task | Status |
+|---|------|--------|
+| 10 | Create `BranchesFilterDialog` | done |
+| 11 | Create `BranchFormDialog` (RHF + MuiTextField) | done (needs fix: stale defaultValues) |
+| 12 | Create `BranchesHeaderActions` | done (needs fix: ButtonGroup nesting) |
+| 13 | Create `BranchLedgerCard` | done |
+| 14 | Create `BranchRowActions` | done |
+| 15 | Create `branchesSlice.js` (RTK Query) | done (needs fix: tag path, tagTypes) |
+
+### Phase 5.3: Page Integration
+
+| # | Task | Status |
+|---|------|--------|
+| 16 | Create `branchColumns` definitions | done |
+| 17 | Create `BranchesPage` full implementation | done (needs fix: duplicate loading, no-op sort) |
+| 18 | Add `ROWS_PER_PAGE_OPTIONS` to constants | done |
+
+## Session 2026-08-31 — Responsive Page Header (Task 1.1)
+
+### Phase 5 Sub-task: Responsive MuiPageHeader + Branches Header
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | MuiPageHeader.jsx — hideTitle prop, alignItems in sx | implemented (needs gates) |
+| 2 | BranchesHeaderActions.jsx — conditional toggle + create button | implemented (needs gates) |
+| 3 | Branches.jsx — responsive view logic + `useCallback` handlers (C12) | implemented (needs gates) |
+| 4 | AuthSheet.jsx — hideTitle={false} (A15) | implemented (needs gates) |
+| 5 | AGENTS.md — A13 alignItems + C12 useCallback convention + spec-trust codification | done |
+| 6 | Spec §46.12 — hideTitle prop | done |
+| 7 | Spec §56.4 — xs icon-only create button | done |
+| 8 | Spec §56.7 — responsive breakpoint matrix update | done |
+| 9 | Spec §66.6 — spec-trust rule + §46.2 useCallback convention | done |
+| 10 | Run validation gates | pending |
+
+### Phase 5.4: Issue Fixes
+
+| # | Issue | Fix Status |
+|---|-------|-----------|
+| 1 | MuiPagination non-standard props | pending |
+| 2 | Branches.jsx duplicate loading check | pending |
+| 3 | branchesSlice tag path wrong | pending |
+| 4 | getBranchDetail non-existent route | pending |
+| 5 | apiSlice tagTypes missing "Branch" | pending |
+| 6 | onSortModelChange no-op | pending |
+| 7 | ButtonGroup/ToggleButtonGroup nesting | pending |
+| 8 | MuiDataGrid deprecated components prop | pending |
+| 9 | BranchFormDialog stale defaultValues | pending |
+| 10 | Missing newline at end of files | pending |
+| 11 | Planning files overwritten | done (reverted + appended) |
+| 12 | task_plan.md stale statuses | done (updated above) |
+
+### Phase 5.5: Validation & Integration
+
+| # | Task | Status |
+|---|------|--------|
+| 19 | Run `node --check` all backend files | pending |
+| 20 | Run `npx vite build` (0 errors) | pending |
+| 21 | Run `npx eslint src/` (0 warnings) | pending |
+| 22 | Delete `dist/` | pending |
