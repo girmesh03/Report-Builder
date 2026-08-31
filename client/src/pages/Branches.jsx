@@ -11,27 +11,24 @@
  * increment.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import MuiPageHeader from "../components/reusable/MuiPageHeader.jsx";
 import BranchesHeaderActions from "../components/branches/BranchesHeaderActions.jsx";
+import BranchesFilterMenu from "../components/branches/BranchesFilterMenu.jsx";
+import BranchFormDialog from "../components/branches/BranchFormDialog.jsx";
 import LoadingSpinner from "../components/reusable/LoadingSpinner.jsx";
 import MuiErrorState from "../components/reusable/MuiErrorState.jsx";
 import MuiEmptyState from "../components/reusable/MuiEmptyState.jsx";
 import { useGetBranchesQuery } from "../redux/features/branchesSlice.js";
 import { showToast } from "../utils/toast.js";
-import { BRANCHES_COPY } from "../utils/constants.js";
+import { BRANCHES_COPY, BRANCH_ISARCHIVED } from "../utils/constants.js";
 
-/** Default list query — limit 10 aligns with the grid page size and the
- *  backend default/validator (1–100) (§11.3, §46.7).
- *  Frozen so the query arg is stable (no re-fetch loop, C21). */
-const BRANCHES_QUERY = Object.freeze({
-  page: 1,
-  limit: 10,
-  sort: "name",
-  isArchived: "all",
-});
+/** Branch list query — limit 10 aligns with the grid page size and the
+ *  backend default/validator (1–100) (§11.3, §46.7). `isArchived` is
+ *  state-driven so the filter menu can change it (refetch + page reset). */
+const PAGE_SIZE = 10;
 
 /**
  * Branches page component.
@@ -41,8 +38,32 @@ const BranchesPage = () => {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [viewMode, setViewMode] = useState("grid");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const [filterChecked, setFilterChecked] = useState({
+    active: false,
+    archived: false,
+  });
 
-  const { data, error, refetch } = useGetBranchesQuery(BRANCHES_QUERY);
+  // Derive `isArchived` from the checked set (§30.2 values):
+  // neither → all; active only → active; archived only → archived;
+  // both → all (no filter — covers the whole set).
+  const isArchived =
+    filterChecked.active && filterChecked.archived
+      ? BRANCH_ISARCHIVED.ALL
+      : filterChecked.active
+        ? BRANCH_ISARCHIVED.ACTIVE
+        : filterChecked.archived
+          ? BRANCH_ISARCHIVED.ARCHIVED
+          : BRANCH_ISARCHIVED.ALL;
+
+  // Stable query arg (C21): new object only when `isArchived` changes.
+  const query = useMemo(
+    () => ({ page: 1, limit: PAGE_SIZE, sort: "name", isArchived }),
+    [isArchived],
+  );
+
+  const { data, error, refetch } = useGetBranchesQuery(query);
 
   // Loading gate (C21, owner directive 2026-08-31): "no content yet",
   // NOT `isLoading`. `isLoading` stays true until a request settles and
@@ -53,6 +74,11 @@ const BranchesPage = () => {
   // xs forces list view (A8) and hides the toggle (A8); on sm+ the
   // user's toggle selection drives the effective view (default grid).
   const effectiveView = isXs ? "list" : viewMode;
+
+  // Filter badge: matched-response count (totalDocs) shown only when a
+  // non-`all` filter is applied; invisible in the `all` (no filter) case.
+  const filterBadge =
+    isArchived === BRANCH_ISARCHIVED.ALL ? 0 : (data?.totalDocs ?? 0);
 
   // Toast each fresh error transition once (no duplicate spam, §60.5);
   // an inline retry surface remains in place while the error persists.
@@ -65,12 +91,24 @@ const BranchesPage = () => {
     prevErrorRef.current = current;
   }, [error]);
 
-  const handleFilterOpen = useCallback(() => {
-    console.log("BranchesPage: filter dialog opened");
+  const handleFilterMenuOpen = useCallback((event) => {
+    setFilterAnchorEl(event.currentTarget);
+  }, []);
+
+  const handleFilterMenuClose = useCallback(() => {
+    setFilterAnchorEl(null);
+  }, []);
+
+  const handleFilterChange = useCallback((key, value) => {
+    setFilterChecked((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const handleCreateOpen = useCallback(() => {
-    console.log("BranchesPage: create branch dialog opened");
+    setCreateOpen(true);
+  }, []);
+
+  const handleCreateClose = useCallback(() => {
+    setCreateOpen(false);
   }, []);
 
   const handleViewModeChange = useCallback((mode) => {
@@ -91,8 +129,8 @@ const BranchesPage = () => {
           <BranchesHeaderActions
             viewMode={isXs ? undefined : effectiveView}
             onViewModeChange={handleViewModeChange}
-            showArchived={false}
-            onFilterDialogOpen={handleFilterOpen}
+            filterBadge={filterBadge}
+            onFilterMenuOpen={handleFilterMenuOpen}
             onCreateDialogOpen={handleCreateOpen}
           />
         }
@@ -115,6 +153,18 @@ const BranchesPage = () => {
           }}
         />
       ) : null}
+      <BranchesFilterMenu
+        open={Boolean(filterAnchorEl)}
+        anchorEl={filterAnchorEl}
+        onClose={handleFilterMenuClose}
+        checked={filterChecked}
+        onChange={handleFilterChange}
+      />
+      <BranchFormDialog
+        open={createOpen}
+        onClose={handleCreateClose}
+        isEdit={false}
+      />
     </>
   );
 };

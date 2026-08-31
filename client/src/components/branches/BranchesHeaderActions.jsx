@@ -21,16 +21,18 @@ import MuiButton from "../reusable/MuiButton.jsx";
  *   When `undefined` (xs viewport) the view toggle is hidden and the
  *   create action collapses to an icon-only button (§56.4).
  * @param {Function} props.onViewModeChange - View mode change handler.
- * @param {boolean} props.showArchived - Show archived state.
- * @param {Function} props.onFilterDialogOpen - Opens filter dialog.
+ * @param {number} props.filterBadge - Matched-response count for the
+ *   filter badge (0/empty when no filter is applied — badge hidden).
+ * @param {Function} props.onFilterMenuOpen - Opens the filter menu
+ *   (receives the click event; the clicked button anchors the menu).
  * @param {Function} props.onCreateDialogOpen - Opens create dialog.
  * @returns {JSX.Element} The header actions component.
  */
 export const BranchesHeaderActions = ({
   viewMode,
   onViewModeChange,
-  showArchived,
-  onFilterDialogOpen,
+  filterBadge = 0,
+  onFilterMenuOpen,
   onCreateDialogOpen,
 }) => {
   return (
@@ -59,18 +61,18 @@ export const BranchesHeaderActions = ({
         </ToggleButtonGroup>
       )}
 
-      {/* Filter Button with Badge */}
+      {/* Filter Button with Matched-Count Badge */}
       <Tooltip title="Filter" arrow placement="top">
         <IconButton
           size="small"
-          onClick={onFilterDialogOpen}
+          onClick={onFilterMenuOpen}
           aria-label="Filter branches"
           sx={{ border: 1, borderColor: "divider" }}
         >
           <Badge
-            badgeContent={showArchived ? 1 : 0}
+            badgeContent={filterBadge}
             color="error"
-            invisible={!showArchived}
+            invisible={!filterBadge}
           >
             <FilterList fontSize="small" />
           </Badge>

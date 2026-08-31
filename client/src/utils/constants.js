@@ -48,6 +48,10 @@ export const TOAST_CATALOGUE = Object.freeze({
       "Cannot reach the server — please try again in a moment",
     unexpectedError: "Something went wrong — please try again",
   }),
+  branches: Object.freeze({
+    created: "Branch created",
+    updated: "Branch updated",
+  }),
 });
 
 /** Post-login landing route when no `state.from` exists (§41.5). */
@@ -95,6 +99,17 @@ export const SIDEBAR_FULL_WIDTH = Object.freeze(240);
 /** Pagination row-per-page options for MuiDataGrid and MuiPagination (§11.3, §46.7). */
 export const ROWS_PER_PAGE_OPTIONS = Object.freeze([10, 25, 50, 100]);
 
+/** Branch field length limits — mirror the backend §20 constants (client-side §29 mirror). */
+export const BRANCH_NAME_MAX_LENGTH = Object.freeze(100);
+export const BRANCH_LOCATION_MAX_LENGTH = Object.freeze(200);
+
+/** Branch list archive-filter values — mirror the backend `GET /branches` query (§30.2). */
+export const BRANCH_ISARCHIVED = Object.freeze({
+  ACTIVE: "active",
+  ARCHIVED: "archived",
+  ALL: "all",
+});
+
 /**
  * Branches page state copy (§56.7/§60). Single-sourced strings for the
  * load, error, and empty surfaces; consumed on first use by Branches.jsx.
@@ -115,5 +130,22 @@ export const BRANCHES_COPY = Object.freeze({
   empty: Object.freeze({
     title: "No branches yet — add your first branch",
     createLabel: "New branch",
+  }),
+  dialog: Object.freeze({
+    createTitle: "New Branch",
+    editTitle: "Edit Branch",
+    nameLabel: "Name",
+    locationLabel: "Location",
+    cancelLabel: "Cancel",
+    submitCreateLabel: "Create",
+    submitEditLabel: "Save",
+    nameRequired: "Branch name is required",
+    nameTooLong: `Name must be ${BRANCH_NAME_MAX_LENGTH} characters or less`,
+    locationRequired: "Location is required",
+    locationTooLong: `Location must be ${BRANCH_LOCATION_MAX_LENGTH} characters or less`,
+  }),
+  filter: Object.freeze({
+    activeLabel: "Active",
+    archivedLabel: "Archived",
   }),
 });

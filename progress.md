@@ -538,3 +538,49 @@ that will work for both error and data transform."
   in route chains, never passed bare — a bare reference silently hangs the
   request. Mirrors in findings.md, AGENTS.md, spec §29.2/§29.3.
   RESPECT FOREVER.
+
+## Commit + push (2026-08-31, owner directive — add/commit/push only, NO merge)
+
+- **Commit `f64c924`** on `phase-5-branches-frontend`:
+  `feat: phase 5 branches page fetch + backend validate()/paginate fixes (C21-C24)`
+- **14 files, 512+/42-.** Client: Branches.jsx fetch/loading/error/empty,
+  MuiErrorState (new), MuiEmptyState/LoadingSpinner, constants BRANCHES_COPY,
+  store.js + branchesSlice.js (ends A16-A20). Backend: branch.model.js paginate
+  fix (C23), branch.routes.js `validate()` fix (C24). Mirrors: findings.md,
+  AGENTS.md, spec §29.2/§29.3/§42.4/§46.14/§15/§27.6, task_plan.md, progress.md.
+- **Gates before commit:** eslint EXIT=0 ✓ · vite build 0 errors ✓ ·
+  `client/dist/` deleted ✓ · node --check routes+model ✓.
+- **Pushed:** `dfd278c..f64c924`. **Never merged.**
+- **Remaining uncommitted (next increment):** Phase 5.4 components — MuiDialog,
+  MuiConfirmDialog, MuiDataGrid, MuiDataGridToolbar, MuiPagination, MuiStatusBadge,
+  BranchesFilterDialog, BranchFormDialog, BranchLedgerCard, BranchRowActions,
+  `components/columns/`. Plus 7b: restart backend + Postman `/branches` re-test.
+## Session 2026-08-31 (c) — BranchFormDialog create/edit rework (register + redux + toast)
+
+- **Task:** rework BranchFormDialog per owner: (1) `register` not `Controller` (spec
+  §46/§9.6 — C25); (2) remove MuiDialog inline paper style (theme owns it — C26);
+  (3) use redux + response `console.log` (dev trace); (4) submit handles loading
+  + toast (C27). Respect planning files (register convention, useCallback, no magic
+  values, define-on-require).
+- **Files:** BranchFormDialog.jsx (rewrite — calls useCreate/UpdateBranchMutation, toasts
+  success/error, resets+closes on success), MuiDialog.jsx (inline paper `sx` removed,
+  behavior kept), constants.js (A22: TOAST_CATALOGUE.branches, branch field limits,
+  BRANCHES_COPY.dialog), Branches.jsx (A23: createOpen state wires dialog).
+- **Gates:** eslint EXIT=0 · vite build 0 errors → dist deleted.
+- **Status:** built, uncommitted — step-5 review + add/commit/push (no merge) pending.
+
+## Session 2026-08-31 (d) — Branches filter as Menu (checkbox) + matched-count badge
+
+- **Task (owner):** replace filter dialog with a **Menu + FormControl checkbox** filter
+  (Active / Archived, start icons); show the badge with the **matched-response count**,
+  but **not for the `all` case**.
+- **Done:** deleted `BranchesFilterDialog.jsx`; added `BranchesFilterMenu.jsx`
+  (Menu + FormControl + 2 Checkboxes, start icons Active `CheckCircleOutline` /
+  Archived `Archive`). Derived `isArchived` (neither→all, active→active, archived→archived,
+  both→all; §30.2). Badge = `data.totalDocs` when not `all`, invisible when `all`. Filter
+  change resets to page 1 (§46.7). Stable memoized query arg (C21). Constants:
+  `BRANCH_ISARCHIVED` + `BRANCHES_COPY.filter` (no magic strings).
+- **Files:** BranchesFilterMenu.jsx (new), BranchesFilterDialog.jsx (deleted),
+  Branches.jsx, BranchesHeaderActions.jsx, constants.js.
+- **Gates:** eslint EXIT=0 · vite build 0 errors → dist deleted · grep no FilterDialog refs.
+- **Status:** built, uncommitted — step-5 review + add/commit/push (no merge) pending.

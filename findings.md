@@ -445,3 +445,47 @@ passed to any child component in this increment — rows render later.
 | 4 | No copy constants | constants.js | add minimal set (A19) |
 | 5 | `getBranches.providesTags` reads `result.data.docs` — throws, `data` undefined | branchesSlice.js | read `result.docs` (C22 — envelope already unwrapped) |
 | 6 | All 7 `branch.routes.js` routes pass bare `validate` (not `validate()`) → request hangs, no response | branch.routes.js | invoke `validate()` (C24) |
+
+## Session 2026-08-31 (c) — BranchFormDialog create/edit rework (register + redux + toast)
+
+### Canon (spec — must be respected)
+| # | Source | Canon Item |
+|---|--------|------------|
+| C25 | §46/§9.6 | **Forms use `react-hook-form` with `register` by default; `Controller` only for MUI X DatePicker/TimePicker** (each justified). `MuiTextField` forwards its ref via `inputRef` → `register` works directly. Plain text fields must never use `Controller`. |
+| C26 | §46 v9 / theme | **MuiDialog carries no inline paper styling** — the theme owns `.MuiDialog-paper` radius/border (`theme/customizations/feedback.js` `MuiDialog`). Reusable dialogs keep behavior (fullscreen/maxWidth/fullWidth) only. |
+| C27 | §9.6/ADR-033/§60 | Server errors surface through toasts, never `setError`; `setError`/field `errors` are client-side rule failures only. |
+
+### Amendments (this task's deltas)
+| # | Amendment | Source/Why | Files |
+|---|-----------|-----------|-------|
+| A21 | BranchFormDialog owns submit via redux mutations (create/update) + response `console.log` (dev trace) + success/error toast + loading | owner directive: use redux + response console.log + toast/loading; was prop-driven dead code | BranchFormDialog.jsx |
+| A22 | Add `TOAST_CATALOGUE.branches` + `BRANCH_NAME_MAX_LENGTH`/`BRANCH_LOCATION_MAX_LENGTH` + `BRANCHES_COPY.dialog` to client constants | define-on-require; dialog consumer; mirrors backend §20 literals | constants.js |
+| A23 | Wire BranchFormDialog into Branches.jsx (createOpen state; `handleCreateOpen`/`handleCreateClose`) | was a console.log stub; make dialog mountable/functional | Branches.jsx |
+| A24 | Remove inline paper `sx` from MuiDialog (keep fullscreen/maxWidth/fullWidth) | theme owns styling (C26) | MuiDialog.jsx |
+
+### Files
+`BranchFormDialog.jsx` (rewrite), `MuiDialog.jsx` (style removed), `constants.js` (A22), `Branches.jsx` (A23).
+
+### Gates
+eslint EXIT=0 · vite build 0 errors → `dist/` deleted. Note: response `console.log` is a dev trace per owner directive 3 — client convention allows (backend forbids console.log via Winston).
+
+## Session 2026-08-31 (d) — Branches filter as Menu (checkbox) + matched-count badge
+
+### Canon (spec — must be respected)
+| # | Source | Canon Item |
+|---|--------|------------|
+| C28 | §30.2 + owner 2026-08-31 | **Branches filter-derived `isArchived` (active/archived/all) + matched-count badge.** Filter UI = **Menu with a FormControl of checkboxes** (Active / Archived, start icons). Derivation: neither checked → `all`; active only → `active`; archived only → `archived`; both → `all`. **Badge shows the matched-response count (`totalDocs`)** but is **invisible in the `all` (no-filter) case**. Filter change resets to page 1 (§46.7; server pages). Replaces the provisional §56.4/OQ-017 dialog. |
+
+### Amendments (this task's deltas)
+| # | Amendment | Source/Why | Files |
+|---|-----------|-----------|-------|
+| A25 | Delete `BranchesFilterDialog.jsx`; add `BranchesFilterMenu.jsx` (Menu + FormControl + 2 Checkboxes w/ start icons: Active CheckCircleOutline, Archived Archive) | owner: "delete BranchesFilterDialog use BranchesFilterMenu"; Menu over dialog | Branch files |
+| A26 | `BRANCH_ISARCHIVED = { ACTIVE, ARCHIVED, ALL }` + `BRANCHES_COPY.filter` copy constants | define-on-require; no magic strings | constants.js |
+| A27 | Branches.jsx: `isArchived` state derived from `filterChecked`; stable memoized query (C21); `filterAnchorEl` anchors menu; badge = `data.totalDocs` when not `all` else 0; page reset on filter change | owner: badge = matched response count, not for `all` | Branches.jsx |
+| A28 | BranchesHeaderActions: filter button opens menu (event.currentTarget anchors); badge `badgeContent=filterBadge`, `invisible={!filterBadge}`; drop `showArchived`/`onFilterDialogOpen` | menu anchoring + matched-count badge | BranchesHeaderActions.jsx |
+
+### Files
+`BranchesFilterMenu.jsx` (new), `BranchesFilterDialog.jsx` (deleted), `Branches.jsx`, `BranchesHeaderActions.jsx`, `constants.js`.
+
+### Gates
+eslint EXIT=0 · vite build 0 errors → `dist/` deleted. Grep: no `BranchesFilterDialog` references remain.

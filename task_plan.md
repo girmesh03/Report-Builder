@@ -195,9 +195,9 @@ working files. All gates green.
 
 | # | Task | Status |
 |---|------|--------|
-| 10 | Create `BranchesFilterDialog` | done |
-| 11 | Create `BranchFormDialog` (RHF + MuiTextField) | done (needs fix: stale defaultValues) |
-| 12 | Create `BranchesHeaderActions` | done (needs fix: ButtonGroup nesting) |
+| 10 | Create `BranchesFilterDialog` → replaced by `BranchesFilterMenu` (2026-08-31: Menu + FormControl checkbox; delete dialog) | done |
+| 11 | Create `BranchFormDialog` (RHF + MuiTextField) | done (reworked 2026-08-31: register, redux, toast — C25-C27/A21-A24) |
+| 12 | Create `BranchesHeaderActions` | done (filter badge = matched count C28/A25-A28) |
 | 13 | Create `BranchLedgerCard` | done |
 | 14 | Create `BranchRowActions` | done |
 | 15 | Create `branchesSlice.js` (RTK Query) | done (needs fix: tag path, tagTypes) |
@@ -318,7 +318,16 @@ any child component — rows render in a later increment.
 |---|------|--------|
 | 6a | Register `mongoose-paginate-v2` on Branch schema | done |
 | 6b | Mirrors — findings, AGENTS, spec §15/§27.6, task_plan, progress | done |
-| 6c | Gates — node --check + client lint/build/delete dist | pending |
+| 6c | Gates — node --check + client lint/build/delete dist | done |
 | 7a | Fix bare `validate` → `validate()` in all branch routes (C24) | done |
-| 7b | Restart backend + Postman `/branches` re-test | pending |
-| 7c | Step-5 review of full uncommitted set; NO commit until approval | pending |
+| 7b | Restart backend + Postman `/branches` re-test | pending (owner runtime step) |
+| 7c | Step-5 review of full uncommitted set; NO commit until approval | done (owner approved commit below) |
+
+**Committed + pushed (owner directive 2026-08-31, add-commit-push only, NO merge):**
+- Commit `f64c924` on `phase-5-branches-frontend` — Branches page fetch/loading/error/empty
+  (C21/C22/C24) + backend `validate()`/paginate fixes (C23) + mirrors (14 files, 512+/42-).
+- Pushed `dfd278c..f64c924`. **Phase 5.4 untracked components remain** (next increment):
+  MuiDialog, MuiConfirmDialog, MuiDataGrid, MuiDataGridToolbar, MuiPagination, MuiStatusBadge,
+  BranchesFilterDialog, BranchFormDialog, BranchLedgerCard, BranchRowActions, `components/columns/`.
+- **Remaining immediately:** 7b restart + Postman `/branches` re-test (prove the fix), then
+  the Phase 5.4 issue-fix/step-5 increment (task_plan §Phase 5.4 234-243).

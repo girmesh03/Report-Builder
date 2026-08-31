@@ -12290,10 +12290,14 @@ row's **Name** cell links to the Branch Details page
 - **Filter entry (owner review 2026-08-22 — mirrors §50.3):**
   the header actions slot is a uniform-outlined MuiButton
   ButtonGroup — **Filter** opening the branches Filter dialog +
-  **New branch**. The dialog is
-  PROVISIONAL (OQ-017): its one working control is the Show-Archived
-  switch (default off — active-only, §30.2; the authoritative
-  filter), with further filters noted under design. Filter change
+  **New branch**. The filter is a
+  **Menu** (`BranchesFilterMenu`, amended 2026-08-31 — replaces the
+  OQ-017 provisional dialog): a FormControl with two checkboxes,
+  "Active" and "Archived" (start icons), deriving `isArchived`
+  (neither→`all`, active→`active`, archived→`archived`, both→`all`;
+  §30.2). The header filter badge shows the **matched-response count
+  (`totalDocs`)** and is invisible in the `all` (no-filter) case.
+  Filter change
   resets to page 1 (server pages, §46.7). No inline search/narrowing
   on this page. **Responsive (amended 2026-08-31):** on `sm+` the
   create control is the labeled `MuiButton` ("New branch" with `Add`
@@ -14437,7 +14441,7 @@ content rules: no prose invention outside this registry).
 | OQ-015 | **OPEN** (registered 2026-08-22, owner-approved) | **AI-output quality defect ledger — a dedicated authorized backend pass is required BEFORE the Phase-F acceptance walks (SC-2/SC-3):** (a) generation injects narration fragments as extra activity bullets and duplicates an opinion bullet (owner repro 2026-08-22; prompt/render discipline of §34.3–§34.5/§6); (b) schema-less provider paths drift to JSON — a pre-generated correction returned a fenced ```json block that `plainToHtml`wrapped verbatim (live probe 2026-08-22), and a`{"report": …}` payload surfaced in owner testing; the plain-prose carve-out needs a fence/JSON guard with §16.5 retry semantics; (c) STT occasionally duplicates a phrase (provider accuracy — R-24/SC-8 context). The corrections wire itself verified spec-conformant (`data.content`, HTML) by the same live probe | §34.3, §34.4, §34.5, §35.4, §16.4, §16.5, §67 | The Phase-F acceptance walks (SC-2 format & tone, SC-3 surgical corrections); non-blocking for all other work                                                                                          |
 
 | **OQ-016** | **OPEN** (registered 2026-08-22; amended same day) | The §30.2.1 branch-detail aggregate's embedded reports grid is server-paginated at the FIXED first page (the route mounts no query chain): the client renders the honest "Latest N of T" caption + View-all link and SUPPRESSES the grid's pagination footer via sx (inert controls would lie); full Actions/selection/CSV otherwise match the §50 surface exactly. A backend query-chain addition would enable real paging but `backend/*` stays untouched without owner instruction | §56.5, §30.2.1 | Non-blocking (presentation-only) |
-| **OQ-017** | **OPEN** (registered 2026-08-22, owner review round) | The Branches Filter dialog is provisional like §50.3's: its one working control is Show-Archived (§30.2); further filters (which fields, date vs range, pagination interplay) are under design and will land together with the reports filter feature | §56.4 | The §56.4 dialog's full surface |
+| **OQ-017** | **AMENDED 2026-08-31** (owner) — the Branches filter is now a **Menu** (`BranchesFilterMenu`, replacing the dialog `BranchesFilterDialog`): a FormControl with **two checkboxes** — "Active" and "Archived", start icons; derivation `isArchived` (neither→`all`, active→`active`, archived→`archived`, both→`all`; §30.2). Header badge shows the **matched-response count (`totalDocs`)** and is **invisible in the `all` (no-filter) case**; filter change resets to page 1 (§46.7). Further filters remain under design and land with the reports filter feature | §56.4 | The §56.4 filter surface |
 
 | **OQ-018** | **OPEN** (registered 2026-08-22, Phase F) | The §52.8 generation-desk provider/reasoning selectors are DEFERRED to Phase G: their persistence target is the per-report conversation (§24.2 standing default), which cannot exist before the first chat message, and `POST /reports/:id/generations` accepts no provider body. They land WITH the §55 chat panel, persisting through the conversation's standing-default mechanics | §52.8, §24.2, §36 | The §52.8 selector pair |
 | OQ-020 | **OPEN** | The §31.6 content-write cap (422 "over cap") has no §11 constant — the implementation bound is 1 000 000 chars at the call site (D10, registered 2026-08-20); closes with a §11.3 constant if the owner mandates one | §31.6, §11.3 | None — the bound is a safety net, not a product rule |

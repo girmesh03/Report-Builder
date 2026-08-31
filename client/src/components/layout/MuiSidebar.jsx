@@ -299,27 +299,6 @@ const MuiSidebar = ({ mode, onToggleMode, mobileOpen, onMobileClose }) => {
           vertical: "bottom",
           horizontal: isMini ? "left" : "right",
         }}
-        PopperProps={{
-          modifiers: [
-            {
-              name: "flip",
-              options: {
-                fallbackPlacements: [
-                  "top-start",
-                  "bottom-start",
-                  "top-end",
-                  "bottom-end",
-                  "right",
-                  "left",
-                ],
-              },
-            },
-            {
-              name: "preventOverflow",
-              options: { boundary: "viewport", altBoundary: true },
-            },
-          ],
-        }}
         slotProps={{
           paper: {
             sx: {
@@ -327,6 +306,27 @@ const MuiSidebar = ({ mode, onToggleMode, mobileOpen, onMobileClose }) => {
               maxWidth: isMini ? "calc(100vw - 120px)" : "calc(100vw - 280px)",
               mb: 0.5,
             },
+          },
+          popper: {
+            modifiers: [
+              {
+                name: "flip",
+                options: {
+                  fallbackPlacements: [
+                    "top-start",
+                    "bottom-start",
+                    "top-end",
+                    "bottom-end",
+                    "right",
+                    "left",
+                  ],
+                },
+              },
+              {
+                name: "preventOverflow",
+                options: { boundary: "viewport", altBoundary: true },
+              },
+            ],
           },
         }}
       >
