@@ -231,18 +231,47 @@ working files. All gates green.
 
 | # | Issue | Fix Status |
 |---|-------|-----------|
-| 1 | MuiPagination non-standard props | pending |
-| 2 | Branches.jsx duplicate loading check | pending |
-| 3 | branchesSlice tag path wrong | pending |
-| 4 | getBranchDetail non-existent route | pending |
-| 5 | apiSlice tagTypes missing "Branch" | pending |
-| 6 | onSortModelChange no-op | pending |
-| 7 | ButtonGroup/ToggleButtonGroup nesting | pending |
-| 8 | MuiDataGrid deprecated components prop | pending |
-| 9 | BranchFormDialog stale defaultValues | pending |
-| 10 | Missing newline at end of files | pending |
+| 1 | MuiPagination non-standard props | done (A30: card-view-only plain Pagination — Phase 5.6/A′) |
+| 2 | Branches.jsx duplicate loading check | done (single C21 gate already; grid overlays for refetch only — C30) |
+| 3 | branchesSlice tag path wrong | verified OK (C22 `result.docs` + LIST tags already correct) |
+| 4 | getBranchDetail non-existent route | done (A37: declared inert, never imported) |
+| 5 | apiSlice tagTypes missing "Branch" | done (already `["User","Branch"]`, prior commit) |
+| 6 | onSortModelChange no-op | done (A32: server sort wired in Phase 5.6/A′) |
+| 7 | ButtonGroup/ToggleButtonGroup nesting | done (prior commit) |
+| 8 | MuiDataGrid deprecated components prop | done (A29: v9 slots/slotProps rewrite — Phase 5.6/A′) |
+| 9 | BranchFormDialog stale defaultValues | done (A36: useEffect seed — Phase 5.6/C′) |
+| 10 | Missing newline at end of files | pending (verify each edited file) |
 | 11 | Planning files overwritten | done (reverted + appended) |
 | 12 | task_plan.md stale statuses | done (updated above) |
+
+### Phase 5.6: Branches List Rendering + Lifecycle (planning-with-files tracked)
+
+Decomposed increments A′–C′ (owner 2026-08-31). EACH increment: build → gates →
+**owner in-browser review of the wired Branches page** → approve → add/commit/push (no merge).
+
+| # | Increment | Task | Status |
+|---|-----------|------|--------|
+| 1 | A′ | MuiDataGrid v9 rewrite (A29/C29/C30/C31) + MuiDataGridToolbar (drop Print+QuickFilter, add children, **reusable per-page export config**) + MuiPagination (A30) + Ethiopian dates (A31) + wire grid into Branches.jsx (A32) | in_progress |
+| 2 | B′ | BranchLedgerCard map + MuiPagination list view (A33) | pending |
+| 3 | C′ | Lifecycle confirm (A34) + edit seed (A36) + view navigate (A35) + getBranchDetail inert (A37) | pending |
+
+> **Owner directive (2026-08-31):** EVERY reusable component (all of
+> `components/reusable/`) is page-agnostic; MuiDataGrid+Toolbar are consumed per page and must be
+> **per-feature opt-in configurable** (Print/CSV/PDF/Excel via `slotProps.toolbar`). Branches skips
+> Print (C29) but the reusable toolbar still supports it for other pages.
+>
+> **Toolbar fix (done):** rewrite `MuiDataGridToolbar.jsx` — rename `export`→`showExport`, real
+> `useState`/`useCallback` Menu control, per-feature export config, drop filter Badge dot.
+>
+> **Canon C31 (2026-08-31):** grid columns NEVER hardcode `width` — always `flex` + `minWidth`
+> (all current/future `columns/*.jsx`); `MuiDataGrid` sets `disableColumnResize`. Branches
+> weighting (owner): name flex:2/200 · location flex:2/160 · status flex:1/120 · createdAt flex:1/120.
+
+## Next Step
+**Increment A′ (Phase 5.6 #1):** after gates pass, stop for owner in-browser review of the
+Branches grid, then add/commit/push `feat: phase 5 branches grid + reusable grid/Toolbar
+(A29-A32, C29/C30)` — no merge. Pre-req: owner restarts backend (7b) so `/api/v1/branches`
+returns seeded rows.
 
 ### Phase 5.5: Validation & Integration
 

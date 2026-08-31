@@ -584,3 +584,78 @@ that will work for both error and data transform."
   Branches.jsx, BranchesHeaderActions.jsx, constants.js.
 - **Gates:** eslint EXIT=0 · vite build 0 errors → dist deleted · grep no FilterDialog refs.
 - **Status:** built, uncommitted — step-5 review + add/commit/push (no merge) pending.
+
+## Session 2026-08-31 (e) — Phase 5.6 Increment A′ start: planning notes recorded
+
+- **Recorded in findings.md (first action):** Canon C29 (no grid quick filter — single global
+  search on MuiAppbar, later phase) + C30 (page-level full-page states primary; grid
+  loadingOverlay/noRowsOverlay only for in-grid refetch; reuse LoadingSpinner/MuiEmptyState);
+  owner-gated workflow directive (wire into Branches page, in-browser owner review, approve
+  BEFORE commit — never blind); amendments A29–A37.
+- **task_plan.md:** Phase 5.4 issue rows resolved (A30/A36/A37 etc.), Phase 5.6 increments
+  A′/B′/C′ added, `## Next Step` = Increment A′ build → owner review → commit.
+- **Next (Increment A′):** MuiDataGrid v9 rewrite (A29/C29/C30), MuiDataGridToolbar
+  (Columns/Filter/Export only, drop Print+QuickFilter, add children), MuiPagination card-only
+  (A30), Ethiopian dates (A31), wire grid into Branches.jsx (A32). Then gates → owner review.
+- **Prereq for live review:** owner restarts backend (7b) so GET /api/v1/branches returns data.
+
+## Session 2026-08-31 (f) — Phase 5.6 Increment A′ built; awaiting owner review/commit
+
+- **Built (uncommitted):** `MuiDataGrid.jsx` v9 rewrite (A29/C29/C30 — server
+  pagination/sort via `paginationModel`/`sortModel`/`rowCount`/`pageSizeOptions`/`showToolbar`,
+  `getRowId={_id}`, density compact, no checkbox selection, default `loadingOverlay`=
+  `LoadingSpinner` / `noRowsOverlay`=`MuiEmptyState` reused per C30, generic `slots`/`slotProps`
+  with consumer override); `MuiDataGridToolbar.jsx` (Columns/Filter/Export via v9
+  `render={<ToolbarButton/>}` prop-merge per docs, +`children`, NO Print/QuickFilter per C29);
+  `MuiPagination.jsx` plain numbered `<Pagination>` card-view-only (A30, no rows-per-page
+  selector); Ethiopian dates in `columns/branches.jsx`+`BranchLedgerCard.jsx` via
+  `formatEthiopianDate` (A31); grid wired into `Branches.jsx` grid view (A32 — pagination/
+  sort state, memoized query on `[paginationModel, sortParam, isArchived]` (C21),
+  filter resets page 0, page-level loading/error/empty still primary (C30), in-grid
+  `loadingOverlay` only for refetch via `isFetching`). Sort limited to backend-allowed
+  name/createdAt (`location`/status `sortable:false`). Spec §46.7/§46.8 amended (C29/C30/A30).
+- **Owner deferral decision (2026-08-31):** commit `MuiStatusBadge` (Status column dep) with
+  A′; **defer `BranchRowActions` + Actions column to C′** — so `columns/branches.jsx` currently
+  ships Name/Location/Status/Created only; `createBranchColumns()` takes no handlers for now.
+- **Gates:** eslint EXIT=0 · vite build 0 errors → dist deleted · grep no
+  QuickFilter/showQuickFilter, no removed v9 props, no `toLocaleDateString` on domain dates,
+  no console.log in Branches.
+- **Status:** uncommitted — pending **owner in-browser review** of the Branches grid (after
+  owner restarts backend, 7b) and step-5 approval; then add/commit/push (no merge).
+
+## Session 2026-08-31 (g) — Owner directive: reusable components are page-agnostic + toolbar fix
+
+- **Directive noted (owner):** EVERY component in `client/src/components/reusable/` is reusable
+  and page-agnostic; `MuiDataGrid`+`MuiDataGridToolbar` are consumed per page. A page may need
+  any combination of Print/CSV/PDF/Excel — the toolbar must be **per-feature opt-in configurable**,
+  not hardcoded. Branches skipping Print (C29) ≠ Reports/beyond won't need it.
+- **Recorded in:** findings.md (owner directive subsection), progress (this), task_plan,
+  AGENTS.md, spec §46.8.
+- **Toolbar fix pending:** user edited `MuiDataGridToolbar.jsx` (icon buttons + export dropdown
+  Menu + Print/CSV items + `export` gating) but it has errors: reserved-word `export` param,
+  missing `Divider` import, undefined `exportMenuTriggerRef`/`exportMenuOpen`, dead
+  `onClick={()=>{}}`, malformed JSDoc `[props.export"]`, placeholder filter `Badge`.
+- **Next:** rewrite MuiDataGridToolbar.jsx (rename `export`→`showExport`, add `Divider` import,
+  real `useState`+`useCallback` Menu control, drop filter Badge, clean JSDoc, per-feature export
+  config via `slotProps.toolbar`). Then gates → note result.
+- **Done (toolbar fix):** rewrote `MuiDataGridToolbar.jsx` — reserved-word `export`→`showExport`
+  + `exportFormats` (per-feature opt-in: "csv"/"print" menu items, default csv), added `Divider`
+  import, converted to hook-based component (`useState` anchor + `useCallback` open/close,
+  AGENTS directive), dropped the placeholder filter `Badge`, cleaned JSDoc, kept v9 `render`
+  prop-merge composition, NO quick filter (C29). Pages configure via
+  `slotProps={{ toolbar: { showExport: true, exportFormats: [...] } }}`; Branches leaves it off.
+- **Gates:** eslint EXIT=0 · vite build EXIT=0 → dist deleted · grep no reserved `export` prop,
+  no `exportMenuTriggerRef`, no QuickFilter/showQuickFilter, no `Badge` placeholder.
+
+## Session 2026-08-31 (h) — Canon C31: grid columns use `flex`, never hardcoded `width`
+
+- **Owner (2026-08-31):** in `MuiDataGrid`, add `disableColumnResize`; in domain column files
+  (`columns/*.jsx`) NEVER hardcode `width` — always `flex` + `minWidth` so the grid uses the full
+  horizontal space proportionally. General rule for ALL current/future columns, not just branches.
+- **Done:** `MuiDataGrid.jsx` → `disableColumnResize`. `columns/branches.jsx` → removed all
+  `width`; weighted (owner-approved): name flex:2/minWidth:200 · location flex:2/minWidth:160 ·
+  isArchived flex:1/minWidth:120 · createdAt flex:1/minWidth:120 (Name/Location larger,
+  Status/Created compact, Name no longer dominates).
+- **Mirrors:** findings.md (Canon C31), this progress, task_plan.md, AGENTS.md conventions,
+  spec §46.8.
+- **Gates:** eslint EXIT=0 · vite build EXIT=0 → dist deleted · grep no `width:` in columns/branches.jsx (all `flex`+`minWidth`), `disableColumnResize` present in MuiDataGrid. Done.

@@ -18,6 +18,8 @@ import MuiPageHeader from "../components/reusable/MuiPageHeader.jsx";
 import BranchesHeaderActions from "../components/branches/BranchesHeaderActions.jsx";
 import BranchesFilterMenu from "../components/branches/BranchesFilterMenu.jsx";
 import BranchFormDialog from "../components/branches/BranchFormDialog.jsx";
+import MuiDataGrid from "../components/reusable/MuiDataGrid.jsx";
+import { createBranchColumns } from "../components/columns/branches.jsx";
 import LoadingSpinner from "../components/reusable/LoadingSpinner.jsx";
 import MuiErrorState from "../components/reusable/MuiErrorState.jsx";
 import MuiEmptyState from "../components/reusable/MuiEmptyState.jsx";
@@ -44,6 +46,13 @@ const BranchesPage = () => {
     active: false,
     archived: false,
   });
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: PAGE_SIZE,
+  });
+  const [sortModel, setSortModel] = useState([
+    { field: "name", sort: "asc" },
+  ]);
 
   // Derive `isArchived` from the checked set (§30.2 values):
   // neither → all; active only → active; archived only → archived;
@@ -57,13 +66,28 @@ const BranchesPage = () => {
           ? BRANCH_ISARCHIVED.ARCHIVED
           : BRANCH_ISARCHIVED.ALL;
 
-  // Stable query arg (C21): new object only when `isArchived` changes.
+  // Stable query arg (C21): a new object only when a dependency changes.
+  // Server `sort` is a mongoose string: "field" asc / "-field" desc
+  // (backend validator §30.2 allows name/createdAt only).
+  const sortParam = useMemo(() => {
+    const s = sortModel[0];
+    if (!s || !s.field) {
+      return "name";
+    }
+    return s.sort === "desc" ? `-${s.field}` : s.field;
+  }, [sortModel]);
+
   const query = useMemo(
-    () => ({ page: 1, limit: PAGE_SIZE, sort: "name", isArchived }),
-    [isArchived],
+    () => ({
+      page: paginationModel.page + 1,
+      limit: paginationModel.pageSize,
+      sort: sortParam,
+      isArchived,
+    }),
+    [paginationModel.page, paginationModel.pageSize, sortParam, isArchived],
   );
 
-  const { data, error, refetch } = useGetBranchesQuery(query);
+  const { data, error, refetch, isFetching } = useGetBranchesQuery(query);
 
   // Loading gate (C21, owner directive 2026-08-31): "no content yet",
   // NOT `isLoading`. `isLoading` stays true until a request settles and
@@ -101,6 +125,7 @@ const BranchesPage = () => {
 
   const handleFilterChange = useCallback((key, value) => {
     setFilterChecked((prev) => ({ ...prev, [key]: value }));
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
   }, []);
 
   const handleCreateOpen = useCallback(() => {
@@ -112,13 +137,16 @@ const BranchesPage = () => {
   }, []);
 
   const handleViewModeChange = useCallback((mode) => {
-    console.log("BranchesPage: view mode changed to", mode);
     setViewMode(mode);
   }, []);
 
   const handleRetry = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // A32: domain columns. The Actions column with lifecycle handlers is
+  // added in increment C′.
+  const branchColumns = useMemo(() => createBranchColumns(), []);
 
   return (
     <>
@@ -150,6 +178,21 @@ const BranchesPage = () => {
           action={{
             label: BRANCHES_COPY.empty.createLabel,
             onClick: handleCreateOpen,
+          }}
+        />
+      ) : effectiveView === "grid" ? (
+        <MuiDataGrid
+          rows={data.docs}
+          columns={branchColumns}
+          loading={isFetching}
+          rowCount={data.totalDocs}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          sortModel={sortModel}
+          onSortModelChange={setSortModel}
+          slotProps={{
+            loadingOverlay: { message: BRANCHES_COPY.loading.message },
+            noRowsOverlay: { title: BRANCHES_COPY.empty.title },
           }}
         />
       ) : null}

@@ -10008,9 +10008,13 @@ AdapterDayjs` — the pickers render no provider of their own
   (Reports §50, Branches §56).
 - **Props:** `page`, `count` (**= `totalPages` from the server —
   never computed client-side**, §27), `onChange`, `disabled`.
-- **Contract:** page size comes from the owning list
-  (`PAGINATION_DEFAULT_LIMIT` 10 / `PAGINATION_MAX_LIMIT` 100,
-  §11.5); the grid's `MuiDataGrid` owns its own footer (§46.8).
+- **Contract (A30, amended 2026-08-31):** MuiPagination renders a
+  **plain numbered `Pagination` and is used for the card/list view
+  only** (Branches §56.7, Reports cards §50); it is **never used by
+  MuiDataGrid**, whose footer owns its own pagination (§46.8). Page
+  size comes from the owning list (`PAGINATION_DEFAULT_LIMIT` 10 /
+  `PAGINATION_MAX_LIMIT` 100, §11.5) and is fixed — no per-view page
+  size selector in card view.
 - **Responsive:** compact page buttons below 600px (§44.5) —
   `size="small"` with `boundaryCount={0}`; the button row wraps
   (the v9 `.MuiPagination-ul` already sets `flexWrap: wrap`) and is
@@ -10026,37 +10030,54 @@ AdapterDayjs` — the pickers render no provider of their own
 - **Purpose:** every data table (the Reports list §50, the
   Branches list §56 — the dashboard charts of §49 are not a
   data grid).
-- **Props/contract:** `columns` (from the domain column file),
-  `rows`, `loading`, `rowCount` (**= server `totalDocs`**),
-  `getRowId={(row) => row._id}` (key doctrine §9.3 — never an
-  `id` field),
-  `paginationMode="server"`, `page`, `pageSize`, `onPaginationModelChange`, `onRowClick`, `checkboxSelection` (**true**),
-  `disableRowSelectionOnClick` (**true**), `rowSelectionModel`,
-  `onSelectionModelChange` (the wrapper boundary keeps the **array
-  form** and internally translates to the v9 `{ type, ids }`
-  model, which is the only shape v9.11 accepts — amended
-  2026-08-14),
-  `slots`, `slotProps` (the v9 built-in toolbar's options —
-  `csvOptions`, `printOptions.disableToolbarButton`), `sx`
-  (default height 400, overridable); `pageSizeOptions={[10, 25, 50,
-100]}` — the §11.5 `PAGINATION_*` mirrors.
-- **Toolbar:** the v9 built-in toolbar via `showToolbar` (columns
-  toggle, filter, density, CSV export of the **selected rows**) —
-  the legacy `GridToolbar*` component imports are deprecated
-  (§46.8); CSV export of selected rows is the §58 export surface
-  of the lists.
+- **Props/contract (A29/C29/C30, amended 2026-08-31):**
+  `columns` (from the domain column file), `rows`, `loading`,
+  `rowCount` (**= server `totalDocs`**), `getRowId={(row) => row._id}`
+  (key doctrine §9.3 — never an `id` field),
+  `paginationMode="server"`, `sortingMode="server"`,
+  `paginationModel` + `onPaginationModelChange` (v9 shape
+  `{ page, pageSize }`), `sortModel` + `onSortModelChange`,
+  `pageSizeOptions={[10, 25, 50, 100]}` (the §11.5 `PAGINATION_*`
+  mirrors). **No checkbox selection** (no bulk action — owner
+  2026-08-31; the v9 `checkboxSelection` defaults off). **Column widths use
+  `flex`, never hardcoded `width`** (C31, 2026-08-31) — each column in a
+  domain `columns/*.jsx` carries `flex` (+ `minWidth`, optionally
+  `maxWidth`) so the grid distributes the full horizontal space
+  proportionally; applies to all current/future columns. `MuiDataGrid` sets
+  `disableColumnResize` — drag-resize is off; widths come from the column
+  definitions. The wrapper
+  stays generic: overlays pass through the native `slots` / `slotProps`
+  (consumer supplies copy), toolbar via
+  `showToolbar` + `slots={{ toolbar: MuiDataGridToolbar }}`;
+  consumer may override any slot (spread order — consumer wins).
+- **Toolbar (C29, amended 2026-08-31):** the reusable
+  `MuiDataGridToolbar` is the standard toolbar (columns toggle, filter
+  panel) and is **per-feature opt-in configurable** (owner 2026-08-31) —
+  pages enable the export dropdown and its formats (Print/CSV/PDF/Excel)
+  via `slotProps.toolbar`; it may accept page-specific `children`. The
+  export control is an icon button opening a `Menu` of the page-enabled
+  export formats. Branches leaves export/Print off (C29); other pages
+  (e.g. Reports) may enable any combination. **No quick filter / search
+  anywhere in the grid or its toolbar** — there is exactly one global
+  search on `MuiAppbar` (later phase). `export` is a reserved word —
+  never used as a prop name (use `showExport`). The legacy `GridToolbar*`
+  imports and the `components`/`disableSelectionOnClick` props are removed
+  in v9.
+- **States (C30, amended 2026-08-31):** page-level full-page
+  loading/error/empty are primary on the owning page (§46.14); the
+  grid's `loadingOverlay` / `noRowsOverlay` appear only for in-grid
+  refetch/pagination feedback (when data already exists) and reuse the
+  existing `LoadingSpinner` / `MuiEmptyState` — no new overlay
+  components; page still owns error state (toast, §60).
 - **Action column:** per domain — View (`VisibilityIcon`,
   `sx={{ color: 'primary.main' }}`, tooltip "View", navigates to
   `/${resource}/${_id}`), Edit (`EditIcon`, `sx={{ color:
 'warning.main' }}`, tooltip "Edit"), and Archive/Restore/Delete
-  rendered conditionally by row state (§50, §56); icon colors via
-  `sx` only (§44.2).
-- **States:** loading (custom overlay), empty (custom
-  `noRowsOverlay` — the §60 empty copy), error (toast, §60),
-  success, selected rows bar.
+   rendered conditionally by row state (§50, §56); icon colors via
+   `sx` only (§44.2).
 - **Responsive:** columns hide by an explicit per-domain priority
-  list below 900px (the §50/§56 matrices); action icons follow
-  §45.3; horizontal scroll is never applied to the page (§45.5).
+   list below 900px (the §50/§56 matrices); action icons follow
+   §45.3; horizontal scroll is never applied to the page (§45.5).
 
 ### 46.9 MuiConfirmDialog
 

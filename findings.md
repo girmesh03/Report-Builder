@@ -489,3 +489,66 @@ eslint EXIT=0 · vite build 0 errors → `dist/` deleted. Note: response `consol
 
 ### Gates
 eslint EXIT=0 · vite build 0 errors → `dist/` deleted. Grep: no `BranchesFilterDialog` references remain.
+
+## Session 2026-08-31 (e) — Phase 5.4/5.3 build: Branches list rendering + lifecycle (A′-C′)
+
+### Canon (STRICT, owner 2026-08-31) — RESPECT FOREVER
+| # | Canon Item |
+|---|------------|
+| C29 | **No quick filter / search anywhere in `MuiDataGrid` / `MuiDataGridToolbar`.** There is exactly ONE global search on `MuiAppbar` (built in a later phase). No per-page search, no `QuickFilter`, no `showQuickFilter` prop, on any grid/page. Respect throughout the remaining lifecycle. |
+| C30 | **Branches page full-page states (loading `!data && !error`, error, empty) are PRIMARY.** Grid `loadingOverlay`/`noRowsOverlay` appear only for in-grid refetch/pagination feedback (when data already exists). Reuse existing `LoadingSpinner`/`MuiEmptyState` — NO new overlay components. Page still owns error state (MuiErrorState). |
+
+### Owner-gated workflow directive (2026-08-31) — RESPECT
+Every reusable/branch component must be **wired into the Branches page, rendered live, reviewed in-browser by the owner, and approved BEFORE its commit** (never committed blind). Applies to MuiDataGrid, MuiDataGridToolbar, MuiPagination, BranchLedgerCard, BranchRowActions, dialog integration, everything.
+
+### Owner decisions (2026-08-31, recorded)
+- Deliver as sequential increments A′/B′/C′ (one thing at a time, Rule #5), each add/commit/push, NO merge.
+- View action → navigate to `/branches/:branchId` (BranchDetails placeholder already routed at main.jsx:115).
+- NO grid row selection (no bulk action).
+- Archive / Restore / Delete all confirm via MuiConfirmDialog.
+- MuiPagination is card/list-view ONLY (grid owns its own footer pagination).
+- Drop the "Print" toolbar action; no grid search (C29).
+
+### Amendments (Step-1.1)
+| # | Amendment | Detail |
+|---|-----------|--------|
+| A29 | `MuiDataGrid` → MUI X v9 rewrite | server pagination/sort via `paginationModel`+`onPaginationModelChange`+`sortModel`+`onSortModelChange`+`rowCount`+`pageSizeOptions`+`paginationMode="server"`+`sortingMode="server"`; REMOVE removed v9 props `page`/`pageSize`/`onPageChange`/`onPageSizeChange`/`rowsPerPageOptions`/`disableSelectionOnClick`; `getRowId=(row)=>row._id`; density compact; rowHeight 52; NO checkbox selection; overlays via `slots` defaults = `MuiEmptyState`/`LoadingSpinner` (C30), consumer overrides via `slots`; NO quick filter (C29) |
+| A30 | `MuiPagination` card/list-view only | plain numbered `<Pagination>` (props `count`,`page` 1-indexed,`onChange`); fixed page size; NOT used by the grid |
+| A31 | Ethiopian dates | `columns/branches.jsx` createdAt + `BranchLedgerCard.jsx` createdAt → `formatEthiopianDate` (drop `new Date(...).toLocaleDateString`) |
+| A32 | Grid view integration | `effectiveView==="grid"` (sm+) → `MuiDataGrid` + `createBranchColumns` + server pagination/sort |
+| A33 | Card/list view + pagination | `BranchLedgerCard` map (xs 1col/sm 2col/md 3col/lg 4col) + `MuiPagination` |
+| A34 | Lifecycle confirm | archive/restore/delete each open `MuiConfirmDialog` → mutation → toast success/error (C27) |
+| A35 | View navigate | View action `useNavigate()` → `/branches/:branchId` (placeholder routed) |
+| A36 | Edit seed | `BranchFormDialog` `useEffect` seeds form from `initialData` when it opens (fixes stale defaultValues, Phase 5.4 #9) |
+| A37 | `getBranchDetail` inert | stays declared in branchesSlice but NEVER imported/called (backend route is a later phase) |
+
+### Files
+Client: MuiDataGrid.jsx, MuiDataGridToolbar.jsx, MuiPagination.jsx, columns/branches.jsx, BranchLedgerCard.jsx, Branches.jsx, BranchFormDialog.jsx, MuiConfirmDialog.jsx (verify), constants.js. Mirrors: findings/task_plan/progress/AGENTS/spec.
+
+### Owner directive (2026-08-31, updated) — ALL reusable components are page-agnostic
+- **Every component under `client/src/components/reusable/` is reusable** — not just
+  MuiDataGrid/MuiDataGridToolbar. Each is generic and is used **based on the page we are on**.
+- `MuiDataGrid.jsx` + `MuiDataGridToolbar.jsx` are consumed per page; a page may need any
+  combination of **Print, Export CSV, Export PDF, Export to Excel** — so the toolbar must expose
+  **per-feature opt-in configuration**, not a single hardcoded surface.
+- Branches not wanting Print (C29) does **not** mean Reports or other pages won't need
+  Print/CSV/PDF later — the reusable component must still support them.
+- Export control is an **icon dropdown Menu** whose items are driven by which export formats the
+  page enables.
+- The `export` prop is a **reserved word (fatal)** → rename to valid identifier `showExport`
+  (default off; page opts in). Pages configure via `slotProps.toolbar` (MuiDataGrid already
+  forwards `slotProps.toolbar` to the toolbar slot — verified `GridHeader.js:17`).
+- Drop the filter `Badge` placeholder (hardcoded `0` dot).
+
+### Canon C31 (2026-08-31) — grid column widths use `flex`, never hardcoded `width`
+- **Rule:** domain column files (`columns/*.jsx`) NEVER hardcode a column `width`. Every column
+  uses `flex` (+ `minWidth`, optionally `maxWidth`) so the DataGrid distributes the FULL
+  horizontal space proportionally. Applies to ALL present and future columns, not just branches.
+  (v9: `flex` overrides `width` when both set; all-flex columns split the grid width
+  proportionally; each flex column needs its own `minWidth`.)
+- **MuiDataGrid:** sets `disableColumnResize` — column drag-resize is off for every grid; widths
+  are driven purely by the domain column definitions.
+- **Branches weighting (owner-approved):** `name flex:2 minWidth:200` · `location flex:2
+  minWidth:160` · `isArchived flex:1 minWidth:120` · `createdAt flex:1 minWidth:120` (Name/Location
+  larger, Status/Created compact — prevents Name dominating the grid).
+- **Mirrored in:** findings, progress, task_plan, AGENTS.md conventions, spec §46.8.
