@@ -3119,7 +3119,7 @@ backend/
 |   |-- httpStatus.js               (implemented)  # semantic HTTP status names (§11.6)
 |   |-- wavSplitter.js              (implemented)  # PCM-level WAV chunking for STT (§33; added 2026-08-20)
 |   |-- transaction.js              (implemented)  # §27.7 withTransaction template (ADR-018; added 2026-08-20)
-|   |-- pagination.js               (implemented)  # §27.6 paginate wrapper over mongoose-paginate-v2 (added 2026-08-20)
+|   |-- pagination.js               (removed/deprecated)  # §27.6 — file NEVER existed (false marker; corrected 2026-08-31). Pagination = mongoose-paginate-v2 registered per-schema via `.plugin()` (see branch.model.js, C23)
 |   |-- sanitizer.js                (implemented)  # §61.3/§61.4 server write-gate — hand-rolled allowlist mirror (added 2026-08-20)
 |   `-- ethiopianDate.js            (implemented)  # Ethiopian↔Gregorian mirror of the client util (§6.3/§38.5; added 2026-08-20)
 |-- middleware/                     # fixed chain extras + auth + tiers (contents named by §26–§28)
@@ -6508,12 +6508,25 @@ abort before 422 — the harness aggregates them. `message` is
 plain end-user language ("Check the highlighted fields" + per-
 field messages in the details).
 
+> **C24 (amendment, 2026-08-31):** `validate()` is a **factory** —
+> it MUST be **invoked** (`validate()`) in every route chain, never
+> passed as the bare `validate` reference. Passing the bare
+> reference makes Express call it as `validate(req, res, next)` (the
+> request object lands in the `options` parameter), the function
+> merely `return`s a fresh inner middleware that Express ignores,
+> and `next()` is **never** called → the request **hangs forever**
+> (no response, no 500). Symptom observed: Postman `GET /branches`
+> "always loading" while `/health` (no validator) responded fine.
+> `auth.routes.js` (correct) uses `validate()`; every `branch.routes.js`
+> route used the bare form and was fixed to `validate()`.
+
 ### 29.3 Rule-chain conventions
 
 - One chain per domain: `validators/<domain>.validator.js`
   (kebab-case), imported by the §30–§39 route modules, mounted
   **before** the domain controller (`router.post('/', chain,
-validate(), controller)`).
+validate(), controller)`). The harness must be **invoked** as
+`validate()` — never passed bare (C24, §29.2).
 - Rules reference `<entity>Id` params (`:reportId` etc.,
   §12.11-1), sanitize inputs (escape HTML in text fields per
   §61 policy — validators are also the sanitization gate), and
@@ -9163,6 +9176,13 @@ call itself never triggers another refresh (step 3).
   receive `data` (or the paginated `data.docs` surface of §27)
   directly; the wrapper never leaks `success`/`message` into page
   state (§12.6).
+  - **Amendment (C22, bug 2026-08-31):** the unwrap happens **once** —
+    `providesTags`/`invalidatesTags` callbacks and all consumers read
+    the inner payload directly (`result.docs`, `result.page`, …),
+    **never `result.data.*`**. A `result.data.docs` access in
+    `getBranches.providesTags` threw a TypeError, the cache never
+    settled, and `data` came back `undefined` (endless loading). No
+    `.data` access after the unwrap.
 - **Errors:** every non-401 error is normalized into the toast-ready
   shape consumed by §60: `{ message, fieldErrors }` where `message`
   is the server-provided plain end-user language (§27, §12.5 —
@@ -10135,6 +10155,12 @@ AdapterDayjs` — the pickers render no provider of their own
   loader, and middleware fetch) the scrollable content area renders
   `<LoadingSpinner message="Loading…" minHeight="100%"/>` in place
   of the `<Outlet/>`; chrome stays mounted.
+- **Amendment (C21, owner directive 2026-08-31):** a query's loading
+  gate is **"no content yet"** — `!data && !error` — **never** the RTK
+  `isLoading` flag. `isLoading` stays true until a request settles and
+  spins forever on a hung request; `!data && !error` flips off the
+  moment a response (success or error) arrives. Apply to every query
+  surface on all pages (mirrors AGENTS.md conventions).
 - **Skeleton variants (the §45.7 batch surfaces):**
   `TableSkeleton`, `ListSkeleton`, `FormSkeleton`,
   `MessageSkeleton` (`components/reusable/*Skeleton.jsx`) —
@@ -12372,6 +12398,16 @@ the route + placeholder only.
   ("No branches yet — add your first branch"); Show-Archived
   with nothing archived — "No archived branches." (chrome
   copy, §7.6).
+  **Increment note (amended 2026-08-31):** the page now wires the
+  branches fetch (`GET /branches`, limit 10 default) and its
+  loading / error / empty surfaces via `LoadingSpinner` (§46.14),
+  the §60.3 inline retry band, and `MuiEmptyState` (§46.17, reused
+  later as the MuiDataGrid empty overlay). The fetched `data.docs`
+  payload is held by the page but not yet passed to any child
+  component — row rendering lands in a later increment. This
+  required the `Branch` tag family in `apiSlice.js` (§42.2), the
+  `branchesSlice.js` side-effect import in `store.js` (§41.6), and
+  the branch copy constants (§11.5).
 - Breakpoint matrix (the §45.2 five buckets) — **amended 2026-08-31**
   (small-screen icon-only convention §45.4; `hideTitle` on xs §46.12;
   view toggle hidden on xs, auto-switch view across the `xs`↔`sm`

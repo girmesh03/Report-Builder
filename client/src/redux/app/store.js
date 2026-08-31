@@ -29,6 +29,10 @@ import { AUTH_STATUSES } from "../../utils/constants.js";
 // Must run before listener registration so apiSlice.endpoints.login exists.
 import "../features/userSlice.js";
 
+// Side-effect: injects the branches domain endpoints (list/create/update/
+// archive/restore/delete + detail) into apiSlice (§56).
+import "../features/branchesSlice.js";
+
 /**
  * Minimal sessionStorage adapter meeting redux-persist's async
  * storage contract — every method returns a Promise (getStoredState

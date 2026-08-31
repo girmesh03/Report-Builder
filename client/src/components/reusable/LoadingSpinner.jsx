@@ -15,7 +15,7 @@ import Typography from "@mui/material/Typography";
  *   page by default, sections pass e.g. "400px", transitions "100%".
  * @returns {JSX.Element} The spinner block.
  */
-const LoadingSpinner = ({ message, minHeight = "100vh" }) => {
+const LoadingSpinner = ({ message, minHeight = "90%" }) => {
   return (
     <Box
       role="status"

@@ -252,3 +252,73 @@ working files. All gates green.
 | 20 | Run `npx vite build` (0 errors) | pending |
 | 21 | Run `npx eslint src/` (0 warnings) | pending |
 | 22 | Delete `dist/` | pending |
+
+## Session 2026-08-31 (b) — Branches Page Fetch / Loading / Error / Empty
+
+Canon C13–C20 · Amendments A16–A20 (see findings.md). No data passed to
+any child component — rows render in a later increment.
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Wire apiSlice tagTypes → `["User","Branch"]` (A16) | done |
+| 2 | store.js side-effect import branchesSlice (A17) | done |
+| 3 | Track branchesSlice.js (A18) | done |
+| 4 | Add copy constants to constants.js (A19) | done |
+| 5 | Branches.jsx fetch + loading(Ls)/error(inline retry)/empty(MuiEmptyState) (A20) | done |
+| 6 | Mirrors — AGENTS.md + spec §56.7/§42/§60.2/§15 (same-commit) | done |
+| 7 | Gates — lint, build 0 err, delete dist | done (all pass) |
+| 8 | Step-5 review → add/commit/push (no merge) | pending review |
+
+**Rework (build, 2026-08-31, owner "clean page" directive):**
+- New `MuiErrorState` belt component replaces the inline error `<Box>`
+  retry band (prop-driven, `refetch`-capable; AppErrorPage stays for the
+  router boundary only).
+- Branches.jsx body = stock surfaces only; NO `<body>` wrapper; all copy
+  via `BRANCHES_COPY` (added `header.title`/`header.subtitle`).
+- **C21 codified (owner directive 2026-08-31):** query loading gate =
+  **`!data && !error`**, NEVER `isLoading` — prevents the endless
+  spinner. Mirrored in findings.md, AGENTS.md, spec §46.14. RESPECT
+  FOREVER.
+
+**Bug fix (build, 2026-08-31): `data` undefined — Redux normalization**
+- Cause: `getBranches.providesTags` read `result.data.docs`, but
+  `unwrapEnvelope` already strips the envelope — `result` is the inner
+  payload, so `result.data` is `undefined` → TypeError → cache never
+  settles → `data` undefined.
+- Fix: `branchesSlice.js` `providesTags` now reads `result.docs` (C22).
+- **C22 codified (2026-08-31):** envelope unwrapped once in `apiSlice`;
+  consumers/tag callbacks read the inner payload (`result.docs`), NEVER
+  `result.data.*`. Mirrored in findings.md, AGENTS.md, spec §42.4.
+  RESPECT FOREVER.
+
+**Backend fix (build, 2026-08-31): `Branch.paginate` undefined → `data` undefined**
+- Cause: `getBranches` (branch.controller.js:48) calls `Branch.paginate`,
+  but `mongoose-paginate-v2` was never registered; `backend/utils/pagination.js`
+  claimed by spec §15 never existed (false marker).
+- Fix (schema-level, owner): `branch.model.js` += import +
+  `branchSchema.plugin(mongoosePaginate)` before `mongoose.model(...)`.
+- **C23 codified (2026-08-31):** pagination = `mongoose-paginate-v2`
+  registered PER-SCHEMA via `.plugin()`; no `pagination.js` wrapper (spec
+  false claim corrected to removed/deprecated). Mirrored in findings.md,
+  AGENTS.md, spec §27.6/§15. RESPECT FOREVER.
+
+### Backend hang — task-7 updates (validate() invocation)
+- **Root cause (owner-led, not mongoose):** all 7 `branch.routes.js`
+  routes passed the bare `validate` reference instead of `validate()`.
+  `validate` is a factory → Express called it as `validate(req,res,next)`
+  (req → `options`), the returned inner middleware was ignored, `next()`
+  never ran → the request hung forever (no response; `/health` fine).
+- **Fix:** every route now invokes `validate()` (working tree, C24).
+- **C24 codified (2026-08-31):** `validate()` must be **invoked** in route
+  chains, never passed bare — else silent hang. Mirrored in findings.md,
+  AGENTS.md, spec §29.2/§29.3. RESPECT FOREVER.
+
+### Backend pagination — task-6 updates
+| # | Task | Status |
+|---|------|--------|
+| 6a | Register `mongoose-paginate-v2` on Branch schema | done |
+| 6b | Mirrors — findings, AGENTS, spec §15/§27.6, task_plan, progress | done |
+| 6c | Gates — node --check + client lint/build/delete dist | pending |
+| 7a | Fix bare `validate` → `validate()` in all branch routes (C24) | done |
+| 7b | Restart backend + Postman `/branches` re-test | pending |
+| 7c | Step-5 review of full uncommitted set; NO commit until approval | pending |

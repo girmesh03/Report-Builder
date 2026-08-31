@@ -6,6 +6,7 @@
  */
 
 import mongoose from "mongoose";
+import mongoosePaginate from "mongoose-paginate-v2";
 import {
   BRANCH_NAME_MAX_LENGTH,
   BRANCH_LOCATION_MAX_LENGTH,
@@ -70,6 +71,10 @@ branchSchema.index({ user: 1, name: 1 }, { unique: true });
 
 /** Text index for global search (§39.2, §20.3). */
 branchSchema.index({ user: 1, name: "text", location: "text" });
+
+/** Server-side pagination for the list endpoint (§27.6) — registered
+ *  per-schema so `Branch.paginate` exists (C23, 2026-08-31). */
+branchSchema.plugin(mongoosePaginate);
 
 /**
  * The Branch model — every branch lookup in the app runs through it.

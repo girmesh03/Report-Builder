@@ -94,3 +94,26 @@ export const SIDEBAR_FULL_WIDTH = Object.freeze(240);
 
 /** Pagination row-per-page options for MuiDataGrid and MuiPagination (§11.3, §46.7). */
 export const ROWS_PER_PAGE_OPTIONS = Object.freeze([10, 25, 50, 100]);
+
+/**
+ * Branches page state copy (§56.7/§60). Single-sourced strings for the
+ * load, error, and empty surfaces; consumed on first use by Branches.jsx.
+ * @type {Object<string, Object<string, string>>}
+ */
+export const BRANCHES_COPY = Object.freeze({
+  header: Object.freeze({
+    title: "Branches",
+    subtitle: "Your supervision branches",
+  }),
+  loading: Object.freeze({
+    message: "Loading branches…",
+  }),
+  error: Object.freeze({
+    title: "Could not load branches",
+    retryLabel: "Try again",
+  }),
+  empty: Object.freeze({
+    title: "No branches yet — add your first branch",
+    createLabel: "New branch",
+  }),
+});

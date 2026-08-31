@@ -383,6 +383,7 @@
 | 3 | BranchesHeaderActions always shows toggle + full button | BranchesHeaderActions.jsx | Conditional render on `viewMode` prop |
 | 4 | Branches.jsx no responsive logic | Branches.jsx | Add useMediaQuery + derived effectiveView + `useCallback` handlers (C12) |
 | 5 | AuthSheet would lose its title on xs (hideTitle default) | AuthSheet.jsx | Pass `hideTitle={false}` |
+| 6 | Branches.jsx state via `let body;` variable | Branches.jsx | Owner directive: NO `body`/state-holder var — render the mutually-exclusive states via an inline ternary chain directly in the fragment (this also motivated `MuiErrorState`) |
 
 ### Strict Process Requirement (codified 2026-08-31)
 
@@ -392,3 +393,55 @@
   amendments during brainstorm and records them in the planning
   working files, `AGENTS.md`, and the spec in the same commit (§66.6).
 - Respect the amended text once recorded.
+
+---
+
+## Session 2026-08-31 (b) — Branches Page Fetch / Loading / Error / Empty (Step-1.1 Identification)
+
+### Task: Branches page fetches branches; surfaces loading, error, and empty states — NO data passed to any component
+
+Owner scope (2026-08-31): fetch, loading, and error handling only. Also
+drop in the empty state per owner (reused later as the MuiDataGrid
+empty overlay). The `data.docs` payload is held by the page but not
+passed to any child component in this increment — rows render later.
+
+### Canon Inventory (existing truths — can't be wrong, no change)
+
+| # | Source | Canon Item |
+|---|--------|------------|
+| C13 | §42.4 | Error normalized to `{ status, message, fieldErrors }`, plain end-user language |
+| C14 | §60.2/§60.4 | State transitions never skip: loading → empty/error/success; retry re-enters loading |
+| C15 | §46.14 | `LoadingSpinner` is the page/section load surface (message `text.secondary`, minHeight) |
+| C16 | §46.17/§60.2 | `MuiEmptyState` is the belt empty surface (title + optional inline action) — also the MuiDataGrid empty overlay |
+| C17 | §56.7 | Branches empty copy: **"No branches yet — add your first branch"** (with inline "New branch" action); NOT "No branches found" |
+| C18 | §56.7/§60.3 | Query error = §60 error toast + inline retry affordance on the failing region; retry re-runs the same §42 call |
+| C19 | backend | Backend default limit = 10 (`PAGINATION_DEFAULT_LIMIT`), validator clamps 1–100 (`branch.validator.js`); client grid page size defaults to 10 (`ROWS_PER_PAGE_OPTIONS=[10,25,50,100]`) — aligned, NO amendment |
+| C20 | branchesSlice.js | `getBranches` endpoint exists: `{ page, limit, sort, isArchived }`, paginated, `data.docs` surface |
+| C21 | owner directive 2026-08-31 | **Loading gate = "no content yet" (`!data && !error`), NEVER `isLoading`** — `isLoading` stays true until a request settles and spins forever on a hung request; `!data && !error` flips off the moment a response (success or error) arrives. Standing rule for every query surface. Respect forever. |
+| C22 | apiSlice.js `unwrapEnvelope` (§42.4) + bug 2026-08-31 | **Envelope is unwrapped ONCE in `apiSlice` — query consumers & tag callbacks read the inner payload directly** (`result.docs`, `result.page`, `result.limit`, `result.totalDocs`, `result.totalPages`), **NEVER `result.data.*`**. The `getBranches.providesTags` `result.data.docs` bug threw a TypeError in tag provisioning → cache never settled → `data` undefined / endless loading. No `.data` access after the unwrap. Respect forever. |
+| C23 | Step-1.1 (spec-is-wrong) 2026-08-31 | **Server-side list pagination = `mongoose-paginate-v2` registered PER-SCHEMA via `.plugin()` before model compilation**; list controllers depend on `Model.paginate` (`branch.controller.js` → `Branch.paginate`). Spec §15 falsely claimed `backend/utils/pagination.js (implemented)` — that file **never existed** (not on disk, not tracked in git); corrected to **removed/deprecated**. `getBranches` failed (`Branch.paginate` undefined → morgan `dev` dashes / undefined `data` / endless spinner). Respect forever. |
+| C24 | `validate` factory bug 2026-08-31 | **`validate()` is a FACTORY — it must be INVOKED (`validate()`) in route chains, never passed as the bare `validate` reference.** Passing the bare reference makes Express call it as `validate(req, res, next)` → `req` lands in the `options` parameter, the body merely `return`s a fresh inner middleware that Express ignores, so **`next()` is never called and the request hangs forever (no response, no 500)**. Symptom: Postman `/branches` "always loading", `/health` (no validator) responds fine. `auth.routes.js` correctly uses `validate()`; every `branch.routes.js` route used the bare form — fixed to `validate()`. **This is the actual hang blocker** (not mongoose/C23). Respect forever: any route chain applying `express-validator` must call `validate()`. |
+
+### Amendments (this task's deltas, mirrored same-commit)
+
+| # | Amendment | Source/Why | Files |
+|---|-----------|-----------|-------|
+| A16 | Register `Branch` tag family in apiSlice (`["User"]` → `["User","Branch"]`) | branchesSlice already provides/invalidates `Branch` tags; RTK Q requires declaration | apiSlice.js, §42 |
+| A17 | Wire `branchesSlice.js` into the store (side-effect import) | endpoints otherwise not registered; mirrors existing `userSlice.js` import | store.js, §15/§41.6 |
+| A18 | Bring `branchesSlice.js` into the tracked tree | untracked today; required for the fetch | branchesSlice.js |
+| A19 | Add minimal loading/error/empty copy constants to `client/src/utils/constants.js` | none exist; "define on require" | constants.js, §11.5 |
+| A20 | Branches.jsx renders loading/error/empty via reusable surfaces; success holds data w/o passing to children | owner scope | Branches.jsx, §56.7 |
+
+### In-progress (owner decides while implementing)
+- Exact inline retry band look for the error state (spec: §60.3 toast + inline retry affordance).
+
+### Issues to Fix (this task)
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | apiSlice `tagTypes` missing `"Branch"` | apiSlice.js | add to array (A16) |
+| 2 | store doesn't import branchesSlice | store.js | side-effect import (A17) |
+| 3 | Branches.jsx has no fetch/loading/error/empty | Branches.jsx | call `useGetBranchesQuery` + render states (A20) |
+| 4 | No copy constants | constants.js | add minimal set (A19) |
+| 5 | `getBranches.providesTags` reads `result.data.docs` — throws, `data` undefined | branchesSlice.js | read `result.docs` (C22 — envelope already unwrapped) |
+| 6 | All 7 `branch.routes.js` routes pass bare `validate` (not `validate()`) → request hangs, no response | branch.routes.js | invoke `validate()` (C24) |

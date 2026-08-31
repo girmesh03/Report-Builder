@@ -115,6 +115,10 @@ Dependencies are added only via the owning phase or explicit approval (§13.7) �
 - JS modules kebab-case (`httpStatus.js`, `stt.service.js`); React components PascalCase, one exported component per file named after itself; reusable MUI components prefixed `Mui*` in `client/src/components/reusable/`; **no barrel files**.
 - **Arrow functions everywhere** (owner directive 2026-08-24); exceptions only where semantics force otherwise: mongoose hooks/methods/virtuals (`this`), class declarations/constructors.
 - **Event handlers in components use `useCallback`** (owner directive 2026-08-31) with correctly specified deps — empty `[]` when the handler touches only stable setters/log. Apply consistently across all pages and consumer components (matches existing `useLogout.js`, `AppShell.jsx`, `MuiTextField.jsx`; mirrors spec §46.2).
+- **Query loading gate = "no content yet" (`!data && !error`), never `isLoading`** (owner directive 2026-08-31). `isLoading` stays true until a request settles and spins forever on a hung request; `!data && !error` flips off the moment a response (success or error) arrives. Apply to every RTK Query surface (mirrors spec §46.14).
+- **Redux envelope is unwrapped once in `apiSlice` (`unwrapEnvelope`)** — query consumers and `providesTags`/`invalidatesTags` callbacks read the inner payload directly (`result.docs`, `result.page`, …), **never `result.data.*`** (a `result.data.docs` access in `providesTags` throws → `data` undefined). Mirrors spec §42.4.
+- **Server-side list pagination is `mongoose-paginate-v2` registered PER-SCHEMA via `.plugin()`** before model compilation; list controllers call `Model.paginate`. There is no `utils/pagination.js` wrapper — the spec §15 claim of one was false (corrected to removed/deprecated, 2026-08-31). Never rely on a spec-claimed file; verify the filesystem (mirrors spec §27.6).
+- **`validate()` is a factory — always INVOKE it as `validate()` in route chains, never pass the bare `validate` reference** (C24, 2026-08-31). A bare reference makes Express call it as `validate(req, res, next)` → `req` lands in `options`, the inner middleware is returned but ignored, `next()` never runs → the request **hangs forever with no response** (Postman "always loading" while `/health` responds). Mirrors spec §29.2/§29.3.
 - **Controllers use `express-async-handler`** — no manual try/catch → `next(error)` boilerplate (owner directive 2026-08-24).
 - RTK Query domain endpoint sets live at `redux/features/<domain>Slice.js` (owner directive 2026-08-24; `userSlice.js` not `authEndpoints.js`).
 - `LocalizationProvider` mounts exactly once in `main.jsx` — never per page/component.
@@ -125,9 +129,9 @@ Dependencies are added only via the owning phase or explicit approval (§13.7) �
 - Statuses are lowercase enums; providers are exactly `addis`/`gemini`/`nvidia`; route paths kebab-case.
 - Report content model: `raw` (original STT/plain text, written once) + `latest` (current, rich HTML) — single undo via revert, no version chain.
 
-## Current state (as of 2026-08-24 — verify, don't trust)
+## Current state (as of 2026-08-31 — verify, don't trust)
 
-- Git `main` at 0 commits; nothing tracked yet.
-- `backend/`: manifest + `.env` only — no source files exist despite spec §15 marking them implemented.
-- `client/`: Vite scaffold + `src/theme/` started (`AppTheme.jsx`, `themePrimitives.js`, `customizations/*`); `main.jsx`/`App.jsx` still scaffold stubs; TipTap/dompurify not installed.
-- Effective progress ≈ P1/P2 territory of the §66 plan; reconcile against reality at session start.
+- Active branch `phase-5-branches-frontend` (no merge; add/commit/push only per owner directive 2026-08-31). `main` stays 0-commits placeholder.
+- `backend/`: `branch` domain (controller/routes/validator) + `auth` + `utils/constants.js` `PAGINATION_*`; paginated list with limit default 10 (1–100 clamp).
+- `client/`: theme + `redux` (`apiSlice` tagTypes `["User","Branch"]`; `store.js` side-effect imports `userSlice` + `branchesSlice`; `authSlice` persisted) + `MuiPageHeader` (+`hideTitle`), `BranchesHeaderActions`, `Branches.jsx` fetch/loading/error/empty (no child data passing yet), reusable belt (`MuiButton`, `MuiTextField`, `LoadingSpinner`, `MuiEmptyState`), shell (`AppShell`, `MuiSidebar`, `Appbar`), `AuthSheet`. Untracked pending later increments: remaining `branches/` components, `MuiDialog`/`MuiStatusBadge`/`MuiDataGrid`/`MuiPagination`/`MuiConfirmDialog`, `columns/`, `branchesSlice.js`.
+- Effective progress: phase 5 (branches frontend) partial — header + fetch/loading/error/empty wired; rows/dialogs/data-grid pending.

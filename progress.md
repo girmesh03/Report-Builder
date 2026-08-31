@@ -477,3 +477,64 @@ that will work for both error and data transform."
 - **Fixes:** 5 issues (see findings.md session entry)
 - **Gates:** Pending step-5 re-run
 - **Status:** Implementing → Complete (code + docs written)
+
+## Session 2026-08-31 (b) — Branches Page Fetch / Loading / Error / Empty
+
+- **Task:** Branches.jsx fetches branches; surfaces loading, error, and
+  empty states. NO data passed to any child component.
+- **Protocol step:** Step-1.1 identification recorded, implementing
+- **Canon items:** C13–C20 (from findings.md)
+- **Amendments:** A16–A20 (from findings.md)
+- **Owner decisions:** loading = LoadingSpinner; inline retry included
+  (look decided as we go); empty = MuiEmptyState (reused later as
+  MuiDataGrid empty overlay); limit = 10 (backend default, aligned with
+  grid page size 10, no backend change); branchesSlice + apiSlice
+  tagTypes + store import in scope.
+- **Owner rework (build, 2026-08-31):** clean page — stock surfaces only,
+  NO `<body>` wrapper, all copy via `BRANCHES_COPY` (header added). No
+  `body`/state-holder variable — states render via an inline ternary chain
+  directly in the fragment.
+- **Convention codified (C21, owner directive 2026-08-31):** query
+  loading gate = "no content yet" **`!data && !error`**, NEVER
+  `isLoading` (prevents endless spinner on a hung request). Recorded in
+  findings.md, AGENTS.md, and spec §46.14 — respect forever.
+- **Error surface:** new `MuiErrorState` belt component (prop-driven,
+  refetch-capable) replaces the inline `<Box>` retry band; AppErrorPage
+  stays for the router-boundary role only.
+- **Status:** Implementing → Complete (code + docs written)
+- **Gates:** `npm run lint` 0 warnings ✓ · `npx vite build` 0 errors ✓ · `client/dist/` deleted ✓
+- **Commit disposition:** INTERMEDIATE — awaiting step-5 owner review; add/commit/push only (no merge).
+
+### Bug fix — `data` undefined (Redux normalization, 2026-08-31)
+- **Root cause:** `getBranches.providesTags` read `result.data.docs`,
+  but `unwrapEnvelope` strips the envelope once, so `result` is the
+  inner `{ docs, … }` — `result.data` is `undefined` → TypeError in tag
+  provisioning → cache never settled → `data` undefined/endless loading.
+- **Fix:** `branchesSlice.js` `providesTags` reads `result.docs`.
+- **Codified C22 (2026-08-31):** envelope unwrapped once; consumers and
+  tag callbacks read the inner payload (`result.docs`), NEVER
+  `result.data.*`. Mirrors in findings.md, AGENTS.md, spec §42.4.
+  RESPECT FOREVER.
+
+### Bug fix — `Branch.paginate` undefined → `data` undefined (backend, 2026-08-31)
+- **Root cause:** `getBranches` calls `Branch.paginate` (branch.controller.js:48)
+  but `mongoose-paginate-v2` was never registered; spec §15 falsely claimed
+  `backend/utils/pagination.js (implemented)` — file never existed.
+- **Fix (schema-level, owner):** `branch.model.js` imports
+  `mongoose-paginate-v2` + `branchSchema.plugin(mongoosePaginate)` before
+  model compilation. No `pagination.js` created/deleted.
+- **Codified C23 (2026-08-31):** list pagination = `mongoose-paginate-v2`
+  registered PER-SCHEMA via `.plugin()`; no `utils/pagination.js` wrapper
+  (spec claim corrected to removed/deprecated). Mirrors in findings.md,
+  AGENTS.md, spec §15/§27.6. RESPECT FOREVER.
+- **Root cause of the `/branches` hang (owner-led, NOT mongoose):** all 7
+  `branch.routes.js` routes passed the bare `validate` reference instead of
+  `validate()`. Since `validate` is a factory, Express called it as
+  `validate(req,res,next)` (req landed in `options`), the returned inner
+  middleware was ignored, and `next()` never ran → request hung forever
+  (Postman "always loading"); `/health` (no validator) responded fine.
+- **Fix:** every branch route now invokes `validate()` (working tree).
+- **Codified C24 (2026-08-31):** `validate()` must be invoked (`validate()`)
+  in route chains, never passed bare — a bare reference silently hangs the
+  request. Mirrors in findings.md, AGENTS.md, spec §29.2/§29.3.
+  RESPECT FOREVER.

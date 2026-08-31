@@ -21,7 +21,7 @@ router.use(authenticate);
 router.get(
   "/",
   branchValidator.listBranchesChain,
-  validate,
+  validate(),
   branchController.getBranches,
 );
 
@@ -31,7 +31,7 @@ router.get(
 router.get(
   "/:branchId",
   branchValidator.branchIdParamChain,
-  validate,
+  validate(),
   branchController.getBranch,
 );
 
@@ -41,7 +41,7 @@ router.get(
 router.post(
   "/",
   branchValidator.createBranchChain,
-  validate,
+  validate(),
   branchController.createBranch,
 );
 
@@ -52,7 +52,7 @@ router.patch(
   "/:branchId",
   branchValidator.branchIdParamChain,
   branchValidator.updateBranchChain,
-  validate,
+  validate(),
   branchController.updateBranch,
 );
 
@@ -62,7 +62,7 @@ router.patch(
 router.post(
   "/:branchId/archive",
   branchValidator.branchIdParamChain,
-  validate,
+  validate(),
   branchController.archiveBranch,
 );
 
@@ -72,7 +72,7 @@ router.post(
 router.post(
   "/:branchId/restore",
   branchValidator.branchIdParamChain,
-  validate,
+  validate(),
   branchController.restoreBranch,
 );
 
@@ -82,7 +82,7 @@ router.post(
 router.delete(
   "/:branchId",
   branchValidator.branchIdParamChain,
-  validate,
+  validate(),
   branchController.deleteBranch,
 );
 
