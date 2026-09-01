@@ -1,5 +1,27 @@
 # Task Plan — Report Builder
 
+Governing Rule #6 — **SPEC TRUST OVERLAY** (owner directive,
+2026-09-01): `docs/project-specification.md` is NOT a single source of
+truth for the following areas, nor for anything involved with them:
+
+- **§18–§24A — Domain models** (User, Branch, Report, Audio,
+  Transcription, ChatConversation, Item): schema field contracts &
+  indexes.
+- **§30–§39 — Domain API contracts** (Branch CRUD/lifecycle, Report,
+  Audio, STT, Generation, Correction, Chat, Export, Analytics,
+  Search) — incl. §30.2 filter semantics and §30.6 delete flow.
+- **§48–§59 — Pages & features** (auth pages, dashboard, reports
+  list/detail, branches §56.2/§56.3/§56.5/§56.6/§56.7, profile §57,
+  exports §58, wizard-replacement workspace).
+
+Every detail in these areas is binding ONLY once it is amended WITH the
+owner during the Step-1.1 identification of each phase/task/sub-task
+and recorded in findings.md / progress.md / task_plan.md / AGENTS.md in
+the same working tree (§66.6 same-commit mirrors). Spec text alone
+never binds here; a detail stays out until owner-amended (Rule #1 —
+KNOWN OR AMENDED ONLY). Already owner-amended branches state and built
+code are unaffected.
+
 Governing Rule #1 — **KNOWN OR AMENDED ONLY** (owner directive,
 2026-08-24, mirrored in `AGENTS.md`): every single thing must be done
 for only known or amended things. **Known** = logically valid or

@@ -1,5 +1,20 @@
 # Report Builder — Project Specification
 
+> **AMENDMENT — TRUST OVERLAY (owner directive, 2026-09-01):**
+> This document is NOT the single source of truth for §18–§24A (domain
+> models — schema field contracts & indexes), §30–§39 (domain API
+> contracts — Branch/Report/Audio/STT/Generation/Correction/Chat/
+> Export/Analytics/Search, incl. §30.2 filter semantics and §30.6 delete
+> flow), or §48–§59 (pages & features — auth pages/dashboard/reports
+> list+detail/branches §56.2/§56.3/§56.5/§56.6/§56.7/profile §57/exports
+> §58/wizard-replacement workspace), nor for anything involved with
+> them. For these areas every detail becomes binding ONLY when amended
+> with the owner during the Step-1.1 identification of each
+> phase/task/sub-task and recorded in findings.md, progress.md,
+> task_plan.md and AGENTS.md in the same working tree (§66.6). These
+> sections remain behavioral reference only, pending owner amendment;
+> the "Single source of truth" statement below is overridden for them.
+
 > **Document type:** Complete PRD + PDS + SAD + HLD + LLD + SDD in a single document.
 > Every section of this specification passes its applicable content rules and
 > checklists before being considered complete.
@@ -9,6 +24,15 @@
 > (`backend/package.json`, `client/package.json`) are the version source of
 > truth (§13). Behavior not decided here is registered in §69 (Open
 > Questions), never invented.
+>
+> **Override (owner directive, 2026-09-01):** the AMENDMENT — TRUST
+> OVERLAY banner at the top of this document carves §18–§24A (domain
+> models), §30–§39 (domain API contracts) and §48–§59 (pages &
+> features) — and anything involved with them — out of this single-source
+> claim. For those areas every detail becomes binding only once amended
+> with the owner during the Step-1.1 identification of each
+> phase/task/sub-task, recorded in the planning working files and
+> AGENTS.md in the same working tree (§66.6).
 >
 > **No invented details rule:** any unknown behavior is registered in §69
 > (Open Questions) and marked `TODO(open)` in its section — never silently invented.

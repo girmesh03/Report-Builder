@@ -2,6 +2,33 @@
 
 Instructions for OpenCode/agent sessions working in this repository.
 
+## Spec trust overlay — models, API contracts, pages (owner directive, 2026-09-01)
+
+**`docs/project-specification.md` is NOT a single source of truth for:**
+
+- **§18–§24A — Domain models** (User, Branch, Report, Audio,
+  Transcription, ChatConversation, Item): every schema's field contracts
+  and indexes.
+- **§30–§39 — Domain API contracts** (Branch CRUD/lifecycle, Report,
+  Audio, STT, Generation, Correction, Chat, Export, Analytics, Search) —
+  incl. §30.2 filter semantics and §30.6 delete flow.
+- **§48–§59 — Pages & features** (auth pages, dashboard, reports
+  list/detail, branches §56.2/§56.3/§56.5/§56.6/§56.7, profile §57,
+  exports §58, wizard-replacement workspace).
+- **everything involved with them** — their constants, request/response
+  envelope and data shapes, indexes, dependent models, and the pages/
+  reusable components that realize them.
+
+**Instead:** every single detail in these areas becomes binding ONLY
+when it is amended WITH the owner during the Step-1.1 identification of
+each phase/task/sub-task and recorded in `findings.md` / `progress.md` /
+`task_plan.md` / `AGENTS.md` in the same working tree (§66.6 same-commit
+mirrors). Spec text alone carries no weight for these areas; a detail
+stays out until owner-amended (KNOWN OR AMENDED ONLY, Rule #1). Already
+owner-amended branches state and built, owner-reviewed code are
+unaffected. These sections remain behavioral reference only, pending
+owner amendment.
+
 ## What this repo is
 
 MERN-style **Report Builder** — Amharic speech-to-report web app for restaurant supervision. Two npm packages, both ESM (`"type": "module"`), npm only, lockfiles committed:

@@ -1,5 +1,19 @@
 # Findings — Report Builder
 
+> **SPEC TRUST OVERLAY (owner directive, 2026-09-01):**
+> `docs/project-specification.md` is NOT a single source of truth for
+> §18–§24A (domain models — schema field contracts & indexes), §30–§39
+> (domain API contracts — Branch/Report/Audio/STT/Generation/Correction/
+> Chat/Export/Analytics/Search, incl. §30.2 filter semantics and §30.6
+> delete flow), and §48–§59 (pages & features — auth pages/dashboard/
+> reports list+detail/branches §56.2/§56.3/§56.5/§56.6/§56.7/profile
+> §57/exports §58/wizard-replacement workspace) — nor for anything
+> involved with them. Every detail in these areas becomes binding only
+> when amended WITH the owner during Step-1.1 of each phase/task/
+> sub-task and recorded in findings.md / progress.md / task_plan.md /
+> AGENTS.md in the same working tree (§66.6). Spec text alone carries no
+> weight here until owner-amended.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
