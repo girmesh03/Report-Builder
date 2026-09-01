@@ -11,7 +11,10 @@ import ToggleButton from "@mui/material/ToggleButton";
 import IconButton from "@mui/material/IconButton";
 import Badge from "@mui/material/Badge";
 import Tooltip from "@mui/material/Tooltip";
-import { ViewList, ViewModule, FilterList, Add } from "@mui/icons-material";
+import ViewList from "@mui/icons-material/ViewList";
+import ViewModule from "@mui/icons-material/ViewModule";
+import FilterList from "@mui/icons-material/FilterList";
+import Add from "@mui/icons-material/Add";
 import MuiButton from "../reusable/MuiButton.jsx";
 
 /**

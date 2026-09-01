@@ -7,7 +7,7 @@
  * pagination (§46.8) and never uses this component (A30).
  */
 
-import { Pagination } from "@mui/material";
+import Pagination from "@mui/material/Pagination";
 
 /**
  * Standard numbered pagination for card/list views.

@@ -29,15 +29,13 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
-import {
-  Visibility,
-  Edit,
-  Archive,
-  Restore,
-  Delete,
-  LocationOn,
-  EventNote,
-} from "@mui/icons-material";
+import Visibility from "@mui/icons-material/Visibility";
+import Edit from "@mui/icons-material/Edit";
+import Archive from "@mui/icons-material/Archive";
+import Restore from "@mui/icons-material/Restore";
+import Delete from "@mui/icons-material/Delete";
+import LocationOn from "@mui/icons-material/LocationOn";
+import EventNote from "@mui/icons-material/EventNote";
 import MuiStatusBadge from "../reusable/MuiStatusBadge.jsx";
 import { formatEthiopianDate } from "../../utils/ethiopianDate.js";
 import { getAvatarColor } from "../../utils/avatarColor.js";

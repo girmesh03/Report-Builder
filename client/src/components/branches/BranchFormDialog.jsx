@@ -11,7 +11,8 @@
 
 import { useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { Business, LocationOn } from "@mui/icons-material";
+import Business from "@mui/icons-material/Business";
+import LocationOn from "@mui/icons-material/LocationOn";
 import MuiDialog from "../reusable/MuiDialog.jsx";
 import MuiButton from "../reusable/MuiButton.jsx";
 import MuiTextField from "../reusable/MuiTextField.jsx";

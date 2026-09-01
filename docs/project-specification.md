@@ -9800,11 +9800,17 @@ in bold), states, and responsive behavior. Forms bind through the
 }}`), never the `color` prop on icon-bearing action controls
   (§44.2).
 - **Imports.** Tree-shaken single imports (`import TextField from
-'@mui/material/TextField'`) — never the `@mui/material` barrel
-  (§9.6); `Grid` uses the `size` prop, never
+  '@mui/material/TextField'`) — never the `@mui/material` barrel
+  (§9.6). **Icons likewise** — each icon is a single default import
+  (`import Delete from '@mui/icons-material/Delete'`), never a named
+  `@mui/icons-material` multi-import (up to 6× slower in dev; cleanup
+  2026-09-01 across `branches/` + layout). `@mui/x-data-grid`,
+  `@mui/x-date-pickers`, and `@mui/material/styles` are separate
+  packages/subpaths whose named top-level imports are the documented
+  form (not barrels). `Grid` uses the `size` prop, never
   `item`; deprecated props are never used (`margin="normal"` →
   `sx={{ mb: 2 }}`; `InputProps` → `slotProps.input`; `Link
-component="button"` → `Link slots={{ root: 'button' }}`).
+  component="button"` → `Link slots={{ root: 'button' }}`).
 - **Forms (react-hook-form).** All forms use `useForm({
 mode: 'onBlur' })` with `register` by default; `Controller` is
   used only for pickers whose value arrives via custom `onChange`
@@ -12301,7 +12307,7 @@ server-driven data):
 | Location | `location`, truncation per §45.4                                          | body2, text.secondary                                                                                                                                                                                                                     |
 | Status   | `MuiStatusBadge` (`branchActive` variant — "Active" / "Archived", §46.13) | from `isArchived` — chrome copy, §7.6; no separate Archived column (owner review 2026-08-22)                                                                                                                                              |
 | Created  | `createdAt` as `DD-MM-YY`                                                 |                                                                                                                                                                                                                                           |
-| Actions  | View / Edit / Archive-or-Restore / Delete (§46.8 icon row)                | View opens §56.5; per §56.6                                                                                                                                                                                                               |
+| Actions  | View / Edit / Archive-or-Restore / Delete (§46.8 icon row)                | View opens §56.5; per §56.6. **Implemented** (increment C′, `BranchRowActions.jsx` in `columns/branches.jsx`): custom `renderCell` reusing the card's per-action `Tooltip`+`<span>` wrapper and per-row inline loading (A34); icon colors via `sx` `<palette>.main` (A43/§44.2 — View `primary`, Edit `info`, Archive `warning`, Restore `success`, Delete `error`); `.main`-prop via `sx`, no `color` prop, no `@mui/material` barrel; flex width (C31); non-sortable/non-filterable/`disableColumnMenu`. Handlers live in the `Branches.jsx` `branchColumns` `useMemo` (deps `[handleView, handleEdit, handleConfirmOpen, getActionLoading]`), scoped per row via `getActionLoading(row._id)` (A34) |
 
 Responsive: below **md** (900px, §45.2) the page renders the
 **Branch cards** instead of the grid (xs 1 / sm 2 columns — the

@@ -2,8 +2,8 @@
  * @module components/columns/branches
  *
  * Column definitions for Branches DataGrid (§56.3). Includes the Status
- * badge column. The Actions column (branch lifecycle actions) is added in
- * increment C′ (§56.3).
+ * badge column and the Actions column (branch lifecycle actions, A38 —
+ * finished in increment C′).
  *
  * Column widths are NEVER hardcoded (C31) — each column uses `flex` +
  * `minWidth` so the grid distributes the full horizontal space
@@ -11,13 +11,28 @@
  */
 
 import MuiStatusBadge from "../reusable/MuiStatusBadge.jsx";
+import BranchRowActions from "../branches/BranchRowActions.jsx";
 import { formatEthiopianDate } from "../../utils/ethiopianDate.js";
 
 /**
  * Branch DataGrid column definitions.
+ * @param {Object} [actions] - Lifecycle handler bundle for the Actions column.
+ * @param {Function} actions.onView - View handler.
+ * @param {Function} actions.onEdit - Edit handler.
+ * @param {Function} actions.onArchive - Archive handler.
+ * @param {Function} actions.onRestore - Restore handler.
+ * @param {Function} actions.onDelete - Delete handler.
+ * @param {Function} actions.getActionLoading - `(branchId) => "archive"|"restore"|"delete"|null`.
  * @returns {Array} Column definitions for MuiDataGrid.
  */
-export const createBranchColumns = () => [
+export const createBranchColumns = ({
+  onView,
+  onEdit,
+  onArchive,
+  onRestore,
+  onDelete,
+  getActionLoading,
+} = {}) => [
   {
     field: "name",
     headerName: "Name",
@@ -76,6 +91,26 @@ export const createBranchColumns = () => [
     flex: 1,
     minWidth: 120,
     valueFormatter: (v) => formatEthiopianDate(v) ?? "—",
+  },
+  {
+    field: "actions",
+    headerName: "Actions",
+    flex: 1,
+    minWidth: 180,
+    sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
+    renderCell: (params) => (
+      <BranchRowActions
+        branch={params.row}
+        actionLoading={getActionLoading?.(params.row._id) ?? null}
+        onView={onView}
+        onEdit={onEdit}
+        onArchive={onArchive}
+        onRestore={onRestore}
+        onDelete={onDelete}
+      />
+    ),
   },
 ];
 

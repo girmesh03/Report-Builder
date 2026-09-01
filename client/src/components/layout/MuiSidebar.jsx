@@ -11,7 +11,8 @@
  */
 import { useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
-import { useMediaQuery, useTheme } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";

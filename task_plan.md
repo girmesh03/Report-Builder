@@ -18,11 +18,14 @@ Governing Rule #2 — **STEP-5 REVIEW BEFORE COMMIT** (owner directive,
 2026-08-24): no commit of any kind until the owner reviews the diff
 and approves. One commit set per increment, post-approval only.
 
-Governing Rule #4 — **ADD → COMMIT → PUSH ONLY, NO MERGE** (owner
-directive, 2026-08-31): increments are pushed to their feature branch
-and **never merged / never deleted** during active work. Interim
-commits on `phase-N-description` are intermediate, not done yet; the
-branch is merged only when the owner closes the phase.
+Governing Rule #4 — **ADD → COMMIT → PUSH, MERGE ONLY AT PHASE CLOSE** (owner
+directive, 2026-08-31; updated 2026-09-01): increments are pushed to their
+feature branch during active work. Interim commits on `phase-N-description`
+are intermediate, not done yet — **no merge during active work**. When the
+owner approves the phase (step-5 review), run the step-6 close: commit → push
+→ **ff-merge to `main`** → **delete the branch**. This supersedes the earlier
+"never merged / never deleted" wording. The standing workflow is interim
+add/commit/push only; the merge+delete runs once per phase close.
 
 Governing Rule #5 — **ONE THING AT A TIME** (owner directive,
 2026-08-31): each commit is a single-scope increment. We are not done
@@ -152,7 +155,7 @@ working files. All gates green.
 | 8 | Docs: `docs/project-specification.md` (§30.2, §30.8, §69), `findings.md`, `progress.md`, `task_plan.md` | done |
 | 9 | Gates: `node --check` ×8 backend files, `npx vite build` 0 errors, `npx eslint src/` 0 warnings, `dist/` deleted | done |
 | 10 | Delete `docs/branches-backend-exhaustive-analysis.md` | done |
-| 11 | Step-5 diff presentation → owner approval → post-git | pending |
+| 11 | Step-5 diff presentation → owner approval → post-git | done (merged to main `364eb24`) |
 
 **Deferred (cross-model/domain — Phase 5):**
 - `GET /branches/:branchId/detail` (Report+Item+Analytics aggregation)
@@ -240,7 +243,7 @@ working files. All gates green.
 | 7 | ButtonGroup/ToggleButtonGroup nesting | done (prior commit) |
 | 8 | MuiDataGrid deprecated components prop | done (A29: v9 slots/slotProps rewrite — Phase 5.6/A′) |
 | 9 | BranchFormDialog stale defaultValues | done (A36: useEffect seed — Phase 5.6/C′) |
-| 10 | Missing newline at end of files | pending (verify each edited file) |
+| 10 | Missing newline at end of files | done (verified — all edited files have trailing newline) |
 | 11 | Planning files overwritten | done (reverted + appended) |
 | 12 | task_plan.md stale statuses | done (updated above) |
 
@@ -252,8 +255,8 @@ Decomposed increments A′–C′ (owner 2026-08-31). EACH increment: build → 
 | # | Increment | Task | Status |
 |---|-----------|------|--------|
 | 1 | A′ | MuiDataGrid v9 rewrite (A29/C29/C30/C31) + MuiDataGridToolbar (drop Print+QuickFilter, add children, **reusable per-page export config**) + MuiPagination (A30) + Ethiopian dates (A31) + wire grid into Branches.jsx (A32) | done (commit `02c387b`) |
-| 2 | B′ | **Card/list view + FULL lifecycle (A33-A36, A38)** — BranchLedgerCard map (Grid `size`) + MuiPagination (list-only, >1 page) + View navigate (A35) + edit dialog seed (A36) + archive/restore/delete confirm→inline loading→toast (A34) | in_progress (built; rework per owner review 6 pts — findings session (j)) |
-| 3 | C′ | **Grid Actions column wiring ONLY** (BranchRowActions + Actions col in `columns/branches.jsx`); getBranchDetail inert (A37) | pending |
+| 2 | B′ | **Card/list view + FULL lifecycle (A33-A36, A38)** — BranchLedgerCard map (Grid `size`) + MuiPagination (list-only, >1 page) + View navigate (A35) + edit dialog seed (A36) + archive/restore/delete confirm→inline loading→toast (A34) | done (commit `2f8151c`) |
+| 3 | C′ | **Grid Actions column wiring ONLY** (BranchRowActions + Actions col in `columns/branches.jsx`); getBranchDetail inert (A37) | built — pending owner in-browser review → step-5 approval → step-6 commit/merge |
 
 > **Owner directive (2026-08-31):** EVERY reusable component (all of
 > `components/reusable/`) is page-agnostic; MuiDataGrid+Toolbar are consumed per page and must be
@@ -268,23 +271,27 @@ Decomposed increments A′–C′ (owner 2026-08-31). EACH increment: build → 
 > weighting (owner): name flex:2/200 · location flex:2/160 · status flex:1/120 · createdAt flex:1/120.
 
 ## Next Step
-**Increment B′ (Phase 5.6 #2):** card/list view + full lifecycle. Scope shift A38
-(2026-08-31, owner): B′ folds A33 list view + A34 lifecycle confirm + A35 view
-navigate + A36 edit seed; C′ shrinks to grid Actions column only. Use MUI `Grid`
-`size` prop (never `gridTemplateColumns` — C32), `MuiPagination` list-view only &
->1 page (C33), prefer `Stack` over `Box` (C34). Planning notes recorded first
-(findings session (i)). After gates: **owner in-browser review of the list view +
-lifecycle**, then add/commit/push `feat: phase 5 branches card/list view +
-lifecycle (A33-A36, A38)` — no merge.
+**Increment C′ (Phase 5.6 #3) — grid Actions column + barrel cleanup (built,
+2026-09-01):** `BranchRowActions.jsx` rewrite (single imports, `sx` icon colors
+A43, Tooltip `<span>` wrapper, per-row `actionLoading` A34) + `actions` column
+in `columns/branches.jsx` (flex C31, non-sortable/filterable, `disableColumnMenu`),
+wired into the `Branches.jsx` `branchColumns` memo (handlers + `getActionLoading`).
+Barrel-import cleanup folded into C′ (per owner): removed `@mui/material` root
+barrel in MuiPagination/MuiSidebar + `@mui/icons-material` named→default in
+BranchRowActions/BranchLedgerCard/BranchesHeaderActions/BranchFormDialog.
+Gates passed (lint 0 · vite build 0 → dist removed · grep clean). After
+**owner in-browser review** → step-5 approval → step-6 add/commit/push
+`feat: phase 5 branches grid actions column (C′); chore: client barrel-import
+cleanup` → ff-merge to `main` → delete branch.
 
 ### Phase 5.5: Validation & Integration
 
 | # | Task | Status |
 |---|------|--------|
-| 19 | Run `node --check` all backend files | pending |
-| 20 | Run `npx vite build` (0 errors) | pending |
-| 21 | Run `npx eslint src/` (0 warnings) | pending |
-| 22 | Delete `dist/` | pending |
+| 19 | Run `node --check` all backend files | done (pass) |
+| 20 | Run `npx vite build` (0 errors) | done (pass) |
+| 21 | Run `npx eslint src/` (0 warnings) | done (pass) |
+| 22 | Delete `dist/` | done |
 
 ## Session 2026-08-31 (b) — Branches Page Fetch / Loading / Error / Empty
 
@@ -414,3 +421,19 @@ a separate action). Delete = find archived → 404 → `deleteOne` + cascade TOD
   spec §30.6/§69.15/§12941.
 - **Next:** gate → owner restarts backend + in-browser review → add/commit/push
   (no merge).
+
+## Increment C′ — grid Actions column (2026-09-01)
+
+- [x] Rewrite `BranchRowActions.jsx`: tree-shaken imports, `sx` icon colors (A43), Tooltip `<span>` wrapper, per-row `actionLoading` (A34), `(branch) => void` handlers.
+- [x] `columns/branches.jsx`: `createBranchColumns({...})` gains the `actions` column (flex width C31, non-sortable/filterable, `disableColumnMenu`).
+- [x] `Branches.jsx`: `branchColumns` memo wired with handlers + per-row `getActionLoading` (deps updated).
+- [x] Gates: lint 0, `vite build` 0 → `rm -rf dist`, grep battery clean.
+- [ ] Owner in-browser review of grid actions → add/commit/push `feat: phase 5 branches grid actions column (C′)` (no merge).
+
+## Breadcrumb: barrel-import cleanup (folded into C′)
+
+- [x] Remove `@mui/material` root barrel (MuiPagination, MuiSidebar).
+- [x] `@mui/icons-material` named → single default imports (BranchRowActions, BranchLedgerCard, BranchesHeaderActions, BranchFormDialog).
+- [x] Leave `@mui/x-data-grid`/`@mui/x-date-pickers`/`@mui/material/styles` untouched.
+- [x] Gates: lint 0, `vite build` 0 → `rm -rf dist`, grep clean.
+- [ ] Owner review → single C′ commit incl. cleanup (no merge).

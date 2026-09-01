@@ -761,3 +761,67 @@ res: { success, message: "Branch deleted", data: null }
 - **Recorded in:** findings (this), progress.md, task_plan.md, AGENTS.md, spec
   §30.6/§69.15/§12941. Owner restarts backend + in-browser review, then
   add/commit/push (no merge).
+
+## Session 2026-09-01 (o) — Increment C′ grid Actions column (BranchRowActions rewrite + wire-in)
+
+- **Scope:** Add the grid Actions column to the Branches DataGrid (`columns/branches.jsx`), rewriting `BranchRowActions.jsx` to the card conventions and wiring lifecycle handlers + per-row loading into `Branches.jsx`.
+- **`BranchRowActions.jsx` rewrite (A38/A43/§44.2/§56.3):**
+  - Removed the `@mui/material` barrel import (tree-shaken single imports: `Box`, `Tooltip`, `IconButton`, `CircularProgress`).
+  - Icon colors now via **`sx`** (`sx={{ color: '<palette>.main' }}`), never the `color` prop (A43): View `primary.main`, Edit `info.main`, Archive `warning.main`, Restore `success.main`, Delete `error.main` (same as the card).
+  - Added the Tooltip **`<span>` wrapper** fix so a disabled IconButton still fires pointer events for the tooltip.
+  - Added **`actionLoading`** prop (per-row): only the in-flight action's icon becomes `<CircularProgress size={16}/>`; sibling actions stay live (A34).
+  - Handler contract is `(branch) => void` — each `RowActionButton onClick` calls the handler with the `branch` prop (matches `BranchLedgerCard`).
+- **`columns/branches.jsx`:** `createBranchColumns({ onView, onEdit, onArchive, onRestore, onDelete, getActionLoading })` appends an `actions` column (`field: "actions"`, `sortable/filterable: false`, `disableColumnMenu: true`, `flex + minWidth` per C31, never `width`). `renderCell` renders `<BranchRowActions branch={params.row} actionLoading={getActionLoading?.(params.row._id) ?? null} .../>`.
+- **`Branches.jsx`:** `branchColumns` memo now calls `createBranchColumns({...})` with deps `[handleView, handleEdit, handleConfirmOpen, getActionLoading]`; added `getActionLoading = useCallback((branchId) => pendingBranch?.id === branchId ? pendingBranch.type : null, [pendingBranch])` — per-row scoping identical to the card.
+- **Chosen over the v9 `GridActionsCell`/`getActions` pattern:** kept the custom `BranchRowActions` (plain-column `renderCell`) to reuse the card's per-action tooltips + inline loading rather than the standard actions-cell API; valid v9 (custom `renderCell` returning a component).
+- **No backend change.** No change to export/Print (C29 stays OFF for Branches). No quick filter.
+- **Gates passed:** `npm run lint` 0, `npx vite build` 0 → `rm -rf client/dist`, grep battery clean (no `@mui/material` barrel in BranchRowActions; no deprecated `color` prop on IconButton — the `color=` literals are sx palette-token props consumed as `sx={{ color }}`; no `width:` in columns; `getActionLoading` wired per-row).
+- **Recorded in:** this findings (o), progress.md, task_plan.md, AGENTS.md, spec §46.8/§56.3/§44.2. Owner in-browser review of grid actions, then add/commit/push (no merge).
+
+## Session 2026-09-01 (p) — Barrel-import cleanup (folded into C′)
+
+- **Scope:** Remove all MUI barrel (`@mui/material` root) and `@mui/icons-material` named imports from `client/src`, per the MUI bundle-size guide (named `@mui/icons-material` imports are up to 6× slower in dev) and for codebase consistency (most layout files already used single `/Icon` default imports).
+- **`@mui/material` root barrel (no subpath):**
+  - `components/reusable/MuiPagination.jsx` → `import Pagination from "@mui/material/Pagination";`
+  - `components/layout/MuiSidebar.jsx` → `import { useTheme } from "@mui/material/styles";` + `import useMediaQuery from "@mui/material/useMediaQuery";`
+- **`@mui/icons-material` named → single default imports (4 files, 16 icons):**
+  - `BranchRowActions.jsx` (Visibility, Edit, Archive, Restore, Delete), `BranchLedgerCard.jsx` (+LocationOn, EventNote), `BranchesHeaderActions.jsx` (ViewList, ViewModule, FilterList, Add), `BranchFormDialog.jsx` (Business, LocationOn).
+- **NOT touched (not barrel/issues):** `@mui/x-data-grid` (`DataGrid`, `gridClasses`), `@mui/x-date-pickers` (`LocalizationProvider`), `@mui/material/styles` — separate packages/subpaths; their named top-level imports are the documented form.
+- **Verify grep clean:** `from "@mui/material"` (root, no subpath) → 0; `from "@mui/icons-material"` → 0.
+- **Gates:** `npm run lint` 0, `npx vite build` 0 → `rm -rf client/dist`, grep battery clean.
+- **Recorded in:** findings (p), progress.md, task_plan.md, AGENTS.md, spec §44.2. Folded into the C′ commit by owner decision.
+
+## Session 2026-09-01 (q) — Planning-file audit + branches-foundation note (no code change)
+
+- **Audit scope (owner):** read `findings.md`, `progress.md`, `task_plan.md`,
+  `AGENTS.md`, and every file in `client/src/*` (excluding `theme/*`) before
+  finalizing the step-6 plan — verify, don't trust.
+- **Correction found:** AGENTS.md had "`MuiPagination` list/card-view pending"
+  — **WRONG**. `MuiPagination` is wired into the Branches card/list view at
+  `Branches.jsx:353-359` (`count=totalPages`, `page=paginationModel.page+1`,
+  `onChange=handlePaginationChange`, gated `data.totalPages > 1` per C33),
+  committed in B′ `2f8151c`. AGENTS.md corrected (2026-09-01).
+- **Planning-file corrections applied (same uncommitted C′ working tree, no
+  separate commit):**
+  - `AGENTS.md` current-state rewritten: dropped the stale "no merge / main
+    0-commits" text; documented the step-6 close workflow (commit → push →
+    ff-merge → delete branch at phase approval); recorded the branches-foundation
+    rationale; completed the client component inventory; corrected the
+    `MuiPagination` claim.
+  - `task_plan.md` Governing Rule #4 reconciled to "no merge DURING active work;
+    step-6 merge+delete at phase close" (supersedes the earlier no-merge-ever
+    wording); Phase 5.6 table updated (B′ done `2f8151c`; C′ built awaiting
+    review); "Next Step" points to C′ commit + merge; stale items closed (Phase
+    5.4 #10, Phase 5.5 gates, Increment-2 #11).
+  - `findings.md`/`progress.md` appended with this audit record.
+- **Branches-foundation rationale (owner, to keep on record):** dozens of items
+  still remain for the branches resource (Branch Details §56.5, Name-cell link,
+  reports-domain cascade, etc.) — the C′ work is only the beginning. The branch
+  work was sequenced FIRST because **reports are dependent on branches**: without
+  a created branch, no reports-bound work could start. Branches unblock the
+  entire reports domain (§56: branches are the report's primary dimension;
+  §5916: fixture order users → branches → reports → audio → transcriptions →
+  conversations).
+- **No code change in this session — planning files only.** The C′ grid Actions
+  + barrel-cleanup code remains uncommitted in the working tree, pending owner
+  in-browser review → step-5 approval → step-6 commit/merge.

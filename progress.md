@@ -786,3 +786,37 @@ that will work for both error and data transform."
   AGENTS.md, spec §30.6/§69.15/§12941.
 - **Next:** gates → owner restarts backend + in-browser review → add/commit/push
   (no merge).
+
+## 2026-09-01 — Increment C′ (grid Actions column) — pending owner review / commit
+
+- **Rewrote `BranchRowActions.jsx`** to card conventions: removed `@mui/material` barrel (single imports), icon colors via `sx` (`primary/info/warning/success/error .main`, A43), Tooltip `<span>` wrapper fix, per-row `actionLoading` inline spinner (A34), handler contract `(branch) => void`.
+- **`columns/branches.jsx`:** `createBranchColumns` now takes `{onView,onEdit,onArchive,onRestore,onDelete,getActionLoading}` and appends the `actions` column (flex width per C31, non-sortable/filterable, no column menu) rendering `BranchRowActions` with `getActionLoading?.(row._id)`.
+- **`Branches.jsx`:** `branchColumns` memo wired with lifecycle handlers + per-row `getActionLoading`, deps `[handleView, handleEdit, handleConfirmOpen, getActionLoading]`.
+- **Chosen:** custom `renderCell` (not `GridActionsCell`/`getActions`) to reuse the card's per-action tooltips + inline loading; valid v9.
+- **Gates:** lint 0, `vite build` 0 → `rm -rf dist`, grep battery clean.
+- **Next:** owner in-browser review of grid Actions column → `feat: phase 5 branches grid actions column (C′)` add/commit/push (no merge).
+
+## 2026-09-01 — Barrel-import cleanup (folded into C′, per owner)
+
+- Removed `@mui/material` root barrel: MuiPagination (`@mui/material/Pagination`), MuiSidebar (`@mui/material/styles` + `@mui/material/useMediaQuery`).
+- Converted `@mui/icons-material` named imports to single default imports in BranchRowActions, BranchLedgerCard, BranchesHeaderActions, BranchFormDialog (16 icons).
+- Left `@mui/x-data-grid`/`@mui/x-date-pickers`/`@mui/material/styles` untouched (not barrels).
+- Gates: lint 0, `vite build` 0 → `rm -rf dist`, grep clean (0 root `@mui/material`, 0 named icons).
+- Next: owner in-browser review of grid Actions + bar, then `feat: phase 5 branches grid actions column (C′); chore: barrel cleanup` add/commit/push (no merge).
+
+## 2026-09-01 — Planning-file audit correction (no code change)
+
+- Owner had me read findings/progress/task_plan + AGENTS + all of client/src
+  (minus theme) before finalizing step-6.
+- **Corrected a WRONG claim:** AGENTS.md said "MuiPagination list/card-view
+  pending" — actually **wired** at `Branches.jsx:353-359` (count=totalPages,
+  page=paginationModel.page+1, gated totalPages>1, C33), committed in B′ `2f8151c`.
+  Fixed in AGENTS.md + this record.
+- **AGENTS.md current-state** rewritten: drop stale no-merge/0-commits; document
+  step-6 close (commit→push→ff-merge→delete at phase approval); add
+  branches-foundation rationale; complete the component inventory.
+- **task_plan.md** Governing Rule #4 updated to allow step-6 merge+delete at
+  phase close; Phase 5.6 table + Next Step updated to C′; stale items closed.
+- All corrections are part of the **same uncommitted C′ working tree** (no
+  separate commit). Next: owner in-browser review of grid Actions → step-5
+  approval → step-6 add/commit/push → ff-merge → delete branch.

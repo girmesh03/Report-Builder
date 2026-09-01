@@ -225,9 +225,28 @@ const BranchesPage = () => {
     setPaginationModel((prev) => ({ ...prev, page: page - 1 }));
   }, []);
 
-  // A32: domain columns. The Actions column with lifecycle handlers is
-  // added in increment C′ (A38).
-  const branchColumns = useMemo(() => createBranchColumns(), []);
+  // Per-row loading resolver for the grid Actions column (A34): only the row
+  // being acted on shows its in-flight action (same scoping as the card).
+  const getActionLoading = useCallback(
+    (branchId) => (pendingBranch?.id === branchId ? pendingBranch.type : null),
+    [pendingBranch],
+  );
+
+  // A32: domain columns. The Actions column (A38) is wired with the lifecycle
+  // handlers + per-row loading resolver; handlers are `useCallback`-stabilized
+  // so the columns stay reference-stable between renders.
+  const branchColumns = useMemo(
+    () =>
+      createBranchColumns({
+        onView: handleView,
+        onEdit: handleEdit,
+        onArchive: (branch) => handleConfirmOpen("archive", branch),
+        onRestore: (branch) => handleConfirmOpen("restore", branch),
+        onDelete: (branch) => handleConfirmOpen("delete", branch),
+        getActionLoading,
+      }),
+    [handleView, handleEdit, handleConfirmOpen, getActionLoading],
+  );
 
   // Confirm-dialog copy derived from the pending action type (§56.6).
   const confirmConfig = useMemo(() => {
