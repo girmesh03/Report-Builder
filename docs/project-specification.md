@@ -10071,13 +10071,22 @@ AdapterDayjs` — the pickers render no provider of their own
   components; page still owns error state (toast, §60).
 - **Action column:** per domain — View (`VisibilityIcon`,
   `sx={{ color: 'primary.main' }}`, tooltip "View", navigates to
-  `/${resource}/${_id}`), Edit (`EditIcon`, `sx={{ color:
-'warning.main' }}`, tooltip "Edit"), and Archive/Restore/Delete
-   rendered conditionally by row state (§50, §56); icon colors via
+  `/${resource}/${_id}`), Edit (`EditIcon`, tooltip "Edit"), and Archive/Restore/Delete
+   rendered conditionally by row state (§50, §56). Icon colors via
    `sx` only (§44.2).
+   **Distinct action-color set (amended 2026-08-31, owner):** View `primary`,
+   Edit `info`, Archive `warning`, Restore `success`, Delete `error` — five
+   distinct colors so no two sibling actions collide. (Amends the earlier
+   "Edit = warning.main" wording — Edit is now `info`.)
 - **Responsive:** columns hide by an explicit per-domain priority
    list below 900px (the §50/§56 matrices); action icons follow
    §45.3; horizontal scroll is never applied to the page (§45.5).
+- **List/card view grids (C32, amended 2026-08-31):** card/list
+   layouts use MUI `Grid` with the `size` prop (e.g.
+   `<Grid container spacing={2}>` + `<Grid size={{ xs: 12, sm: 6,
+   md: 4, lg: 3 }}>`). `gridTemplateColumns` is never used. Stack is
+   preferred over Box for one-dimensional rows (C34) — alignment via
+   `sx={{ alignItems: … }}`, never a direct `alignItems` prop.
 
 ### 46.9 MuiConfirmDialog
 
@@ -12448,6 +12457,21 @@ the route + placeholder only.
 | Filter dialog | full-width-ish (maxWidth sm)      | sm                       | sm                         | sm                         | sm                         |
 | Create dialog | full-width (maxWidth sm)          | sm                       | sm                         | sm                         | sm                         |
 
+**Increment note (amended 2026-08-31, B′):** the card/list view
+renders via a MUI `Grid` with the `size` prop (`xs:12 sm:6 md:4 lg:3`
+— C32, see §46.8) over `BranchLedgerCard`, with `MuiPagination`
+beside it **only in list view and only when `totalPages > 1`** (C33,
+§46.7); the list view mounts the full lifecycle actions (View →
+navigate to `/branches/:branchId`, Edit → seeded dialog, Archive/
+Restore/Delete → `MuiConfirmDialog` → mutation → inline loading →
+toast). Branch cards use a `CardHeader` avatar (first letter of the
+branch name, deterministic "known random" color via
+`utils/avatarColor.js` + `AVATAR_COLORS`, §46.8), title = branch
+name, subheader = status chip, a location row, and a date row
+(`Created{createdAt}` when active / `Archived{archivedAt}` when
+archived), with a divider before the action row (amended 2026-08-31,
+owner review).
+
 ### 56.8 Verification usage
 
 - Grep gates: no branch DTO field beyond the §20 serialized
@@ -14513,7 +14537,7 @@ closed 2026-08-28, all gates green):**
   5. Branch name uniqueness: exact match after trim, case-sensitive, per user (`Saris` ≠ `saris` ≠ `ሳሪስ`).
   6. `POST`/`PATCH /branches`: duplicate name → 409 CONFLICT with exact message "A branch with this name already exists".
   7. `POST /branches/:branchId/archive|restore`: idempotent-ish — re-archive = 409, restore active = 409.
-  8. `DELETE /branches/:branchId`: IMPLEMENTED (archive-first, reference check on Report/Item, sweeper hard-delete after 30 days per BR-15).
+  8. `DELETE /branches/:branchId`: IMPLEMENTED (2026-09-01, owner): finds the branch by `{ _id, user, isArchived: true }` → 404 if not found (DELETE targets already-archived rows only; Archive is the separate action that sets `isArchived`) → deletes the branch row + all linked resources in one session, responds `{ success: true, message: "Branch deleted", data: null }`. No `updateOne` inside the delete. **Amendment overriding §30.6/§62/§12941 archive-first + sweeper-only hard delete for this phase.** The linked-resource cascade (branch → reports → items → audios → transcriptions → chat, §17.4/§62) has no schemas yet, so only the branch row is removed now (nothing can reference it); a TODO comment in the controller marks the cascade spot. No `mongoose.model("Report"/"Item")` deref (later-phase schemas) — the earlier "reference check on Report/Item + hard-delete now" claim is withdrawn/inert until the reports phase. The reports-phase cascade + reference check (409) remain STRICT TODOs.
   9. `GET /branches/:branchId/detail`: NOT implemented (cross-domain aggregation — Phase 5).
   10. `GET /branches/:branchId/timeline`: REMOVED (not in spec, brainstorming added then removed).
 - **New constants added to §11.3:** `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT`, `PAGINATION_MAX_LIMIT`, `BRANCH_NAME_MAX_LENGTH`, `BRANCH_LOCATION_MAX_LENGTH`.

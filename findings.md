@@ -552,3 +552,212 @@ Client: MuiDataGrid.jsx, MuiDataGridToolbar.jsx, MuiPagination.jsx, columns/bran
   minWidth:160` · `isArchived flex:1 minWidth:120` · `createdAt flex:1 minWidth:120` (Name/Location
   larger, Status/Created compact — prevents Name dominating the grid).
 - **Mirrored in:** findings, progress, task_plan, AGENTS.md conventions, spec §46.8.
+
+## Session 2026-08-31 (i) — Increment B′ (card/list view + full lifecycle) — PLAN NOTES FIRST
+
+### Task
+Render Branches list view (BranchLedgerCard map + MuiPagination) and mount the
+full lifecycle actions (View navigate, edit dialog, archive/restore/delete
+confirm → inline loading → toast). Planning notes written BEFORE any code
+(§66.6 same-commit discipline — these commit with the code). One thing at a
+time (Rule #5); add/commit/push only, NO merge (Rule #4).
+
+### Canon Inventory (new — RESPECT FOREVER)
+| # | Source | Canon Item |
+|---|--------|------------|
+| C8 | §56.7 (existing) | xs = Branch cards (1 col), sm = cards (2 col), md+ = MuiDataGrid |
+| C32 | owner 2026-08-31 | **Card grid uses MUI `Grid` with the `size` prop** (`<Grid container spacing={2}>` + `<Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>`). **NEVER `gridTemplateColumns`** anywhere in the codebase. Matches BranchLedgerCard 1/2/3/4-col responsive (C8). |
+| C33 | owner 2026-08-31 | **`MuiPagination` appears ONLY in list view, and ONLY when the number of pages > 1** (`data.totalPages > 1`). It is 1-indexed; page changes map to the shared 0-indexed `paginationModel`. Grid view never uses it (A30). |
+| C34 | owner 2026-08-31 / AGENTS | **Prefer `Stack` over `Box`.** Pass valid non-`sx` Stack props (`direction`, `spacing`); alignment goes in `sx={{ alignItems: … }}` — **never a direct `alignItems` prop on `<Stack>`** (AGENTS hard gate). |
+
+### Amendments (B′ final scope — supersedes the earlier B′/C′ split)
+| # | Amendment | Detail |
+|---|-----------|--------|
+| A33 | Card/list view | `BranchLedgerCard` map (Grid `size` 1/2/3/4-col) + `MuiPagination` (list-view only, >1 page). |
+| A34 | Lifecycle confirm | archive/restore/delete each open `MuiConfirmDialog` → mutation → **inline per-branch loading** → success/error toast (C27). |
+| A35 | View navigate | View action `useNavigate()` → `/branches/:branchId` (placeholder already routed at main.jsx:115). |
+| A36 | Edit seed | `BranchFormDialog` `useEffect` seeds form from `initialData` when it opens (fixes stale defaultValues, Phase 5.4 #9). Landed in B′ (owner-selected). |
+| A38 | Scope shift (owner resolution) | **B′ folds the full lifecycle (A34/A35/A36) + list view (A33).** **C′ shrinks to grid Actions column wiring ONLY** (`BranchRowActions` + Actions column in `columns/branches.jsx`). Card `showActions` prop default = **on** (real handlers, per latest owner card-lifecycle directive). |
+| A39 | Card lifecycle directive (owner, most recent) | onView → navigate to branch detail page; edit → dialog; archive/restore/delete → confirm dialog → inline loading on the card action → toast based on response. |
+
+### Files
+Client: constants.js, BranchFormDialog.jsx, BranchLedgerCard.jsx, Branches.jsx.
+Mirrors (same commit): findings (this), task_plan.md, progress.md, AGENTS.md, spec §56.7/§46.8.
+
+### Gates
+eslint EXIT=0 · vite build 0 errors → `client/dist/` deleted · grep: no
+`gridTemplateColumns`; no direct `alignItems` prop on `<Stack>`; no `console.log`
+in Branches.jsx. Owner in-browser review (list view + lifecycle) BEFORE commit.
+
+## Session 2026-08-31 (j) — Increment B′ REWORK (owner review feedback, 6 points)
+
+Owner reviewed the B′ build in-browser and gave 6 directives. Rework recorded
+here before code (§66.6; these notes commit with the reworked code).
+
+### Points + resolutions
+| # | Owner | Resolution |
+|---|-------|-----------|
+| 1 | Used `BranchFormDialog` twice — use one | Unify to a SINGLE dialog driven by one `dialogState` (`{mode:"create"}` \| `{mode:"edit",branch}`) in Branches.jsx; drop separate `createOpen`/`editBranch` states and the duplicated instances. |
+| 2 | Inline loading must be PER action (archive/restore/delete individually), using each MUTATION's own `isLoading`, shown IN PLACE of that specific action's icon | Page reads `isArchiving`/`isRestoring`/`isDeleting` from the three mutation hooks; derives `actionLoading` = the in-flight action; card swaps just that one icon for a tiny `CircularProgress` and disables it — other actions stay live (View/Edit are non-async, no loading). |
+| 3 | (noted) | — |
+| 4 | Proper distinct color per action icon | **View `primary` · Edit `info` · Archive `warning` · Restore `success` · Delete `error`** (owner-approved). Amendment: edits spec §46.8 (Edit was `warning` — would collide with Archive). |
+| 5 | Card doesn't need much inline style — theme/customizations own the look | Rebuild lean: root `<Card sx={{display:"flex",flexDirection:"column",height:"100%"}}>` so theme's MuiCard `gap:16` + zero-padding MuiCardContent/MuiCardHeader/MuiCardActions space the layout; no hand-rolled padding/border. |
+| 6 | Card anatomy: CardHeader (avatar first-letter + deterministic random color, title = name, subheader = status chip w/ proper color); location row (LocationOn + proper color); date row (date icon + createdAt when active / archivedAt when archived); keep divider | Use `<CardHeader>`; avatar `bgcolor=getAvatarColor(name)`; status via `MuiStatusBadge`; location/date rows `text.secondary` icons per app list-icon convention; single date line per owner choice; `<Divider/>` before actions. |
+
+### Amendments
+| # | Amendment | Detail |
+|---|-----------|--------|
+| A40 | New util `client/src/utils/avatarColor.js` | Export `getAvatarColor(seed)` — deterministic (FNV-1a hash → index into `AVATAR_COLORS`), so the same branch always gets the same "known random" color across renders/reloads. |
+| A41 | New constant `AVATAR_COLORS` in client constants.js | Frozen palette of ~10 theme-compatible hex colors; first real consumer is the branch-card avatar (define-on-require). |
+| A42 | Card date rule (owner choice) | Show `Created {formatEthiopianDate(createdAt)}` when active; `Archived {formatEthiopianDate(archivedAt)}` when archived — single date line matching current state. |
+| A43 | Edit icon color `info` | Amends spec §46.8 (Edit was `warning.main`) — avoids Edit/Archive color collision (owner-approved 5-color set). |
+
+### Files
+Client: `pages/Branches.jsx`, `components/branches/BranchLedgerCard.jsx`,
+`utils/avatarColor.js` (new), `utils/constants.js`.
+Mirrors (same commit): findings (this), task_plan.md, progress.md, AGENTS.md,
+spec §46.8/§56.7.
+
+### Gates
+eslint EXIT=0 · vite build 0 errors → `client/dist/` deleted · grep: exactly ONE
+`<BranchFormDialog` in Branches.jsx · no `gridTemplateColumns` · no direct
+`alignItems` on `<Stack>` · no `console.log`. Owner in-browser review before commit.
+
+## Session 2026-08-31 (k) — Increment B′ rework round 2 (owner review — 2 issues)
+
+Owner reviewed the reworked card in-browser and flagged two defects. Recording
+before code (§66.6; these notes commit with the fix).
+
+### Issue 1 — deprecated props + Tooltip warning
+| Owner | Root cause / canon | Fix |
+|-------|--------------------|-----|
+| Used `titleTypographyProps` — a deprecated slot prop class (`primaryTypographyProps` etc.) | §44.2/AGENTS hard gate: deprecated props never used; repo (MuiSidebar) convention = render **direct Typography child**, no `*TypographyProps` | CardHeader `title={<Typography variant="h6" noWrap>{branch.name}</Typography>}` — drop `titleTypographyProps` |
+| "Providing a disabled `button` child to the Tooltip" console warning | `ActionButton` wraps a `disabled` IconButton directly in `Tooltip`; disabled elements don't fire pointer events → MUI can't position the tooltip (MUI "Disabled elements" docs) | Wrap the IconButton in a `<span>` inside the `Tooltip` (documented fix) |
+
+### Issue 2 — action icon colors used the `color` prop, not `sx`
+| Owner | Root cause / canon | Fix |
+|-------|--------------------|-----|
+| Haven't used the proper color of action icons | §44.2: "Icon colors via `sx` (`sx={{ color: 'primary.main' }}`), **never the `color` prop** on icon-bearing action controls." I used `color={color}` on the IconButton | Apply `sx={{ color: '…' }}` per action, keeping the approved A43 set — View `primary.main` · Edit `info.main` · Archive `warning.main` · Restore `success.main` · Delete `error.main` |
+
+### Canon (confirmed, no amendment)
+- §44.2 color mechanism (`sx`, never `color` prop) is canon; A43 color VALUES stay as approved.
+- Also §44.2 "never the `@mui/material` barrel — tree-shaken single imports": the card file's barrel `import { … } from "@mui/material"` → single imports (matches the rest of the codebase, e.g. Branches.jsx).
+
+### Files
+Client: `components/branches/BranchLedgerCard.jsx` only.
+Mirrors (same commit): findings (this), progress.md.
+
+### Gates
+eslint EXIT=0 · vite build 0 errors → `client/dist/` deleted · grep: no
+`titleTypographyProps` / `subheaderTypographyProps` in the file; no `color={`
+prop on the action IconButtons (all via `sx`); no barrel `@mui/material`
+import. Owner in-browser review before commit.
+
+## Session 2026-09-01 (l) — Increment B′ rework round 3 (owner review — 2 defects)
+
+Owner reviewed in-browser and flagged two defects. Recording before code
+(§66.6; these notes commit with the fix).
+
+### Issue 1 — archive/restore/delete inline loading showed on ALL cards
+| Owner | Root cause / canon | Fix |
+|-------|--------------------|-----|
+| Loading spinner appeared on **every** card (not just the one being acted on) | RTK Query mutation `isLoading` is a single **hook-wide** boolean, not per-target. `Branches.jsx` derived one shared `actionLoading` from those flags and passed it to every `BranchLedgerCard`, so any in-flight action spun all cards | Track the exact row: `pendingBranch = { id, type } \| null` in `Branches.jsx`. Set it in `handleConfirm` before the mutation, clear in a `finally`; per-card `actionLoading={pendingBranch?.id === branch._id ? pendingBranch.type : null}`. `BranchLedgerCard` already scopes the spinner off `actionLoading === action`, so only that row's icon spins. Dropped the now-unused `isLoading:` destructures. |
+
+### Issue 2 — Delete returned backend 500 `MissingSchemaError`
+| Owner | Root cause / canon | Fix |
+|-------|--------------------|-----|
+| Delete → "Something went wrong — please try again"; backend 500 `MissingSchemaError` | `deleteBranch` (`branch.controller.js`) called `mongoose.model("Report")` / `mongoose.model("Item")` for an immediate reference check — those **schemas don't exist yet** (only `User`/`Branch`; reports phase is later in `[auth → branches → reports]`), so mongoose throws `MissingSchemaError`. Also deviates from §30.6, which says the DELETE endpoint does **no immediate reference check** (archive-first only; the sweeper owns ref-checks in the reports phase) | **Minimal:** remove only the crashing ref-check block. `deleteBranch` now does the §30.6 archive step-1 (`isArchived=true`, `archivedAt`) and returns the current 200 `data: { archived: true }` + "…retention period". Session/transaction kept (owner direction; correct on mongoose ^9.9.3). No client change — client reads no `data.deleted`; tag invalidation refetches. |
+
+### Canon + amendment decision (owner directive, applied logic)
+- **Cascade is the load-bearing fact:** a branch hard-delete MUST cascade to
+  reports → items → audios → transcriptions → chat. Those schemas arrive in the
+  reports phase, so **hard-delete is deferred** — enabling it now would orphan
+  future rows and dangle the reports live-join (§20/§30). Retracts the earlier
+  "archived → hard-delete now" idea.
+- **DELETE stays archive-only (§30.6)** with `data: { archived: true }` — exactly
+  as the owner directed ("only correct `data: { archived: true }`").
+- **UX caveat (intentional, this phase):** DELETE on an already-archived branch
+  just re-archives (idempotent §30.6); the row stays under the archived filter
+  until the reports-phase cascade/sweep lands.
+
+### STRICT TODO — deferred to the reports phase (NOT built now)
+1. When `Report`/`Item`/`Audio`/`Transcription`/`Chat` schemas exist: implement
+   the **branch-delete cascade** in dependency order (branch → reports → items →
+   audios → transcriptions → chat) plus the reference check (refuse while any
+   row references the branch, 409). Mirror §30.6/§62/BR-15.
+2. Only after the cascade exists: enable **hard-delete of an archived branch
+   before the 30-day sweep** (owner requirement; the retention-window bypass is
+   a reports-phase design decision). Response contract for that hard delete:
+   `{ success: true, message: "Branch deleted", data: null }` (no resource
+   remains after a hard delete — owner corrected the earlier `deleted: true`
+   shape).
+
+### Files
+Backend: `controllers/branch.controller.js` (deleteBranch — removed ref-check).
+Client: `pages/Branches.jsx` (per-card `pendingBranch` scoping).
+Mirrors (same commit): findings (this), progress.md, task_plan.md, AGENTS.md,
+spec §30.6/§20.4/§69.15.
+
+### Gates
+`node --check branch.controller.js` EXIT=0 · client eslint EXIT=0 · vite build
+0 errors → `client/dist/` deleted · grep: no `mongoose.model("Report"|"Item")`
+in the controller; per-card `pendingBranch?.id === branch._id` scoping. Owner
+in-browser review before commit (add/commit/push, no merge).
+
+## Session 2026-09-01 (m) — Increment B′ delete-flow correction (owner review, round 4)
+
+Owner corrected the backend delete controller — round-3's minimal "archive-only
++ `data: { archived: true }`" was wrong. Recording before code (§66.6).
+
+### Corrected delete semantics (owner)
+| Step | Behavior |
+|------|----------|
+| 1 | **Find the branch to delete — must already be archived** — `Branch.findOne({ _id: branchId, user: userId, isArchived: true })` → 404 if not found. An active/non-archived branch or another user's branch (BR-13) is indistinguishable from nonexistent for DELETE; Archive is the separate action that sets `isArchived` |
+| 2 | **Delete the branch with all linked resources, in the session** — the cascade. Models for reports/items/audios/transcriptions/chat don't exist this phase, so only the branch row is deleted now (nothing can reference it → no orphans); a **TODO comment** marks the cascade spot |
+| 3 | **Response** `{ success, message: "Branch deleted", data: null }` — no resource remains after deletion (owner: data absent or `null`; confirmed safe: `unwrapEnvelope` returns `null`, `invalidatesTags` uses only `branchId`) |
+
+> Round-5 correction (owner): the delete **finds an already-archived branch**
+> (`isArchived: true`), it does **NOT** set `isArchived` via `updateOne`. The
+> `updateOne` archive step was removed (Archive is a separate action).
+
+### Canon/amendment
+- **Amends spec §30.6/§62/§12941** (archive-first + sweeper-only hard delete):
+  this phase's DELETE hard-deletes the (dependency-free) **already-archived**
+  branch row immediately, in the session, with `data: null`. Deliberate owner
+  directive.
+- **STRICT TODO (reports phase):** the linked-resource cascade
+  (branch → reports → items → audios → transcriptions → chat, §17.4/§62) — when
+  those schemas exist, delete their rows here in the same session so no
+  reference dangles (branch delete = full removal, per owner). Restore the
+  reference check (409) then.
+
+### Files
+Backend: `controllers/branch.controller.js` (deleteBranch rewritten: find
+archived → deleteOne + TODO cascade → `data: null`; no `updateOne`).
+Mirrors (same commit): findings (this), progress.md, task_plan.md, AGENTS.md,
+spec §30.6/§69.15/§12941.
+
+### Gates
+`node --check branch.controller.js` EXIT=0 · client lint/build unchanged
+(no client edit) · grep: no `mongoose.model("Report"|"Item")` live deref
+(cascade is a comment/TODO); find-archived-first + `data: null` confirmed.
+Owner restarts backend + in-browser review, then add/commit/push (no merge).
+
+## Session 2026-09-01 (n) — Increment B′ delete: find ARCHIVED branch, no updateOne (round 5)
+
+Owner corrected round-4's `deleteBranch` again: it must find the branch with
+`{ _id, user, isArchived: true }`, NOT set `isArchived` via `updateOne`. Applied:
+```
+Branch.findOne({ _id: branchId, user: userId, isArchived: true }) → 404 if !branch
+Branch.deleteOne({ _id: branchId, user: userId })  // + cascade TODO (reports phase)
+res: { success, message: "Branch deleted", data: null }
+```
+- **DELETE targets already-archived rows only**; `isArchived` is set solely by
+  the Archive action (separate endpoint). Active branches → 404 for DELETE.
+- **Amends spec §30.6/§62/§12941** for this phase; cascade + ref-check (409)
+  remain STRICT TODOs for the reports phase.
+- Detectable via grep: no `updateOne` inside `deleteBranch`; `isArchived: true`
+  in the delete `findOne` filter; `data: null`.
+- **Recorded in:** findings (this), progress.md, task_plan.md, AGENTS.md, spec
+  §30.6/§69.15/§12941. Owner restarts backend + in-browser review, then
+  add/commit/push (no merge).

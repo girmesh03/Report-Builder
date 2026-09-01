@@ -9,7 +9,7 @@
  * and lets the page close the dialog on success.
  */
 
-import { useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { Business, LocationOn } from "@mui/icons-material";
 import MuiDialog from "../reusable/MuiDialog.jsx";
@@ -53,6 +53,16 @@ export const BranchFormDialog = ({ open, onClose, isEdit, initialData }) => {
 
   const isLoading = isCreating || isUpdating || isSubmitting;
 
+  // A36: seed the form when the dialog opens / the edit target changes —
+  // `initialData` is read only once by `useForm`, so this effect resets the
+  // fields for edit mode (fixes stale defaultValues, §56.4/dialog).
+  useEffect(() => {
+    reset({
+      name: initialData?.name ?? "",
+      location: initialData?.location ?? "",
+    });
+  }, [open, initialData, reset]);
+
   /**
    * Posts the branch through the §42 redux layer; on success toasts and
    * lets the page close the dialog; on failure toasts (never setError —
@@ -64,15 +74,13 @@ export const BranchFormDialog = ({ open, onClose, isEdit, initialData }) => {
     async (values) => {
       try {
         if (isEdit && initialData?._id) {
-          const response = await updateBranch({
+          await updateBranch({
             branchId: initialData._id,
             ...values,
           }).unwrap();
-          console.log("updateBranch response:", response);
           showToast("success", TOAST_CATALOGUE.branches.updated);
         } else {
-          const response = await createBranch(values).unwrap();
-          console.log("createBranch response:", response);
+          await createBranch(values).unwrap();
           showToast("success", TOAST_CATALOGUE.branches.created);
         }
         reset({ name: "", location: "" });

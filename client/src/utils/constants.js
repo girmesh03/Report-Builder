@@ -51,6 +51,9 @@ export const TOAST_CATALOGUE = Object.freeze({
   branches: Object.freeze({
     created: "Branch created",
     updated: "Branch updated",
+    archived: "Branch archived",
+    restored: "Branch restored",
+    deleted: "Branch deleted",
   }),
 });
 
@@ -111,6 +114,26 @@ export const BRANCH_ISARCHIVED = Object.freeze({
 });
 
 /**
+ * Deterministic avatar palette (A41, 2026-08-31) — theme-compatible hex
+ * colors (readable on both light and dark cards) that first-letter avatars
+ * index into via `getAvatarColor` (`utils/avatarColor.js`), so the same
+ * entity always renders the same color across renders/reloads.
+ * @type {string[]}
+ */
+export const AVATAR_COLORS = Object.freeze([
+  "#135bec",
+  "#16a34a",
+  "#f59e0b",
+  "#dc2626",
+  "#9333ea",
+  "#0891b2",
+  "#db2777",
+  "#4f46e5",
+  "#059669",
+  "#d97706",
+]);
+
+/**
  * Branches page state copy (§56.7/§60). Single-sourced strings for the
  * load, error, and empty surfaces; consumed on first use by Branches.jsx.
  * @type {Object<string, Object<string, string>>}
@@ -147,5 +170,16 @@ export const BRANCHES_COPY = Object.freeze({
   filter: Object.freeze({
     activeLabel: "Active",
     archivedLabel: "Archived",
+  }),
+  confirm: Object.freeze({
+    archiveTitle: "Archive branch",
+    archiveMessage: (name) => `Are you sure you want to archive “${name}”? You can restore it later.`,
+    archiveLabel: "Archive",
+    restoreTitle: "Restore branch",
+    restoreMessage: (name) => `Are you sure you want to restore “${name}”?`,
+    restoreLabel: "Restore",
+    deleteTitle: "Delete branch",
+    deleteMessage: (name) => `Are you sure you want to permanently delete “${name}”? This cannot be undone.`,
+    deleteLabel: "Delete",
   }),
 });

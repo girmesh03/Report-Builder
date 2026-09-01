@@ -288,7 +288,18 @@ export const restoreBranch = asyncHandler(async (req, res) => {
 });
 
 /**
- * DELETE /branches/:branchId — Delete branch (archive first, sweeper hard-deletes after 30 days if no references).
+ * DELETE /branches/:branchId — Delete an already-archived branch.
+ * Flow (in one session): (1) find the branch by `_id` + `user` +
+ * `isArchived: true` → 404 if not found (a branch of another user, or an
+ * active/non-archived branch, is indistinguishable here — DELETE targets
+ * archived rows only; Archive is the separate action that sets isArchived);
+ * (2) delete the branch row along with every resource linked to it. The
+ * linked resources (reports → items → audios → transcriptions → chat) have
+ * no schemas/model yet (reports phase), so only the branch row is removed
+ * now — nothing can reference it yet, so no orphans. When those models land,
+ * their rows must be deleted HERE in the same session (see TODO below).
+ * Responds `data: null` (the frontend reads only success/message; the
+ * resource is gone).
  * @type {import("express").RequestHandler}
  */
 export const deleteBranch = asyncHandler(async (req, res) => {
@@ -299,39 +310,33 @@ export const deleteBranch = asyncHandler(async (req, res) => {
   session.startTransaction();
 
   try {
-    // Reference check: cannot delete if reports or items reference this branch
-    const Report = mongoose.model("Report");
-    const Item = mongoose.model("Item");
-
-    const [reportRef, itemRef] = await Promise.all([
-      Report.exists({ branch: branchId, user: userId }).session(session),
-      Item.exists({ branch: branchId, user: userId }).session(session),
-    ]);
-
-    if (reportRef || itemRef) {
-      throw new CustomError(
-        "CONFLICT",
-        "Cannot delete branch — it is referenced by reports, visits, or items",
-      );
-    }
-
-    // Archive as step 1 (per BR-15, §30.6)
-    const branch = await Branch.findOneAndUpdate(
-      { _id: branchId, user: userId },
-      { $set: { isArchived: true, archivedAt: new Date() } },
-      { new: true, session },
-    );
+    // 1) Find the branch to delete — must already be archived. A branch of
+    // another user (BR-13) or an active branch is indistinguishable from
+    // nonexistent → 404.
+    const branch = await Branch.findOne({
+      _id: branchId,
+      user: userId,
+      isArchived: true,
+    }).session(session);
 
     if (!branch) {
       throw new CustomError("NOT_FOUND", "Branch not found");
     }
 
+    // 2) Delete the branch with all its linked resources, in this session.
+    // TODO (reports phase): when the Report/Item/Audio/Transcription/Chat
+    // schemas exist, delete every row that references this branch here, in
+    // dependency order — branch → reports → items → audios → transcriptions
+    // → chat (§17.4, §62) — so a branch delete leaves no dangling references.
+    // Current phase: no dependents can exist, so only the branch row goes.
+    await Branch.deleteOne({ _id: branchId, user: userId }).session(session);
+
     await session.commitTransaction();
 
     res.status(HTTP_STATUS.OK).json({
       success: true,
-      message: "Branch archived — it will be permanently removed after the retention period",
-      data: { archived: true },
+      message: "Branch deleted",
+      data: null,
     });
   } catch (error) {
     await session.abortTransaction();

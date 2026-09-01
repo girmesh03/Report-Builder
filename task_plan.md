@@ -251,9 +251,9 @@ Decomposed increments A′–C′ (owner 2026-08-31). EACH increment: build → 
 
 | # | Increment | Task | Status |
 |---|-----------|------|--------|
-| 1 | A′ | MuiDataGrid v9 rewrite (A29/C29/C30/C31) + MuiDataGridToolbar (drop Print+QuickFilter, add children, **reusable per-page export config**) + MuiPagination (A30) + Ethiopian dates (A31) + wire grid into Branches.jsx (A32) | in_progress |
-| 2 | B′ | BranchLedgerCard map + MuiPagination list view (A33) | pending |
-| 3 | C′ | Lifecycle confirm (A34) + edit seed (A36) + view navigate (A35) + getBranchDetail inert (A37) | pending |
+| 1 | A′ | MuiDataGrid v9 rewrite (A29/C29/C30/C31) + MuiDataGridToolbar (drop Print+QuickFilter, add children, **reusable per-page export config**) + MuiPagination (A30) + Ethiopian dates (A31) + wire grid into Branches.jsx (A32) | done (commit `02c387b`) |
+| 2 | B′ | **Card/list view + FULL lifecycle (A33-A36, A38)** — BranchLedgerCard map (Grid `size`) + MuiPagination (list-only, >1 page) + View navigate (A35) + edit dialog seed (A36) + archive/restore/delete confirm→inline loading→toast (A34) | in_progress (built; rework per owner review 6 pts — findings session (j)) |
+| 3 | C′ | **Grid Actions column wiring ONLY** (BranchRowActions + Actions col in `columns/branches.jsx`); getBranchDetail inert (A37) | pending |
 
 > **Owner directive (2026-08-31):** EVERY reusable component (all of
 > `components/reusable/`) is page-agnostic; MuiDataGrid+Toolbar are consumed per page and must be
@@ -268,10 +268,14 @@ Decomposed increments A′–C′ (owner 2026-08-31). EACH increment: build → 
 > weighting (owner): name flex:2/200 · location flex:2/160 · status flex:1/120 · createdAt flex:1/120.
 
 ## Next Step
-**Increment A′ (Phase 5.6 #1):** after gates pass, stop for owner in-browser review of the
-Branches grid, then add/commit/push `feat: phase 5 branches grid + reusable grid/Toolbar
-(A29-A32, C29/C30)` — no merge. Pre-req: owner restarts backend (7b) so `/api/v1/branches`
-returns seeded rows.
+**Increment B′ (Phase 5.6 #2):** card/list view + full lifecycle. Scope shift A38
+(2026-08-31, owner): B′ folds A33 list view + A34 lifecycle confirm + A35 view
+navigate + A36 edit seed; C′ shrinks to grid Actions column only. Use MUI `Grid`
+`size` prop (never `gridTemplateColumns` — C32), `MuiPagination` list-view only &
+>1 page (C33), prefer `Stack` over `Box` (C34). Planning notes recorded first
+(findings session (i)). After gates: **owner in-browser review of the list view +
+lifecycle**, then add/commit/push `feat: phase 5 branches card/list view +
+lifecycle (A33-A36, A38)` — no merge.
 
 ### Phase 5.5: Validation & Integration
 
@@ -360,3 +364,53 @@ any child component — rows render in a later increment.
   BranchesFilterDialog, BranchFormDialog, BranchLedgerCard, BranchRowActions, `components/columns/`.
 - **Remaining immediately:** 7b restart + Postman `/branches` re-test (prove the fix), then
   the Phase 5.4 issue-fix/step-5 increment (task_plan §Phase 5.4 234-243).
+
+## Session 2026-09-01 (l) — Increment B′ rework round 3 (owner review, 2 defects)
+
+Owner flagged two defects in the reworked `Branches.jsx`/delete path:
+1. **Per-card loading** — RTK mutation `isLoading` is hook-wide; switched to a
+   `pendingBranch = { id, type } | null` state so only the acted-on row's icon
+   spins (`actionLoading={pendingBranch?.id === branch._id ? pendingBranch.type : null}`);
+   cleared in a `finally`.
+2. **Delete 500 `MissingSchemaError`** — `deleteBranch` called
+   `mongoose.model("Report"/"Item")` (schemas don't exist yet). Removed only the
+   ref-check block; endpoint keeps §30.6 archive step-1 + `data: { archived: true }`
+   + "…retention period". Session/transaction kept (mongoose ^9.9.3).
+- **Owner directive (defer):** branch hard-delete MUST cascade to
+  reports/items/audios/transcriptions/chat — those schemas are later-phase, so
+  hard-delete + ref-check (409) + the pre-30-day bypass are STRICT TODOs for the
+  reports phase (findings (l)); NOT built now (define-on-require).
+- **Recorded in:** findings.md (l), progress.md (l), this task_plan, AGENTS.md,
+  spec §30.6/§20.4/§69.15.
+- **Next:** gates passed → owner in-browser review → add/commit/push (no merge).
+
+## Session 2026-09-01 (m) — Increment B′ delete-flow correction (owner review, round 4)
+
+Owner corrected `deleteBranch` (round-3's archive-only + `data: { archived: true }`
+was wrong). Now, in the session:
+1. **Find the branch — must already be archived** (`{ _id, user, isArchived: true }`)
+   → 404 if not found.
+2. **Delete the branch row** (`deleteOne`) + a **TODO comment** for the linked-
+   resource cascade (reports → items → audios → transcriptions → chat, §17.4/§62)
+   once those schemas exist (reports phase). No dependents can exist this phase,
+   so only the row is removed (no orphans).
+3. **Response** `{ success: true, message: "Branch deleted", data: null }`.
+- **Amendment (spec §30.6/§62/§12941):** DELETE hard-deletes the already-archived
+  branch immediately in the session with `data: null` (overrides archive-first +
+  sweeper-only for this phase). Cascade + ref-check (409) remain STRICT TODOs.
+- **Recorded in:** findings.md (m), progress.md (m), this task_plan, AGENTS.md,
+  spec §30.6/§69.15/§12941.
+- **Next:** gate → owner restarts backend + in-browser review (delete success
+  toast + branch gone) → add/commit/push (no merge).
+
+## Session 2026-09-01 (n) — Increment B′ delete: find ARCHIVED branch, no updateOne (round 5)
+
+Owner corrected round-4 again: `deleteBranch` must **find the branch already
+archived** (`{ _id, user, isArchived: true }`), NOT set `isArchived` via
+`updateOne`. The `updateOne` archive step is removed from the delete (Archive is
+a separate action). Delete = find archived → 404 → `deleteOne` + cascade TODO →
+`{ success, message: "Branch deleted", data: null }`.
+- **Recorded in:** findings.md (n), progress.md (n), this task_plan, AGENTS.md,
+  spec §30.6/§69.15/§12941.
+- **Next:** gate → owner restarts backend + in-browser review → add/commit/push
+  (no merge).
