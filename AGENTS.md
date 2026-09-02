@@ -29,6 +29,19 @@ owner-amended branches state and built, owner-reviewed code are
 unaffected. These sections remain behavioral reference only, pending
 owner amendment.
 
+## Current campaign — Phase 6 Trust Overlay Amendments
+
+**Branch:** `phase-6-trust-overlay-amendments`
+**Objective:** amend every detail in the trust-overlay scope for the
+reports domain — data models (§21/§24A/§22/§23/§24) and API contracts
+(§31–§39) — one resource at a time, with the owner, during Step-1.1.
+Design-only; no implementation in this phase.
+
+**Roadmap:** R1–R10 increment table with dependency chain and involved
+sets — see `task_plan.md` Phase 6 section.
+
+**Status:** roadmap note-down only. Next = R1 (Report resource §21+§31).
+
 ## What this repo is
 
 MERN-style **Report Builder** — Amharic speech-to-report web app for restaurant supervision. Two npm packages, both ESM (`"type": "module"`), npm only, lockfiles committed:

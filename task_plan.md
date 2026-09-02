@@ -459,3 +459,106 @@ a separate action). Delete = find archived → 404 → `deleteOne` + cascade TOD
 - [x] Leave `@mui/x-data-grid`/`@mui/x-date-pickers`/`@mui/material/styles` untouched.
 - [x] Gates: lint 0, `vite build` 0 → `rm -rf dist`, grep clean.
 - [ ] Owner review → single C′ commit incl. cleanup (no merge).
+
+## Phase 6 — Trust Overlay Amendments: Data Modeling + API Design
+
+**Branch:** `phase-6-trust-overlay-amendments`
+**Origin:** off `main` (after commit 4f2f5a2 — trust overlay note-down)
+**Objective:** amend every single detail in the trust-overlay scope
+(models §18–§24A, API contracts §30–§39) with the owner during
+Step-1.1 identification. No implementation in this phase — design-only
+amendments recorded in the working files.
+
+**Why this phase exists:** the trust overlay (owner directive,
+2026-09-01, recorded in all 5 planning files + the spec, committed
+4f2f5a2) established that `docs/project-specification.md` is NOT a
+single source of truth for domain models, API contracts, or pages.
+Every detail in those areas becomes binding only when amended WITH the
+owner during Step-1.1 of each phase/task/sub-task. This phase is the
+first campaign of that process.
+
+**Scope boundaries (confirmed):**
+- **In scope:** data models §21/§24A/§22/§23/§24 + API contracts
+  §31–§39 — amended incrementally, one resource at a time.
+- **Out of scope (deferred to frontend campaign):** pages §48–§59.
+  Each page increment maps to the API row that supplies it (listed
+  in the consumed-by column below).
+- **§17/§18 handling:** outside the overlay list but "involved" —
+  relevant provisions (ERD/cascade map §17.3/§17.4, conventions §18)
+  folded into each model increment as restated canon, not standalone
+  increments.
+- **§52 Wizard:** dropped/inert (owner directive). Any resurrection
+  = new owner amendment in a future Step-1.1.
+
+**Already amended and built (unaffected):**
+- §19 User Model + §28 Auth — done, code on main.
+- §20 Branch Model + §30 Branch API + §56 Branches page (incl. grid
+  Actions column, lifecycle, filter menu) — done, code on main.
+- The trust overlay banner itself — committed 4f2f5a2.
+
+**Increment plan (one resource = model + API together):**
+
+| # | Increment | Model | API | Involved-with-it | Blocked-by | Pages consumed later |
+|---|---|---|---|---|---|---|
+| R1 | Report resource | §21 | §31 | §6 skeleton/type field; status enums (§21.4/§31.4 transition-guard); `raw`+`latest` content model + single undo; §21.3 indexes; branch peer-ref + §17.3/§17.4 cascade for branch→reports; §30.6 delete-cascade + 409 ref-check; constants; envelope shapes | — | §50, §51, §53, §58 |
+| R2 | Item resource | §24A | §31.6 | per-type vocabulary (activities/issues/comment, §6.10); partial-unique index; generation-time atomic persist contract | R1 | §51 details |
+| R3 | Audio resource | §22 | §32 | multer config, `uploads/` location, chunking, retention/TTL (§18/§62); cascade audio→report + cleanup-on-delete | R1 | §53/§54 |
+| R4 | Transcription | §23 | §33 | addis provider contract; stored shape (raw/latest, language codes §7.7); session contract | R3 | §54 review |
+| R5 | Generation service | — | §34 | §8 16-rules applicability; provider selection; generation→Item persist + terminal-status transition | R1, R2, R4 | §53 workspace |
+| R6 | Correction service | — | §35 | 3 modes (typed/voice); re-transcription; raw/latest rewrite + undo | R1, R4 | §53/§54 |
+| R7 | Chat resource | §24 | §36 | messages array; conversation-to-report transformation (§8.4) | R1 | §55, §59 |
+| R8 | Export feature | — | §37 | §58 surfaces; Print-to-PDF; CSV/PDF/Excel formats; branch+report context | R1 | §58 |
+| R9 | Analytics | — | §38 | visits/aggregations; branch×report stats | R1 | §49 dashboard; §56.5 Branch Details |
+| R10 | Search | — | §39 | global text-index scoping; all models with text indexes | all | MuiAppbar global search |
+
+**Dependency chain (fixture order §5916 aligned):**
+```
+User ✅ → Branch ✅ → R1 Report → R2 Item
+                            ├→ R3 Audio → R4 Transcription
+                            ├→ R5 Generation (needs R2+R4)
+                            ├→ R6 Correction (needs R4)
+                            ├→ R7 Chat
+                            ├→ R8 Export
+                            ├→ R9 Analytics
+                            └→ R10 Search (needs all)
+```
+
+**Open questions (to resolve during R1 Step-1.1, NOT before):**
+
+| # | Question | Why it matters | Resolved during |
+|---|---|---|---|
+| OQ-1 | Report model exact field set (name, branch ref, status enum values, date, raw/latest content shape, timestamps, archivedAt?) | Defines the entire domain's identity contract | R1 |
+| OQ-2 | Status machine: exact enum values and legal transitions (§5.3/§21.4/§31.4) | Every lifecycle endpoint guards on these | R1 |
+| OQ-3 | `raw` + `latest` content: exact shape/typing and the single-undo revert contract | Drives §31 endpoints, §34 generation, §35 correction | R1 |
+| OQ-4 | §56.5 Branch Details scope: what does `GET /branches/:branchId/detail` return? | Blocks the last branches-domain remnant | R9 |
+| OQ-5 | Item: separate collection or embedded subdoc? Per-type fields exact shapes | Shapes §24A + §31.6 | R2 |
+
+**Amendment session mechanics (per increment):**
+
+1. Owner switches session to **plan mode** for the increment.
+2. Agent presents the spec's current letter for the increment's sections
+   (verbatim claims + sub-section map — e.g., §21.1–§21.13,
+   §31.1–§31.10).
+3. Agent separates **canon** (rules that cannot be wrong: conventions,
+   patterns locked in Branch, foundational truths) from **amendments**
+   (every field/enum/index/envelope/endpoint — one detail at a time).
+4. Owner decides each detail. Approved items form the increment's
+   **Amendment record**.
+5. On build-mode approval: record written into `findings.md`/
+   `progress.md`/`task_plan.md`/`AGENTS.md` + spec § in one commit
+   (§66.6 same-commit mirrors).
+6. **No merge** — push to branch only. Merge at phase close (Governing
+   Rule #4).
+
+**Phase 6 governance:**
+- **Governing Rule #4:** push to `phase-6-trust-overlay-amendments`
+  during active work. No merge during active work. Merge to `main` +
+  delete branch when the owner closes the phase.
+- **Step-5 review:** no commit until the owner reviews the diff and
+  approves — applies to every increment's mirror-record commit.
+- **Same-change discipline (§66.6):** every amendment record is written
+  in the same commit as its spec mirror edit — working files + spec
+  together, never separately.
+
+**Current status:** roadmap note-down only. Next step = R1
+(Report resource: §21 model + §31 API, detail-by-detail with owner).

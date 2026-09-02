@@ -14,6 +14,20 @@
 > AGENTS.md in the same working tree (§66.6). Spec text alone carries no
 > weight here until owner-amended.
 
+## Session 2026-09-01 — Phase 6 campaign roadmap (design-only, no implementation)
+
+- **Branch created:** `phase-6-trust-overlay-amendments` off `main`
+  (after commit 4f2f5a2 — trust overlay note-down).
+- **Scope:** design-only amendment campaign for data models §21/§24A/
+  §22/§23/§24 and API contracts §31–§39. Pages §48–§59 deferred to
+  frontend campaign.
+- **Roadmap:** R1–R10 increment plan (one resource = model + API per
+  increment), dependency chain aligned to fixture order §5916. Open
+  questions OQ-1–OQ-5 recorded for R1 resolution.
+- **Files updated:** task_plan.md (Phase 6 section), AGENTS.md (current
+  campaign), findings.md (this entry), progress.md (this entry).
+- **Gates:** branch created, roadmap pushed, no merge.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

@@ -14,6 +14,17 @@
 > AGENTS.md in the same working tree (§66.6). Spec text alone carries no
 > weight here until owner-amended.
 
+## Session 2026-09-01 — Phase 6 campaign roadmap (design-only, no implementation)
+
+- **Branch:** `phase-6-trust-overlay-amendments`
+- **Created:** Phase 6 roadmap note-down (R1–R10 increment plan, open
+  questions OQ-1–OQ-5, amendment session mechanics).
+- **Files updated:** task_plan.md (Phase 6 section), AGENTS.md (current
+  campaign), findings.md (this entry), progress.md (this entry).
+- **Gates:** branch created, roadmap pushed, no merge.
+- **Current status:** roadmap complete. Next step = R1 (Report resource:
+  §21 model + §31 API, detail-by-detail with owner).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`
