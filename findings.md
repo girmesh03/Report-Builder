@@ -141,6 +141,63 @@ converts Ethiopian↔UTC at the boundary; stores UTC-midnight Date.
   (not 404).
 - date-range filter held (defer to details/analytics brainstorm).
 
+## Session 2026-09-01 — R3: Audio resource amendment (model §22 + API §32)
+
+Design-only amendment with the owner (Step-1.1). No implementation —
+recorded in this file, progress.md, task_plan.md, AGENTS.md + spec §22/§32
+in one commit (§66.6). Blocked by R1 (done).
+
+### Audio model (§22) — confirmed canon (8 fields)
+```
+Audio {
+  _id, user (ref User, required), report (ref Report, child 1:N, required),
+  filePath (String, server-internal, never exposed), mimeType (AUDIO_ALLOWED_MIME_TYPES),
+  sizeBytes (Number, ≤ AUDIO_MAX_SIZE_BYTES 50MB via validator),
+  durationSec (Number, ≤ AUDIO_MAX_DURATION_SEC 900s via ffprobe),
+  createdAt/updatedAt
+}
+```
+No `status`, no `isArchived`/`archivedAt`, no `deletedAt`, no ordering field.
+Indexes: `{ user }`, `{ user, report }`. No TTL (inherited from report). Direct-delete
+lifecycle (no states). `filePath` never exposed.
+
+### §22.4/§32.4 lifecycle & status (amended)
+- **Direct delete = DB + physical file:** removes the Audio doc (DB) in the §32 session
+  AND `fs.unlink`s the file under `backend/uploads/audio/` after commit — both deleted.
+- Final clip deleted (zero remain) → `draft` (no audio = draft presence, always).
+- Delete one clip while some remain: `audio_attached` stays; `transcribed` cascades
+  transcription → `audio_attached`.
+- Add below `generated` never rewinds. Add 1+ clips at `transcribed` KEEPS status
+  `transcribed` but DROPS readiness (new clips pending/unheard); existing raw/latest +
+  stt.audios ledger retained; new clips re-transcribed+merged (§33.6, R4).
+- Upload/delete frozen at `generated` (403). Report hard-delete cascades clips + unlink.
+
+### §22.5 binary contract (amended — temp cleanup)
+- Pipeline chunks/temp (ffmpeg conversions, PCM/WAV) cleaned on successful transcription
+  + merge; only original uploaded clips persist under `uploads/audio/`.
+
+### §32 API (nested, no stream, direct-delete, flat)
+- `POST /reports/:reportId/clips` — 201 AudioDto; MIME/size/duration caps; 403 generated.
+- `GET /reports/:reportId/clips` — flat `{ clips: [AudioDto] }`, createdAt asc; empty → `[]`; no pagination.
+- `GET /reports/:reportId/clips/:clipId` — single AudioDto (byte source for playback Blob).
+- `DELETE /reports/:reportId/clips/:clipId` — direct delete (confirm dialog); +unlink; rewind; 403 generated.
+- No `/audios/*` flat routes, no `/play` stream, no archive/restore. Routes nested for RTK Query tags.
+- AudioDto: `{ _id, report, mimeType, sizeBytes, durationSec, createdAt, updatedAt }` — never filePath.
+
+### Audio-tab UI (R3) — one card
+- One card = big orb (record/stop/play, circular) + drag-drop upload (dashed, text + file, click-to-locate).
+- "Narrations" divider (centered) → per-clip items: play/pause, seek bar, duration, size,
+  delete (confirm → direct), Transcribe/Re-transcribe (layout slot).
+- Transcribe-all button — shown only when any clip not yet transcribed; absent when all transcribed.
+- Playback: Blob/object-URL from read endpoint bytes (no stream; amends MuiAudioPlayer).
+
+### Status/readiness rules
+- Final clip deleted → `draft`. Add at `transcribed` keeps status, drops readiness (pending until re-transcribe+merge).
+
+### Deferred to R4 (§23 + §33)
+Per-clip Transcribe/Re-transcribe engine + Transcribe-all + heard-count `x of y` readiness +
+merge-into-existing-transcription + §23 Transcription model + §33 STT pipeline.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

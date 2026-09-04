@@ -5171,6 +5171,22 @@ owning subsection and repeated nowhere else:
 
 ### 22.1 Purpose & scope
 
+> **R3 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
+> the trust overlay, §22 is no longer a single source of truth until
+> amended. This amendment confirms the Audio model (8 fields, child-side
+> 1:N `report`, direct-delete lifecycle, no archive/restore, no TTL) and
+> adds the **lifecycle/status rules**: deleting the final clip returns
+> the report to `draft`; adding clips at `transcribed` keeps status
+> `transcribed` but drops transcription readiness. It also adds the
+> **temp-chunk-cleanup rule** (pipeline chunks are removed on successful
+> transcription + merge; only the original uploaded clips persist).
+> Audio endpoints ride nested under `/reports/:reportId/clips` (no flat
+> `/audios/*`, no `/play` stream). Audio-tab UI: one card = big orb +
+> drag-drop upload, "Narrations" divider, per-clip play/seek/duration/
+> size/delete/transcribe; Transcribe-all shown only when any clip is
+> pending (engine deferred to R4). See findings/progress/task_plan/
+> AGENTS.md R3 record.
+
 This section authors the Audio row — the metadata-only document that
 represents one recorded audio clip (the binary itself lives on the
 backend local filesystem, §12.9). The section owns the Audio schema,
@@ -5254,30 +5270,50 @@ this row.
   The physical binary write follows the session commit; a failure is
   retried by the orphan sweep (§17.4, §31, §62) — the document and the
   file never form a two-phase promise inside a hook (§18.6).
-- **Removal.** Deleting one audio cascades nothing on the report row;
+- **Removal (direct delete = DB + physical file).** Deleting one
+   audio is a **direct delete**: the Audio **document (DB)** is
+   removed in the §32 session and the **physical file under
+   `backend/uploads/audio/`** is `fs.unlink`ed after commit (both are
+   deleted; failure → orphan-sweep retry). It cascades nothing on the
+   report row;
    at `transcribed` it also cascades the report's 1:1 Transcription
    row (the merged `raw` covered all clips — a deleted clip
-invalidates the merge; §23.4/§17.4, Option X: the transcription row
+   invalidates the merge; §23.4/§17.4, Option X: the transcription row
    is removed — there is no report field to clear). Status movement:
-   deleting the **last** audio
-  of the report rewinds `audio_attached` → `draft`; deleting any
-  audio at `transcribed` rewinds to `audio_attached` (or `draft` if
-  it was the last) — the single explicit backward transition
-  (ADR-003, declared in §31). At `generated` audio removal is
-  **frozen** (BR-12, §31.4): the generated content is the
-  deliverable and corrections are the editing path (§35).
+   - delete **one** clip while some remain — was `audio_attached` →
+     stays `audio_attached`; was `transcribed` → cascades the
+     transcription and lands `audio_attached`;
+   - **delete the report's final clip (zero remain) → `draft`** — no
+     audio = the `draft` presence (§17.6), always, regardless of prior
+     status.
+   At `generated` audio removal is
+   **frozen** (BR-12, §31.4): the generated content is the
+   deliverable and corrections are the editing path (§35).
 - **Addition below `generated`** never rewinds; new clips attach as
-  new rows (§17.4, BR-10).
+   new rows (§17.4, BR-10). **Adding 1+ clips at `transcribed` keeps
+   the status `transcribed`** (adding never rewinds, BR-10), but the
+   **new clips are untranscribed → readiness drops** (the data-derived
+   "every current clip is transcribed" check is now false): the new
+   clips show Transcribe, the Transcribe-all act reappears, and the
+   story stays hidden until every take is re-transcribed + merged into
+   the existing transcription (§33.6, R4). The existing `raw`/`latest`
+   and the `stt.audios` ledger are retained.
 - **Report cascade.** Report hard-delete removes the audio documents
-  and their physical files in one transaction-pair: documents in the
-  session, `fs.unlink` after commit, failures retried by the orphan
-  sweep (§17.4, app-level sweeper §62).
+   and their physical files in one transaction-pair: documents in the
+   session, `fs.unlink` after commit, failures retried by the orphan
+   sweep (§17.4, app-level sweeper §62).
 
 ### 22.5 Binary & metadata contract
 
 - Binary audio lives at `backend/uploads/audio/` (gitignored); the
-  collection stores metadata only (§12.9). No GridFS, no S3/object
-  store — that class of storage is excluded (§13.6).
+   collection stores metadata only (§12.9). No GridFS, no S3/object
+   store — that class of storage is excluded (§13.6).
+- **Temp-chunk-cleanup (R3 amendment).** The §33 pipeline's transient
+   artifacts — ffmpeg conversions and PCM/WAV chunks created during
+   transcription — are **cleaned on successful transcription + merge**,
+   leaving only the **original uploaded clips** under `uploads/audio/`.
+   On partial/failed transcription, consumed chunks are also cleaned
+   (transient, never retained); originals always persist.
 - The Audio document never contains audio bytes; the transform layer
   never forwards `filePath` to the client (§22.7) — consumers reach
   binaries exclusively through the §30–§39 audio endpoints.
@@ -7305,19 +7341,35 @@ archived; hard delete by the §62 sweeper only.
 
 ### 32.1 Purpose & scope
 
-§32 owns the audio clip surface (BR-02): upload, list, play/
-download, delete, and the storage discipline — metadata-only
+> **R3 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
+> the trust overlay, §32 is no longer a single source of truth until
+> amended. This amendment: **all clip routes ride nested under
+> `/reports/:reportId/clips(:clipId)?`** — no flat `/audios/*`; **no
+> `/play` stream endpoint and no HTTP-range playback** (clip playback is
+> a client-built Blob/object-URL from the read endpoint's bytes); **no
+> archive/restore** — the clip lifecycle is direct-delete only (delete →
+> confirm dialog → hard delete + unlink); clip list is a **flat
+> `{ clips: [...] }`** (no pagination, no `isArchived` filter); status
+> rule **deleting the report's final clip → `draft`**. The Audio-tab UI
+> is one card = big orb (record/stop/play) + drag-drop upload, an
+> "Narrations" divider, and per-clip items (play/pause, seek, duration,
+> size, delete, Transcribe/Re-transcribe); Transcribe-all shown only when
+> any clip is pending; the transcribe engine is deferred to R4. See
+> findings/progress/task_plan/AGENTS.md R3 record.
+
+§32 owns the audio clip surface (BR-02): upload, list,
+play/download, delete, and the storage discipline — metadata-only
 documents with binaries on the local filesystem (§22, §12.9/§17.5)
 and the hard rule that `filePath` never reaches a client (§22.7,
 DTO gate). It is also the step-3 birth of the status machine
-(§31.4: first clip → `audio_attached`; last-clip deletion →
-rewind).
+(§31.4: first clip → `audio_attached`; final-clip deletion →
+rewind to `draft`).
 
 - **Owned here (normative).** Upload endpoint & multer con-
-  figuration (§32.2); clip listing and play streaming (§32.3);
-  clip deletion & the rewind rule (§32.4);
-  temp-cleanup and file lifecycle (§32.5); states & edge cases
-  (§32.6); endpoints matrix (§32.7); verification (§32.8).
+   figuration (§32.2); clip listing (§32.3 — no streaming);
+   clip deletion & the rewind rule (§32.4);
+   temp-cleanup and file lifecycle (§32.5); states & edge cases
+   (§32.6); endpoints matrix (§32.7); verification (§32.8).
 - **Owned elsewhere — deliberately not repeated here.** The Audio
   model and its cascade rules = §22; the STT pipeline feeding on
   physical files = §33; status transitions = §31.4; validators
@@ -7363,42 +7415,47 @@ sizeBytes, durationSec, createdAt, updatedAt }` (all fields,
   webm — chunk MIME is §33's own rule (uploaded webm is
   converted by the pipeline).
 
-### 32.3 Listing & playback
+### 32.3 Listing & playback (R3-amended — no stream)
 
 - `GET /reports/:reportId/clips` (access):
-  200 paginated list (§27.6) of AudioDtos, ordered by
+  200 **flat** list of AudioDtos (`{ clips: [...] }`), ordered by
   `createdAt` asc (§22 — within a report, chronological by
-  creation, never array position). Empty list → `docs: []`
-  (no 404).
-- `GET /audios/:audioId` (access): metadata AudioDto; 404 for
-  not-owned.
-- `GET /audios/:audioId/play` (access): streams the physical
-  file with `Accept-Ranges`/HTTP range support and the stored
-  `mimeType` (browser audio element; no resumable-S3, no
-  signed URL — plain authenticated range streaming). Headers:
-  `Content-Type: mimeType`, `Accept-Ranges: bytes`,
-  `Cache-Control: private`. 404 when the file is missing (the
-  doc's binary already cleaned — edge §32.5), 403 for
-  not-owned.
+  creation, never array position). Empty list → `{ clips: [] }`,
+  no 404. No pagination, no `isArchived` param (direct-delete model).
+- `GET /reports/:reportId/clips/:clipId` (access): metadata
+  AudioDto; 404 for not-owned/foreign. This read is also the **byte
+  source** the client uses to build a playback Blob/object-URL.
+- **Dropped (§32.3, R3):** `GET /audios/:audioId` and
+  `GET /audios/:audioId/play`. **No stream endpoint, no
+  `Accept-Ranges`, no HTTP range, no `Cache-Control` stream** —
+  playback is a client-built Blob/object-URL; the Audio tab plays each
+  clip from the read endpoint's bytes (or, for this-session takes, the
+  recorded Blob directly). This amends `MuiAudioPlayer` (which the
+  prior spec wired to a `/play` URL).
 
-### 32.4 Deletion & the rewind rule
+### 32.4 Deletion & the rewind rule (R3-amended)
 
-`DELETE /audios/:audioId` (access): removes the Audio doc and —
+`DELETE /reports/:reportId/clips/:clipId` (access, direct delete with
+a confirm dialog on the UI): removes the Audio **document (DB)** and —
 when the report sits at `transcribed` — cascades the report's 1:1
 Transcription row (Option X: removes it; there is no report
 `transcription` ref to clear — the invariant is the unique index on
 `Transcription.report`, §23/R4)
-(in-session, §22/§23) and, after commit,
-`fs.unlink`s the physical file (failure → orphan-sweep retry,
-§62). Status consequences per §31.4 — this endpoint applies the
-appropriate rewind: deleting the **last** clip of an
-`audio_attached` report → `draft`; deleting any clip of a
-`transcribed` report → `audio_attached` (or `draft` if it was the
-last). At `generated` deletion is **frozen** — 403 (BR-12, §31.4):
+in the §27.7 session (§22/§23) and, after commit,
+`fs.unlink`s the **physical file under `backend/uploads/audio/`** —
+both the DB row and the file are deleted (failure → orphan-sweep retry,
+§62). Status consequences per §31.4:
+- delete **one** clip while some remain — was `audio_attached` →
+  stays `audio_attached`; was `transcribed` → cascades the
+  transcription and lands `audio_attached`;
+- **delete the report's final clip (zero remain) → `draft`** (no
+  audio = `draft` presence, §17.6), always, regardless of prior
+  status.
+At `generated` deletion is **frozen** — 403 (BR-12, §31.4):
 the generated content is the deliverable and corrections are the
 editing path. Response 200 `{ data: null, message }` (message =
 §60 catalogue copy — "Clip deleted" with the rewind sentence in
-the §51.4 confirm dialog).
+the confirm dialog).
 
 ### 32.5 Temp-cleanup & file lifecycle
 
@@ -7415,29 +7472,32 @@ the §51.4 confirm dialog).
 
 - Race: upload session aborted after multer wrote a physical
   file — controller cleanup unlinks it; sweeper covers rest.
-- File missing (manual deletion from disk): play returns 404
-  with the toast copy; the doc remains (the sweeper cleans it
+- File missing (manual deletion from disk): the read/playback
+  returns 404 with the toast copy; the doc remains (the sweeper cleans it
   with the owning report's lifecycle).
 - Deleting an audio of a report at `transcribed`: cascades the
   merged transcription (its `raw` covered all clips — §22.4/§23.4)
   — the report row itself is never deleted by this path.
 
-### 32.7 Endpoints matrix
+### 32.7 Endpoints matrix (R3-amended — all nested under `/reports/:reportId`)
 
-| Method+Path                     | Auth   | Request                       | Success      | Errors                                                                                     |
-| ------------------------------- | ------ | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------ |
-| `POST /reports/:reportId/clips` | access | multipart `clip` + `language` | 201 AudioDto | 401, 404 (report), 403 (generated), 422 (MIME/size/duration), 413 via multer → 422 mapping |
-| `GET /reports/:reportId/clips`  | access | —                             | 200 list     | 401, 404 (report)                                                                          |
-| `GET /audios/:audioId`          | access | —                             | 200 AudioDto | 401, 404                                                                                   |
-| `GET /audios/:audioId/play`     | access | —                             | 200 stream   | 401, 403, 404                                                                              |
-| `DELETE /audios/:audioId`       | access | —                             | 200          | 401, 403 (generated), 404                                                                  |
+**All clip routes ride nested under `/reports/:reportId/clips(:clipId)?`. No flat `/audios/*`. No `/play` stream, no HTTP-range, no archive/restore. Clip list is flat (no pagination).**
+
+| Method+Path                                          | Auth   | Request                       | Success      | Errors                                                                                     |
+| ---------------------------------------------------- | ------ | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| `POST /reports/:reportId/clips`                      | access | multipart `clip`              | 201 AudioDto | 401, 404 (report), 403 (generated), 422 (MIME/size/duration), 413 via multer → 422 mapping |
+| `GET /reports/:reportId/clips`                       | access | —                             | 200 list (flat `{ clips }`) | 401, 404 (report)                                                                          |
+| `GET /reports/:reportId/clips/:clipId`               | access | —                             | 200 AudioDto | 401, 404                                                                                   |
+| `DELETE /reports/:reportId/clips/:clipId`            | access | — (direct delete)             | 200          | 401, 403 (generated), 404                                                                  |
+
+**Dropped (R3):** `GET /audios/:audioId`, `GET /audios/:audioId/play`, `POST/DELETE archive/restore`, pagination.
 
 **Contract JSON** (folded from the route-contract review,
-2026-08-19): AudioDto is `{ _id, report, mimeType, sizeBytes,
+2026-08-19; R3): AudioDto is `{ _id, report, mimeType, sizeBytes,
 durationSec, createdAt, updatedAt }` — `filePath` never.
 
 `POST /reports/:reportId/clips` — multipart: `clip` (audio
-file), `language` (default `am`), informational `durationSec`
+file), informational `durationSec`
 (ffprobe enforces the §32.2 cap). 201:
 
 ```json
@@ -7457,15 +7517,16 @@ file), `language` (default `am`), informational `durationSec`
 ```
 
 `GET /reports/:reportId/clips` — 200: `{ "success": true,
-"message": "Clips", "data": { "docs": [ AudioDto, … ], "page":
-1, "limit": 10, "totalDocs": 2, "totalPages": 1 } }` — empty →
-`docs: []`, no 404 (§32.3).
+"message": "Clips", "data": { "clips": [ AudioDto, … ] } }` — flat,
+`createdAt` asc; empty → `{ "clips": [] }`, no 404. (No pagination, no `isArchived` param.)
 
-`GET /audios/:audioId` — 200 AudioDto. `GET
-/audios/:audioId/play` — 200 stream with `Content-Type: mimeType`,
-`Accept-Ranges: bytes`, `Cache-Control: private` (§32.3).
-`DELETE /audios/:audioId` — 200: `{ "success": true, "message":
-"Clip deleted", "data": null }` (+ the §31.4 rewind applies).
+`GET /reports/:reportId/clips/:clipId` — 200 AudioDto (also the
+byte source the client uses to build a playback object URL — no
+stream endpoint exists).
+
+`DELETE /reports/:reportId/clips/:clipId` — 200: `{ "success":
+true, "message": "Clip deleted", "data": null }` (+ the §31.4
+rewind applies; deleting the final clip → `draft`).
 
 ### 32.8 Verification usage
 

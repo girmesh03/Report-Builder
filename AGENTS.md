@@ -43,8 +43,13 @@ sets — see `task_plan.md` Phase 6 section.
 **Progress:**
 - R1 complete (design-only): Report model §21 + Report & Status API §31
   amended. See `findings.md`/`progress.md`/`task_plan.md` + spec §21/§31.
+- R3 complete (design-only): Audio model §22 + Audio API §32 amended
+  (nested `/reports/:reportId/clips`, no stream, direct-delete,
+  final-clip→draft, add-at-transcribed keeps status/drops readiness,
+  temp-chunk-cleanup, Audio-tab one-card layout). See
+  `findings.md`/`progress.md`/`task_plan.md` + spec §22/§32.
 
-**Status:** R1 done. Next = R3 Audio resource (§22 model + §32 API + Audio-tab UI).
+**Status:** R1, R3 done. Next = R4 Transcription resource (§23 model + §33 STT pipeline).
 
 ## What this repo is
 

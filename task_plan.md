@@ -502,7 +502,7 @@ first campaign of that process.
 |---|---|---|---|---|---|---|
 | R1 | **Report resource ✅ (amended)** | §21 | §31 | §6 skeleton/type; status enums (§21.4/§31.4); visits[]+isMain capture (Option X); §21.3 multikey indexes; §30.6 delete-cascade + ref-check; constants; envelope shapes; Ethiopian date/time boundary | — | §50, §51, §53, §58 |
 | R2 | Item resource | §24A | §31.6 | per-type vocabulary (activities/issues/comment, §6.10); partial-unique index; generation-time atomic persist contract | R1 | §51 details |
-| R3 | Audio resource | §22 | §32 | multer config, `uploads/` location, chunking, retention/TTL (§18/§62); cascade audio→report + cleanup-on-delete | R1 | §53/§54 |
+| R3 | **Audio resource ✅ (amended)** | §22 | §32 | multer config, `uploads/` location, nested `/reports/:reportId/clips` routes, no stream/no archive/direct-delete, final-clip→draft, add-at-transcribed keeps status/drops readiness, temp-chunk-cleanup, Audio-tab one-card layout | R1 | §53/§54 |
 | R4 | Transcription | §23 | §33 | addis provider contract; stored shape (raw/latest, language codes §7.7); session contract | R3 | §54 review |
 | R5 | Generation service | — | §34 | §8 16-rules applicability; provider selection; generation→Item persist + terminal-status transition | R1, R2, R4 | §53 workspace |
 | R6 | Correction service | — | §35 | 3 modes (typed/voice); re-transcription; raw/latest rewrite + undo | R1, R4 | §53/§54 |
@@ -560,8 +560,8 @@ User ✅ → Branch ✅ → R1 Report → R2 Item
   in the same commit as its spec mirror edit — working files + spec
   together, never separately.
 
-**Current status:** R1 complete (design-only). Next step = R3 Audio
-resource (§22 model + §32 API + Audio-tab UI).
+**Current status:** R1 + R3 complete (design-only). Next step = R4
+Transcription resource (§23 model + §33 STT pipeline).
 
 ### R1 — Report resource — COMPLETE (design-only amendment, 2026-09-01)
 
@@ -585,3 +585,25 @@ Amended Report model §21 + Report & Status API §31 with the owner (Step-1.1).
   Audio (§32/R3) + Transcription (§33/R4) endpoints + tab UI.
 - **Recorded in:** findings.md (R1), progress.md (R1), this task_plan, AGENTS.md,
   spec §21/§31 (same commit, §66.6).
+
+### R3 — Audio resource — COMPLETE (design-only amendment, 2026-09-01)
+
+Amended Audio model §22 + Audio API §32 with the owner (Step-1.1).
+- **Model:** 8 fields (child-side 1:N `report`, no status/isArchived/archivedAt/
+  deletedAt); indexes `{user}`,`{user,report}`; no TTL (inherited from report);
+  direct-delete lifecycle.
+- **Lifecycle/status:** final-clip-deleted → `draft`; delete-one keeps
+  `audio_attached` / cascades `transcribed`→`audio_attached`; add-at-`transcribed`
+  keeps status but drops readiness (pending until re-transcribe+merge §33.6);
+  frozen at `generated`.
+- **Binary:** temp-chunk-cleanup on transcription success (keep originals).
+- **API:** nested `/reports/:reportId/clips` only (upload/list/single/delete);
+  no flat `/audios/*`, no `/play` stream, no archive/restore, flat `{ clips }`.
+  AudioDto `{ _id, report, mimeType, sizeBytes, durationSec, createdAt, updatedAt }`.
+- **Audio-tab UI (R3):** one card = big orb + drag-drop upload; "Narrations"
+  divider; per-clip play/seek/duration/size/delete/transcribe; Transcribe-all
+  only-when-pending; Blob/object-URL playback (no stream).
+- **Deferred to R4:** per-clip Transcribe/Re-transcribe engine + Transcribe-all +
+  heard-count readiness + merge + §23 + §33.
+- **Recorded in:** findings.md (R3), progress.md (R3), this task_plan, AGENTS.md,
+  spec §22/§32 (same commit, §66.6).

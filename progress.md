@@ -46,6 +46,27 @@
 - **Gates:** recorded; no implementation; push to branch, no merge.
 - **Next:** R3 Audio resource (§22 + §32) — with Audio-tab UI brainstorm.
 
+## Session 2026-09-01 — R3: Audio resource amendment (model + API) — COMPLETE
+
+- **Branch:** phase-6-trust-overlay-amendments
+- **Amended (design-only, Step-1.1, with owner):**
+  - Audio model §22 (8 fields, child-side 1:N report, no status/archive/deletedAt,
+    indexes `{user}`,`{user,report}`, no TTL; direct-delete lifecycle).
+  - Lifecycle/status: final-clip-deleted → `draft`; delete-one keeps audio_attached /
+    cascades transcribed→audio_attached; add-at-transcribed keeps status but drops
+    readiness; frozen at generated.
+  - Binary contract: temp-chunk-cleanup on transcription success (keep originals).
+  - Audio API §32 (nested `/reports/:reportId/clips` only, no flat `/audios/*`, no
+    `/play` stream, no archive/restore, flat list `{ clips }`; upload/list/single/delete).
+  - Audio-tab UI: one card = big orb + drag-drop upload, "Narrations" divider, per-clip
+    play/seek/duration/size/delete/transcribe; Transcribe-all only-when-pending;
+    Blob/object-URL playback (no stream).
+- **Deferred to R4:** per-clip Transcribe/Re-transcribe engine + Transcribe-all +
+  heard-count readiness + merge (§23 + §33 STT + §23 model).
+- **Files updated:** findings.md, progress.md, task_plan.md, AGENTS.md, spec §22/§32.
+- **Gates:** recorded; no implementation; push to branch, no merge.
+- **Next:** R4 Transcription resource (§23 + §33).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`
