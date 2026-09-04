@@ -25,6 +25,27 @@
 - **Current status:** roadmap complete. Next step = R1 (Report resource:
   §21 model + §31 API, detail-by-detail with owner).
 
+## Session 2026-09-01 — R1: Report resource amendment (model + API) — COMPLETE
+
+- **Branch:** phase-6-trust-overlay-amendments
+- **Amended (design-only, Step-1.1, with owner):**
+  - Report model §21 (Option X: no root branch/clockIn/clockOut/transcription;
+    visits[] with isMain; status stored+guarded; lifecycle=isArchived/archivedAt;
+    indexes; invariants; derived values).
+  - Report & Status API §31 (POST/GET list/GET single/PATCH meta + lifecycle
+    archive/restore/delete + §31.4 status-guard table; dropped visit-subpaths
+    and ?withContent; details read open).
+  - Create/edit UX facts: reports-page dialog (react-hook-form date+visits),
+    edit route /reports/:reportId/edit with Meta/Audio/Transcription tabs
+    (strict MUI tabs stack), tab mobility, branch-visit dialog spec.
+  - Content model: metadata + items = report; generated freezes metadata.
+  - Cross-cutting: Ethiopian date/time everywhere at the boundary.
+- **Open/deferred:** GET /reports/:reportId/details (separate brainstorm);
+  Audio (R3 §32) + Transcription (R4 §33) endpoints + tab UI.
+- **Files updated:** findings.md, progress.md, task_plan.md, AGENTS.md, spec §21/§31.
+- **Gates:** recorded; no implementation; push to branch, no merge.
+- **Next:** R3 Audio resource (§22 + §32) — with Audio-tab UI brainstorm.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

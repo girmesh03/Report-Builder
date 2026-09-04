@@ -500,7 +500,7 @@ first campaign of that process.
 
 | # | Increment | Model | API | Involved-with-it | Blocked-by | Pages consumed later |
 |---|---|---|---|---|---|---|
-| R1 | Report resource | §21 | §31 | §6 skeleton/type field; status enums (§21.4/§31.4 transition-guard); `raw`+`latest` content model + single undo; §21.3 indexes; branch peer-ref + §17.3/§17.4 cascade for branch→reports; §30.6 delete-cascade + 409 ref-check; constants; envelope shapes | — | §50, §51, §53, §58 |
+| R1 | **Report resource ✅ (amended)** | §21 | §31 | §6 skeleton/type; status enums (§21.4/§31.4); visits[]+isMain capture (Option X); §21.3 multikey indexes; §30.6 delete-cascade + ref-check; constants; envelope shapes; Ethiopian date/time boundary | — | §50, §51, §53, §58 |
 | R2 | Item resource | §24A | §31.6 | per-type vocabulary (activities/issues/comment, §6.10); partial-unique index; generation-time atomic persist contract | R1 | §51 details |
 | R3 | Audio resource | §22 | §32 | multer config, `uploads/` location, chunking, retention/TTL (§18/§62); cascade audio→report + cleanup-on-delete | R1 | §53/§54 |
 | R4 | Transcription | §23 | §33 | addis provider contract; stored shape (raw/latest, language codes §7.7); session contract | R3 | §54 review |
@@ -560,5 +560,28 @@ User ✅ → Branch ✅ → R1 Report → R2 Item
   in the same commit as its spec mirror edit — working files + spec
   together, never separately.
 
-**Current status:** roadmap note-down only. Next step = R1
-(Report resource: §21 model + §31 API, detail-by-detail with owner).
+**Current status:** R1 complete (design-only). Next step = R3 Audio
+resource (§22 model + §32 API + Audio-tab UI).
+
+### R1 — Report resource — COMPLETE (design-only amendment, 2026-09-01)
+
+Amended Report model §21 + Report & Status API §31 with the owner (Step-1.1).
+
+- **Model (Option X):** visits[]-only capture (isMain flag), no root branch/
+  clockIn/clockOut/transcription ref; status stored+transition-guarded; lifecycle =
+  isArchived/archivedAt (Branches mirror); index set; invariants; derived values.
+  Content model: metadata + items = report; generated freezes metadata.
+- **API:** POST /reports (meta-only), GET /reports (list: page/limit/isArchived
+  active|archived|all Branches-mirror/status/branch Q1/sort date|-date),
+  GET /reports/:reportId (meta read), PATCH /reports/:reportId (meta edit,
+  <generated), lifecycle archive/restore/delete (+ child cascade). Dropped
+  visit-subpaths + ?withContent.
+- **Frontend facts:** reports-page create dialog (react-hook-form date+visits),
+  edit route /reports/:reportId/edit with Meta/Audio/Transcription tabs (strict
+  <Tab/>/TabContext/TabList/TabPanel/TabScrollButton/Tabs stack), tab mobility,
+  branch-visit dialog spec (branches/ component wrapping reusable MuiDialog +
+  LoadingSpinner + MuiTimePicker + MuiPagination).
+- **Open/deferred:** GET /reports/:reportId/details (separate brainstorm);
+  Audio (§32/R3) + Transcription (§33/R4) endpoints + tab UI.
+- **Recorded in:** findings.md (R1), progress.md (R1), this task_plan, AGENTS.md,
+  spec §21/§31 (same commit, §66.6).

@@ -40,7 +40,11 @@ Design-only; no implementation in this phase.
 **Roadmap:** R1–R10 increment table with dependency chain and involved
 sets — see `task_plan.md` Phase 6 section.
 
-**Status:** roadmap note-down only. Next = R1 (Report resource §21+§31).
+**Progress:**
+- R1 complete (design-only): Report model §21 + Report & Status API §31
+  amended. See `findings.md`/`progress.md`/`task_plan.md` + spec §21/§31.
+
+**Status:** R1 done. Next = R3 Audio resource (§22 model + §32 API + Audio-tab UI).
 
 ## What this repo is
 

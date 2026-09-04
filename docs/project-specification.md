@@ -4803,6 +4803,22 @@ status and content-presence contract, the lifecycle
 fields, the capture-visits contract, and the transforms. It follows
 the §18 conventions exactly like §19 and §20.
 
+> **R1 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
+> the trust overlay (owner directive 2026-09-01), §21 is no longer a
+> single source of truth until amended. This amendment supersedes the
+> older letter below: the report carries **no root `branch`,
+> `clockIn`/`clockOut`, or `transcription` fields** — capture is
+> `date` + `visits[]` (sub-schema `{ branch, clockIn, clockOut,
+> isMain }`, `_id: false`), the main branch is user-decided via
+> `isMain` (exactly one when visits.length > 1, position-independent),
+> visits are positional + chronological, day start/exit and Type are
+> derived from `visits[]`, and all child edges (audio, transcription,
+> items) are child-side (Option X). `status` is stored and
+> transition-guarded; lifecycle = `isArchived`/`archivedAt` (no
+> `deletedAt`). Ethiopian date/time is shown/selected/filtered at the
+> boundary everywhere. See findings.md/progress.md/task_plan/AGENTS.md
+> R1 record.
+
 - **Owned here (normative).** Field registry and report identity
   (§21.2); keys, indexes and TTL (§21.3); status and content
   presence (§21.4); lifecycle fields and document states (§21.6);
@@ -4831,37 +4847,40 @@ the §18 conventions exactly like §19 and §20.
 
 ### 21.2 Field registry & report identity
 
-| Field                     | Type                         | Required                                             | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------- | ---------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId                     | auto                                                 | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `user`                    | ObjectId                     | yes                                                  | creator-owner — reports are private to the authenticated user (BR-13, §3.2.3); the key of the ERD User — Report edge (§17.3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `date`                    | Date                         | no (null while not captured)                         | the report date field of §17.2 — the `ቀን` metadata value (the form's report date, §6.3); captured at capture time, never derived from the system clock (BR-01, §6.1, §6.3); fallback from the reviewed transcription, missing stays blank, never invented (BR-19); stored as a UTC `Date` normalized to UTC midnight by the §29 validators (§18.2, §29) and displayed as Ethiopian `DD-MM-YY` at the boundary (§6.5, §7.6); range queries use the same UTC-midnight normalization                                                                                                                                                                                                                                                                               |
-| `branch`                  | ObjectId (ref Branch)        | yes                                                  | the report's branch — one report, one branch (BR-03, ADR-010); the live join key of the ERD Branch — Report edge (§17.3); drives branch filters, pickers, and analytics (no snapshot, no name copy — §18.7); removal of a referenced branch is refused (§20/§30/§62)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `clockIn` / `clockOut`    | String                       | yes                                                  | the day pair of the main visit — `HH:mm` zero-padded (§6.5); on a Type-1 day this pair is the whole working-time line; on a Type-2 day it renders as the main visit's time-range line like every `visits[]` entry (§6.4); times are display-only — no `out > in` enforcement (§6.1, owner-approval 2026-08-18); validated by the §29 validators, never composed in the schema                                                                                                                                                                                                                                                                                                                                                                                   |
-| `visits`                  | Array                        | yes (≥ 1 — the main visit is always the first entry) | the capture block — each entry is `{ branch: ObjectId (ref Branch, required), clockIn: String (required — `HH:mm`, §6.5), clockOut: String (required — `HH:mm`) }` with `_id: false`; entries are addressed **positionally by array index** (no `visitNo` key, §9.3) and stored in capture order; **`visits[0].branch === branch` — the report's own branch is always the first visit and is locked** (owner's visits model 2026-08-19, C1/C3 — the API enforces it: `visits` ≥ 1, `visits[0]` matches, index 0 undeletable, §31); `visits[]` may include the report's own `branch` as RETURN visits at later indexes (§6.4); the type derives from the count — **Type = visits.length** (§6.4); a branch visited twice appears as two entries (§6.4, Sample 4) |
-| `status`                  | String                       | yes (default `draft`)                                | member of `REPORT_STATUSES` (§11.4, BR-06, §17.2); the value always comes from the constants file, never a literal (§17.7 gates); reports enter the machine at `draft` because the wizard is the only creation path (BR-05)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `transcription`           | ObjectId (ref Transcription) | no (null until transcribed)                          | the **1:1** Transcription row reference — unique, **partial** (`partialFilterExpression { transcription: { $type: 'objectId' } }` — corrected 2026-08-20: MongoDB `sparse` still indexes a present-but-null field, so `unique + sparse` can never build once a second pre-transcription report exists; the partial filter keeps the invariant while excluding every null ref, §21.3, §23, §17.3); written in the same session as the Transcription row (§23.2); null until the first transcription completes                                                                                                                                                                                                                                                    |
-| `isArchived`              | Boolean                      | yes (default `false`)                                | lifecycle flag (BR-16, F4); archived rows are hidden from default reads and appear only under explicit filters (§17.4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `archivedAt`              | Date                         | no (null while active)                               | set when the report is archived; cleared on restore; the retention-window anchor and the TTL index target (§21.3, §21.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `createdAt` / `updatedAt` | Date                         | auto                                                 | §18.2 timestamps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Field                     | Type                         | Required                                             | Rule                                                                                                                                                           |
+| ------------------------- | ---------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_id`                     | ObjectId                     | auto                                                 | the only key; never `id` (§12.11-3)                                                                                                                             |
+| `user`                    | ObjectId (ref User)          | yes                                                  | creator-owner — reports are private to the authenticated user (BR-13, §3.2.3); the key of the ERD User — Report edge (§17.3); the user's `fullName` virtual renders the report header name at read time (§19.4, §6.3 field 3) |
+| `date`                    | Date                         | no (null while not captured)                         | the report date field of §17.2 — the `ቀን` workday value (§6.3); Ethiopian date/time shown/selected/filtered at the boundary everywhere; stored as a UTC `Date` normalized to UTC midnight by the §29 validators (§18.2, §29); displayed as Ethiopian at the boundary (§6.5, §7.6); range queries use the same UTC-midnight normalization |
+| `visits`                  | Array                        | yes (≥ 1)                                            | the single source of truth for the capture block — the report's root holds **no** `branch`/`clockIn`/`clockOut` copies. Each entry is `{ branch: ObjectId (ref Branch, required), clockIn: String (required, `HH:mm`), clockOut: String (required, `HH:mm`), isMain: Boolean (required) }` with `_id: false`; entries are **positional and chronological** (visits[i].clockIn ≤ visits[i+1].clockIn, §9.3); the main branch is user-decided via `isMain` — **exactly one `isMain: true` when visits.length > 1** (a single visit is implicitly main), and the main position is **independent of array index**; Type = visits.length (§6.4) |
+| `status`                  | String                       | yes (default `draft`)                                | member of `REPORT_STATUSES` (§11.4, BR-06, §17.2); the value always comes from the constants file, never a literal (§17.7 gates); **stored and transition-guarded** — it is the authoritative cell of the §31.4 status machine (not derived); reports enter at `draft` from the create dialog (BR-05 replaced by the meta-only create dialog §31.2) |
+| `isArchived`              | Boolean                      | yes (default `false`)                                | lifecycle flag (BR-16, F4); archived rows are hidden from default reads and appear only under explicit filters (§17.4)                                           |
+| `archivedAt`              | Date                         | no (null while active)                               | set when the report is archived; cleared on restore; the retention-window anchor and the TTL index target (§21.3, §21.6)                                           |
+| `createdAt` / `updatedAt` | Date                         | auto                                                 | §18.2 timestamps                                                                                                                                                 |
 
-No `deletedAt` exists by design: the archive timestamp is the single
-retention anchor, so the "from `deletedAt` where applicable" clause
-of BR-15 does not apply to Report (the anchor is declared per owning
-model, §17.4). The header line, the per-visit time-range lines, the
-day start/exit, and the type (Type-1/Type-2) are derived
-deterministically from `date`/`branch`/`clockIn`/`clockOut`/
-`visits[]` per §6.4 — they are never stored as copies. The report
-carries **no content fields**: `raw`/`latest` live on the 1:1
-Transcription row (§23, §18.7) and the report's content items live
-as Item rows (§24A); `supervisorName` is not stored — the `ስም` header
-renders the user's `fullName` virtual at the boundary (§19.4, §6.3
-field 3). The audio and chat edges of §17.3 are served from the child
-side: each Audio row carries `report` (§22) and the ChatConversation
-row carries the report ref (§24). No `acceptedAt` and no `exportedAt`
-field exists — there is no accept ceremony (BR-08) and export
-artifacts live outside the system of record (§37/§58). No other field
-exists: nothing outside this table is persisted.
+**Amended (R1 amendment, 2026-09-01):** the report carries **no root
+`branch`, `clockIn`, `clockOut`, or `transcription` fields** — all
+replaced by the `visits[]`-only capture (Option X). No `deletedAt`
+exists by design: the archive timestamp is the single retention anchor
+(§17.4). Day start/exit and the type (Type-1/Type-N) are derived
+deterministically:
+- day start = `visits[0].clockIn`; day exit = `visits[n-1].clockOut`
+- main branch = the visit where `isMain === true` → its `branch`
+- Type = `visits.length`
+
+They are never stored. The report carries **no content fields**:
+`raw`/`latest` live on the 1:1 Transcription row (§23, §18.7) and the
+report's content items live as Item rows (§24A); `supervisorName` is
+not stored — the `ስም` header renders the user's `fullName` virtual at
+the boundary (§19.4, §6.3 field 3). Audio, item, and transcription
+edges of §17.3 are all served from the **child side** (Option X): each
+Audio row carries `report` (§22), each Item row carries `report`
+(§24A), and the Transcription row carries `report` (§23) — the Report
+holds no parent ref arrays and no 1:1 transcription ref. No
+`acceptedAt` and no `exportedAt` field exists — there is no accept
+ceremony (BR-08) and export artifacts live outside the system of
+record (§37/§58). No other field exists: nothing outside this table is
+persisted.
 
 **Open items (per the §69 open-question rule).**
 
@@ -4889,36 +4908,30 @@ exists: nothing outside this table is persisted.
   resolve deterministically through the `createdAt` tiebreak.
   Declared via `schema.index(..)` per §18.3; no field-level
   `unique: true` combined with a separate index.
-- **Branch-filter index.** `schema.index({ user: 1, branch: 1 })`
-  serves the reports-of-a-branch lists — reports filtered by a live
-  branch reference (branch filters and pickers of §17.3, Reports UI
-  §54), owner-scoped.
-- **Visits-filter index (multikey).** `schema.index({ user: 1,
-'visits.branch': 1 })` serves the reports-by-visited-branch lists —
-  a report matches when any visit's `branch` equals the filter
-  branch (multikey on the embedded `visits[]`, owner-scoped).
-- **Date-range and status indexes.** `schema.index({ user: 1,
-date: 1 })` serves the §38.5/§49 rollup windows and §50 range
+- **Branch/visits multikey index.** `schema.index({ user: 1,
+'visits.branch': 1 })` serves both the **main-branch filter** (Q1 —
+  reports whose main visit `isMain === true` is the filter branch,
+  `$elemMatch { branch, isMain: true }`) and the **visited-branch
+  filter** (Q2 — a report matches when any visit's `branch` equals the
+  filter branch), plus the reports-domain branch cascade ref-check
+  (§30.6). `branch` is no longer a root field — all branch queries are
+  multikey over the embedded `visits[]`.
+- **Date and status indexes.** `schema.index({ user: 1, date: 1 })`
+  serves the §38.5/§49 rollup windows and date-range
   filters (UTC-midnight buckets, §29); `schema.index({ user: 1,
-status: 1 })` serves the §50 status filters and §49/§56 rolls.
-- **Transcription 1:1 index.** `schema.index({ transcription: 1 },
-{ unique: true, partialFilterExpression: { transcription:
-{ $type: 'objectId' } } })` enforces the one-transcription-per-
-  report invariant (§17.3, §23) — **partial, not sparse (corrected
-  2026-08-20):** MongoDB's `sparse` option still indexes a present-
-  but-null field, so a `unique + sparse` declaration can never build
-  once a second pre-transcription report exists (E11000 on
-  `transcription: null` — surfaced by the §40 seed's index sync);
-  the partial filter excludes every null ref (the DTO surface stays
-  `transcription: null`, §31.3) while keeping the uniqueness over
-  the actual refs.
+  status: 1 })` serves the §50 status filters and §49/§56 rolls.
+- **No transcription index on Report.** Under Option X the Report has
+  no `transcription` ref; the 1:1 one-transcription-per-report
+  invariant is enforced **child-side** on the Transcription model via a
+  unique index on `Transcription.report` (§23/R4) — nothing is declared
+  here.
 - **TTL declaration.** Exactly the §18.3 declaration applies: an
   index on `archivedAt` with `expireAfterSeconds` =
   `ARCHIVED_TTL_SECONDS` (§11.3) as the MongoDB-internal safety net —
   the sweeper wins races, TTL runs server-side without cascade or
   session (§12.2, §62), and no other TTL index exists on the model.
 - **No further indexes.** The join directions live on the child side
-  (Audio, ChatConversation, Item); the search strategy over report
+  (Audio, ChatConversation, Transcription, Item); the search strategy over report
   content and branch names is decided
   by §39, which will prove any text index it needs; nothing else is
   indexed without proof (§18.3).
@@ -4932,7 +4945,7 @@ exclusively in §30/§31, so this table is never the rule book:
 
 | Status           | Required persisted artifacts (mirror of §17.6)                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `draft`          | report row only (no audio required); capture metadata holds whatever the wizard captured so far (BR-05)                         |
+| `draft`          | report row only (no audio required); the `date` + `visits[]` capture metadata holds what the create dialog captured (BR-05)      |
 | `audio_attached` | report + at least one `Audio` row                                                                                               |
 | `transcribed`    | report + audio rows + the 1:1 Transcription row with `raw` (and `latest`, both initialized equal)                               |
 | `generated`      | the Transcription row's `latest` holds the generated content; the report's Item rows (activities, issues, comment — §24A) exist |
@@ -4949,17 +4962,23 @@ exclusively in §30/§31, so this table is never the rule book:
 - An invariant across every status: the report's `user` equals the
   session owner and the §17.4/§17.6 artifacts are present — a row
   that violates the map is a data-integrity violation (§30).
+- **Amended (R1):** creation is the meta-only **create dialog** (`date`
+  + `visits` → `draft`); audio/transcription are post-creation steps
+  driven from the edit page Audio/Transcription tabs — not a wizard.
 
 ### 21.6 Lifecycle fields & document states
 
-The report document has exactly three states; there is no
-"deleted-but-timed" state and no user-triggered hard delete (BR-16):
+The lifecycle is exactly the Branch pattern: two fields —
+`isArchived` (Boolean, default `false`) and `archivedAt` (Date,
+default `null`). There is **no third stored state and no `deletedAt`**;
+"permanently removed" is row **deletion**, not a document state. The
+interpretable combinations:
 
 | State                        | `isArchived` | `archivedAt`   | Behavior                                                                                                                                                                                                                                                                |
 | ---------------------------- | ------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| active                       | `false`      | `null`         | the default for every read — pickers and Reports UI (F4); create, edit, and status flows happen here (§31, §52)                                                                                                                                                         |
+| active                       | `false`      | `null`         | the default for every read — pickers and Reports UI (F4); create, edit, and status flows happen here (§31)                                                                                                                                                               |
 | archived (prepare-to-delete) | `true`       | set at archive | hidden from default reads (F4); the 30-day window (`ARCHIVED_TTL_SECONDS`, §11.3) opens the moment the report is archived; **restore** is possible inside the window and only from this state — it sets `isArchived: false` and clears `archivedAt` (§17.4, BR-16, §31) |
-| permanently removed          | —            | —              | window end: the row and its artifacts (audio documents, the transcription row, item rows, conversations — §17.4) are physically removed by the sweeper (§62, BR-15) or, if the app missed the deadline, by the TTL safety net (§18.3)                                   |
+| permanently removed          | —            | —              | row **deletion**, not a state — the row and its child artifacts (audio documents + `fs.unlink`, the transcription row, item rows, conversations — §17.4) are physically removed by the sweeper (§62, BR-15) or, if the app missed the deadline, by the TTL safety net (§18.3); `DELETE /reports/:reportId` on an already-archived report also deletes in-session with the child cascade (Branches mirror) |
 
 - Archiving never breaks branch history — removal is refused while
   any report/visit/item references the branch (BR-14, §17.4).
@@ -4971,46 +4990,47 @@ The report document has exactly three states; there is no
 
 ### 21.7 Capture metadata & the visits contract
 
-- **Stored metadata.** The values the report header prints from —
-  date, branch, clock pair, visit times — are captured and
-  stored on this row at capture time (the capture form, §6.1); the
-  reviewed transcription is the fallback when a capture value is
-  missing, and a missing value stays blank, never invented (§6.1,
-  BR-19). Of those values the row stores `date`, `branch`,
-  `clockIn`/`clockOut`, and `visits`; the `ብራንች:` header line, the
-  time-range lines, the day start/exit, and the type are derived per
-  the locked §6.4 rules (Type = visits.length — the main visit is
-  always `visits[0]`; chronological
-  visit-start order; Type-2 names joined with `/` where a branch
-  visited more than once is listed once in the header while its
-  visits keep separate time-range lines; day start = earliest
-  `clockIn`, day exit = the latest `clockOut`).
-- **One block, one source.** `branch` + `clockIn`/`clockOut` (the
-  main visit) and `visits[]` are written from the capture form at
-  the same capture moment; the main visit is the day pair and
-  **is always the first `visits[]` entry** (`visits[0].branch ===
-branch` — owner's visits model 2026-08-19, §31.2-1), and every
-  `visits[]` entry is a full visit with its own required pair
-  (OQ-002 closed by amendment below). Capture edits (wizard flow,
-  §52) update the block inside a single write — the coupling is
-  data-level here; the flows own execution, hooks never recompute
-  either block (§21.8). **Capture edits are allowed only at status
-  < `generated`** — at `generated` the date/times/branch/visits are
-  frozen and a capture edit is refused (403, §31.4); the Item rows'
-  captured `branch`/`date` (§24A) can therefore never go stale.
+- **Stored metadata (amended, Option X).** The values the report
+  header prints from — date, main branch, visit time lines, type —
+  are captured on this row at capture time (the create dialog, §31.2).
+  The row stores **`date` and `visits[]` only** — there is **no root
+  `branch`, `clockIn`, or `clockOut` field**; `visits[]` is the single
+  source of truth. The `ብራንች:` header line, the time-range lines, the
+  day start/exit, and the type are derived per the locked §6.4 rules:
+  - day start = `visits[0].clockIn`
+  - day exit = `visits[n-1].clockOut`
+  - main branch = the visit where `isMain === true` → its `branch`
+  - Type = `visits.length`
+  - per-visit time-range lines = each `visits[i].{clockIn, clockOut}`
+  - chronological visit-start order (`visits[i].clockIn ≤
+    visits[i+1].clockIn`)
+  - Type-2 names joined with `/` where a branch visited more than once
+    is listed once in the header while its visits keep separate
+    time-range lines.
+- **One block, one source.** `date` + `visits[]` (with `isMain`) are
+  written at the same capture moment from the create dialog; the main
+  branch is **user-decided** — the `isMain` flag marks which visit the
+  report is about, independent of array position. Every `visits[]`
+  entry is a full visit with its own required `HH:mm` pair (OQ-002
+  closed by amendment below). Capture edits (the Meta tab, §31.5) update
+  the block inside a single write — the coupling is data-level here;
+  the flows own execution, hooks never recompute the block (§21.8).
+  **Capture edits are allowed only at status < `generated`** — at
+  `generated` the whole metadata block (`date`, `visits`, main branch)
+  is frozen and a capture edit is refused (403, §31.4); the Item rows'
+  captured `branch`/`date` (§24A) can therefore never go stale
+  (metadata + items = report).
 - **OQ-002 (closed by amendment, recorded here).** Whether `clockIn`/
   `clockOut` are required per visit was closed on 2026-08-10: **every
   visit carries a required `HH:mm` clock pair**. On a Type-1
-  (single-visit) day the day pair is the pair — the wizard
-  auto-sets it from the day-clock fields of step 2; on a Type-2
-  (multi-visit) day each visit supplies its own pair (§6.3 field 4,
-  §52.5). Day start/exit remain derived (§6.4, §21.7) — nothing is
-  stored above `clockIn`/`clockOut`/`visits[]`.
-- **No dangling references.** A visit's `branch` and the report's
-  `branch` are plain `ObjectId`s; branch removal is refused while any
-  report or visit references the branch (§17.4, §20/§30/§62) — a
-  lookup never returns `null` for a referenced branch and no tombstone
-  path exists.
+  (single-visit) day the sole visit is implicitly main; on a Type-2
+  (multi-visit) day each visit supplies its own pair (§6.3 field 4).
+  Day start/exit remain derived (§6.4, §21.7) — nothing is stored
+  above `visits[]`.
+- **No dangling references.** Every visit's `branch` is a plain
+  `ObjectId`; branch removal is refused while any report visit
+  references the branch (§17.4, §20/§30/§62) — a lookup never returns
+  `null` for a referenced branch and no tombstone path exists.
 
 ### 21.8 Hooks, methods & session contract
 
@@ -5030,9 +5050,11 @@ finally endSession`); write statics accept a `{ session }` option.
   needs declared virtuals) with no session; the
   active-by-default filter is part of the query — the archive-state
   filter is never applied in a hook.
-- **Transcription 1:1 write.** The `transcription` ref and the
-  Transcription row are written together in one session (§23.2) —
-  the circular pair is created atomically.
+- **Transcription 1:1 write (amended, Option X).** The Transcription
+  row carries the `report` ref and is written in the parent's session
+  (§23.2) — there is no `transcription` ref on the report to
+  maintain; the 1:1 is enforced by the unique index on
+  `Transcription.report` (§23/R4).
 
 ### 21.9 Transforms & exposure
 
@@ -5046,7 +5068,7 @@ finally endSession`); write statics accept a `{ session }` option.
   re-derived inside a transform.
 - **No secrets exist** on this model; which lifecycle and capture
   fields appear in API responses (for example `archivedAt` for an
-  "archived since" label, or `visits` for the wizard's review step)
+  "archived since" label, or `visits` for the edit page's Meta tab)
   stays with the §27/§31 DTOs.
 
 ### 21.10 Seeds & mocks
@@ -5054,8 +5076,8 @@ finally endSession`); write statics accept a `{ session }` option.
 - The model contains no seed reports, demo reports, or default rows
   (§18.8); mock reports arrive exclusively through the §25/§40
   injection and wipe mechanisms, whose writes support sessions
-  (§18.5). A report's creation data always comes from the wizard
-  flow (BR-05, §52), never from defaults.
+  (§18.5). A report's creation data always comes from the create
+  dialog (BR-05, §31.2), never from defaults.
 
 ### 21.11 Evolution
 
@@ -5064,10 +5086,10 @@ finally endSession`); write statics accept a `{ session }` option.
   ADR-005, ADR-010, BR-15/BR-16) or the §18.3 TTL declaration
   follows the §14.5 protocol — register row and owning text move
   together.
-- New fields are additive; the capture shapes (`branch`,
-  `clockIn`/`clockOut`, `visits[]`) are
-  never extended without §21/§6.4 coordination, because report
-  history and the capture contract depend on them (§20.9, §18.7).
+- New fields are additive; the capture shapes (`date`, `visits[]`
+  with `isMain`) are never extended without §21/§6.4 coordination,
+  because report history and the capture contract depend on them
+  (§20.9, §18.7).
 
 ### 21.12 Design rationale (why the report schema is shaped this way)
 
@@ -5095,12 +5117,14 @@ owning subsection and repeated nowhere else:
    definition, §6.3 field 8, §6.4). Storing them
    would be a second source of truth that contradicts `clockIn`/
    `clockOut`/`visits[]` after an edit (→ §21.7, §6.4).
-4. **The 1:1 transcription ref is the only content edge on the
-   report.** Audio rows are child-side (`Audio.report`, §22) and the
-   content slots live on the Transcription row (§23) — presence is
-   the ref/query, never a parent array that must be rewritten on
-   upload, re-transcription, or deletion and can go stale (→ §22.1,
-   §17.3, §23.2).
+4. **All content edges are child-side (Option X).** Audio rows are
+   child-side (`Audio.report`, §22), the content slots live on the
+   Transcription row (`Transcription.report`, §23), and Item rows are
+   child-side (`Item.report`, §24A) — presence is the child ref/query,
+   never a parent array or a parent `transcription` ref that must be
+   rewritten on upload, re-transcription, or deletion and can go stale
+   (→ §22.1, §17.3, §23.2). The 1:1 transcription invariant is enforced
+   by the unique index on `Transcription.report`, not by a report field.
 5. **Visits are positional rows, not keyed rows.** A visit is an
    embedded row addressed by array index; routes mirror the position
    (`/visits/:visitIndex`), and no key field exists (→ the `visits`
@@ -5231,10 +5255,11 @@ this row.
   retried by the orphan sweep (§17.4, §31, §62) — the document and the
   file never form a two-phase promise inside a hook (§18.6).
 - **Removal.** Deleting one audio cascades nothing on the report row;
-  at `transcribed` it also cascades the report's 1:1 Transcription
-  row (the merged `raw` covered all clips — a deleted clip
-  invalidates the merge; §23.4/§17.4) and clears the report's
-  `transcription` ref. Status movement: deleting the **last** audio
+   at `transcribed` it also cascades the report's 1:1 Transcription
+   row (the merged `raw` covered all clips — a deleted clip
+invalidates the merge; §23.4/§17.4, Option X: the transcription row
+   is removed — there is no report field to clear). Status movement:
+   deleting the **last** audio
   of the report rewinds `audio_attached` → `draft`; deleting any
   audio at `transcribed` rewinds to `audio_attached` (or `draft` if
   it was the last) — the single explicit backward transition
@@ -5367,7 +5392,7 @@ pre-generation, the generated report content from generation onward.
 | ------------------------- | ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_id`                     | ObjectId   | auto                                     | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                                                                                                                                          |
 | `user`                    | ObjectId   | yes                                      | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                                                                                                                                                                                                                                                                                                         |
-| `report`                  | ObjectId   | yes                                      | the owning report — plain-model-name reference field (§9.3); unique + sparse: the proven 1:1 edge (§17.3, §21.3); written together with the report's `transcription` ref in one session (§23.4)                                                                                                                                                                                                                              |
+| `report`                  | ObjectId   | yes                                      | the owning report — plain-model-name reference field (§9.3); many audio rows per report (1:N, §22/R3 — index/uniqueness to be amended in R3), child-side edge (Option X); audio writes happen in the report's session (§23.4/R4). See R3 for the audio schema amendment                                                                                                                                                              |
 | `raw`                     | String     | yes (null until transcription completes) | the **merged STT result** of all the report's clips, written at transcription completion; rewritten **only by STT re-runs** (new takes, re-transcription — §23.4); never by content edits (BR-11, §18.7); the §16.4 `data.transcription` values merged here (§12.4 stage 3)                                                                                                                                                  |
 | `latest`                  | String     | yes (null until transcription completes) | the single current-content slot, initialized equal to `raw` at creation (§18.7); **dual-phase**: the editable story pre-generation, the generated report content from generation onward; review edits overwrite it (§54), generation overwrites it with the report body (§34.4), re-transcription rewrites both (§23.4), and one-click restore copies `raw` into it — single-undo, no version chain (ADR-005 retired, §14.3) |
 | `language`                | String     | yes (default `am`)                       | the STT language of the transcription — member of `LANGUAGE_CODES` (§11.4); `am` active, `om`/`ti` reserved and not activated (§7.7); the §16.4 `request_data.language_code` echoed here                                                                                                                                                                                                                                     |
@@ -5439,9 +5464,9 @@ sparse: true })` — one transcription per report (§17.3, ADR-030,
   rewind rules of §17.4 apply to audio removal, not to
   re-transcription: no audio is removed here.
 - **Cascade.** Audio deletion at `transcribed` cascades the report's
-  transcription row (the merged `raw` covered all clips — a deleted
-  clip invalidates the merge) and clears the report's
-  `transcription` ref in the same session (§17.4); report deletion
+   transcription row (the merged `raw` covered all clips — a deleted
+   clip invalidates the merge; Option X: the row is removed — there is
+   no report field to clear, §17.4); report deletion
   cascades the transcription row (§17.4). Orphan transcriptions left
   by sweeper races are
   removed by the orphan sweep (§31, §62).
@@ -6860,17 +6885,34 @@ rewind rules (§17.4), and the two-path lifecycle (BR-16). There is
 (BR-08, owner-correction set 2026-08-18). Every Part D page
 (§49–§52) and Part C section (§32–§39) hangs on this section.
 
-- **Owned here (normative).** Report creation steps (§31.2);
-  detail/list contracts (§31.3); the status machine and the
-  transition-guard table (§31.4); capture/visit update endpoints
+> **R1 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
+> the trust overlay, §31 is no longer a single source of truth until
+> amended. This amendment supersedes the older letter below: creation
+> is a **meta-only dialog** (`POST /reports` with `{ date, visits }` →
+> `draft`), not the §52 wizard; there are **no visit-subpath
+> endpoints** (the whole meta block is edited via
+> `PATCH /reports/:reportId`); `GET /reports/:reportId` is the **meta
+> read** (no `?withContent`); `GET /reports/:reportId/details` is a
+> **distinct route, open/TBD** (separate brainstorm); `GET /reports`
+> filters are `isArchived` (active|archived|all, Branches mirror),
+> `status`, `branch` (Q1 main), `sort` (date|-date); `DELETE`
+> targets an already-archived report and physically deletes + child
+> cascade (Branches mirror). Audio/Transcription endpoints deferred to
+> R3 (§32)/R4 (§33). See findings.md/progress.md/task_plan/AGENTS.md
+> R1 record.
+
+- **Owned here (normative).** Report meta creation (§31.2);
+  meta-read/list contracts (§31.3); the status machine and the
+  transition-guard table (§31.4); capture/visit updates via PATCH
   (§31.5); correction & item endpoints (§31.6); the two-path
   lifecycle (§31.7); cascade/rewind and presence invariants
   (§31.8); endpoints matrix (§31.9); verification (§31.10).
 - **Owned elsewhere — deliberately not repeated here.** Audio
   upload = §32; transcription = §33; generation = §34;
   correction service internals = §35; chat = §36; export = §37;
-  retention timing = §62; the wizard UI = §52; the details page =
-  §51; envelope/errors/transactions = §27; the Item rows and their
+  retention timing = §62; the edit-page UI = §53/§54 (open); the details read =
+  §51 (`GET /reports/:reportId/details`, open/TBD); envelope/errors/transactions = §27;
+  the Item rows and their
   queries = §24A/§38.
 - **Explicitly out of scope §31.** No STT/AI provider calls
   (§33–§35), no new constant (§11 unchanged — `REPORT_STATUSES`,
@@ -6878,88 +6920,84 @@ rewind rules (§17.4), and the two-path lifecycle (BR-16). There is
   `ARCHIVED_TTL_SECONDS`, `SWEEPER_INTERVAL_MS` exist), no path
   beyond §15.4, no package.
 
-### 31.2 Creation steps (§31.2-1 … §31.2-5)
+### 31.2 Creation (meta-only dialog — R1 amendment)
 
-The five creation steps are the server side of the wizard (§52);
-the step list replicates the creation order of §6.3's field list
-(date, branch, clock pair) and the steps below — no separate
-client registry exists. (Round-report-step amendment, C1: the
-§52 wizard merges Visits into step 1, so §31.2-1 is the only
-step-1 endpoint; §31.2-2 … §31.2-5 remain the act order.)
+**Amended (R1):** there is **no wizard** and no five step-endpoints.
+Creation is a **single meta-only dialog** from the reports page header
+action: a react-hook-form `{ date, visits }` → `POST /reports` →
+`draft`. No audio in the create dialog; audio/transcription are
+post-creation steps driven from the edit page.
 
-**§31.2-1** `POST /reports` (access): `{ branch, date?,
-clockIn, clockOut, visits: [{ branch, clockIn, clockOut }, …] }`
-(`date` optional Date ISO; the wire field is `branch`, never
-`branchId` — owner directive 2026-08-19) → 201 CREATED,
-ReportDto at `draft`, `transcription: null`. **Visits contract
-(owner's model, C1/C3):** `visits` is required and never empty —
-it always includes the main branch at index 0 in both create
-cases (with or without additional visits); `visits[0].branch ===
-branch` (main-locked — 422 otherwise, `details[0] = { field:
-"visits[0].branch", … }`); `Type = visits.length` (§6.4, §21.2
-amendment). The report row exists before audio;
-wizard step 1 maps here. No `lng`/`lat`
-exists anywhere (§21.2) — no coordinate endpoint exists, and
-none is planned. The `ስም` header is never sent and
-`supervisorName` is never accepted: the report carries no name —
-the header renders the user's live `fullName` at read time
-(§19.4, §6.3 field 3, §21.2).
-Validation: every `branch` resolves to an **active** branch of
-this user (404/422 otherwise); `clockIn`/`clockOut` `HH:mm`
-(§29); times are display-only — no `out > in` enforcement (§6.1).
+**`POST /reports` (access):** request `{ date?, visits }`:
 
-**§31.2-2** `PUT /reports/:reportId/visits` (access): replaces
-the `visits[]` block under the same visits contract as §31.2-1
-(every entry: `branch` → resolves to an **active** branch of
-this user; `clockIn` and `clockOut` both required per visit —
-`HH:mm` (the day clock rule of §6.3 field 8
-and §21.2); entries are positional — no `visitNo` key (§9.3);
-`visits[]` may include the report's own branch as RETURN visits
-(§6.4); the main entry at index 0 is **locked**: `visits` ≥ 1 and
-`visits[0].branch` must equal the report's `branch` (422 on
-violation); the branch's
-active state is checked here, **not** in §30). Capture edits are
-allowed only at status < `generated` — 403 at `generated`
-(§21.7). Returns the ReportDto.
+```json
+{
+  "date": "2018-03-15T00:00:00.000Z",
+  "visits": [
+    { "branch": "...", "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
+    { "branch": "...", "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
+  ]
+}
+```
 
-**§31.2-3** audio attach: upload endpoints of §32 (`POST
-/reports/:reportId/clips`); the first clip moves
-the status per §31.4 (draft → audio_attached).
+- `date` — the workday's Ethiopian date, presented/selected Ethiopian
+  at the boundary (MuiDatePicker); wire = Gregorian UTC Date;
+  normalized to UTC-midnight server-side (§29, §18.2).
+- `visits` — required, ≥ 1; each entry `{ branch, clockIn, clockOut,
+  isMain }`; every `branch` resolves to an **active** branch of this
+  user (**422** with `details[].field` on invalid/foreign/archived — not
+  404); `clockIn`/`clockOut` `HH:mm`; invariants re-validated §21.2
+  (≥1, exactly-one-main when >1, per-visit `in<out`, day-span `in<out`,
+  chronological).
+- The report row is created at `draft`; no audio, no transcription.
+  The `ስም` header is never sent and `supervisorName` is never accepted:
+  the report carries no name — the header renders the user's live
+  `fullName` at read time (§19.4, §6.3 field 3).
+- **201** returns the list ReportDto (populated `user` with
+  `_id`/`firstName`/`lastName`/`fullName`; populated `visits[].branch`
+  with `_id`/`name`/`location`; status `draft`; `isArchived`/`archivedAt`;
+  timestamps) so the reports page inserts the item with no refetch.
 
-**§31.2-4** transcription + review: §33 pipelines; review
-decisions are §31.6's corrections and the content PATCH.
+**Post-creation steps (not part of create; driven from the edit page):**
+- edit page → **Meta tab**: `PATCH /reports/:reportId` edits `date` + `visits`.
+- edit page → **Audio tab**: audio attach (§32/R3) — first clip → `audio_attached`.
+- edit page → **Audio/Transcription tabs**: transcription (§33/R4) → `transcribed`.
+- generation (§34/R5) → `generated`.
 
-**§31.2-5** generation: §34 writes the transcription's
-`raw`/`latest` + the Item rows; report moves
-to `generated` per §31.4.
+**Dropped (R1):** `PUT /reports/:reportId/visits` and
+`PUT/DELETE /reports/:reportId/visits/:visitIndex` — the whole meta block
+(`date` + `visits[]`) is edited through `PATCH /reports/:reportId`.
 
-Each step's guard: forward-only per §31.4; client-side mirroring
-posts through these calls on each completed wizard step (the
-per-step save; no client autosave — the server owns every write).
+### 31.3 Detail (meta read) & list
 
-### 31.3 Detail & list
+**Amended (R1):** `GET /reports/:reportId` is the **meta read** that
+seeds the edit page's Meta tab — **not** the details read. There is no
+`?withContent`. The complex read is a separate route,
+`GET /reports/:reportId/details`, which is **open/TBD** (own exhaustive
+brainstorm). `/reports/:reportId/edit` is a **distinct route** from
+`/reports/:reportId/details`.
 
-- `GET /reports/:reportId` (access): 404 on not-found-for-user
-  (BR-13). Response ReportDto (list DTO): the serialized surface
-  minus heavy fields — the transcription content (`latest`) and
-  the Item rows are **excluded** unless
-  `?withContent=true` (details page fetches with the flag;
-  §51 relies on `latest`; ADR-034). Includes `branch`,
-  `clockIn`/`clockOut`, `visits[]`, status, `transcription` ref,
-  dates, `isArchived`.
-- `GET /reports` (access): paginated; filter dimensions: `status`
-  (enum from `REPORT_STATUSES`), `branch` (index
-  `user + branch` — the wire field is `branch` per the owner
-  directive; §24A.3/§29 wording aligned), `isArchived` (default
-  hidden),
-  `search` (delegated to §39), `sort` (`date` desc,
-  `createdAt` tiebreak, §21 index). Data: list DTOs, heavy fields
-  absent.
+- `GET /reports/:reportId` (access): 404 on not-found-for-user (BR-13).
+  Returns the **list ReportDto** (populated `user` with
+  `_id`/`firstName`/`lastName`/`fullName`; populated `visits[].branch`
+  with `_id`/`name`/`location`; `date`; `status`; `isArchived`;
+  `archivedAt`; `createdAt`/`updatedAt`). No transcription ref (Option
+  X), no content, no items, no audio — the Meta tab's data.
+- `GET /reports` (access): paginated; filter dimensions (R1-approved):
+  - `isArchived` — `active|archived|all`, default `all` (Branches mirror)
+  - `status` — enum from `REPORT_STATUSES`
+  - `branch` — **Q1 main-branch only**: `{ visits: { $elemMatch:
+    { branch, isMain: true } } }` (uses the `{ user, "visits.branch" }`
+    multikey index)
+  - `sort` — `date`/`-date` allowlist (default `-date`, `createdAt`
+    tiebreak); `page`/`limit` like Branches (`PAGINATION_*`, clamp 1–100).
+  - `date`-range filter **held** (defer to details/analytics brainstorm).
+  Data: list DTOs, heavy fields absent.
 
 ### 31.4 Status machine & the transition-guard table (normative)
 
 States = `REPORT_STATUSES` order. The table below **is the only
-transition authority** — §51/§52 UI actions reuse it identically
+transition authority** — edit-page tab actions reuse it identically
 (BR-06 note); services and validators never hold their own copy.
 
 | From             | To               | Guard / trigger                                                                                                                                                                                                      | Owner   |
@@ -6969,7 +7007,7 @@ transition authority** — §51/§52 UI actions reuse it identically
 | `transcribed`    | `generated`      | generation completed: transcription `latest` written, Item rows persisted (§34.6) — **terminal**; regeneration keeps the status                                                                                      | §34     |
 | `generated`      | _(none)_         | forward-locked; content stays editable via §35/§31.6 (BR-10); re-transcription, audio add/remove, and capture edits are frozen at `generated` (BR-12 end, §21.7, §31.8) — corrections are the §35/§54 Modes 1–3 path | §31/§35 |
 | `audio_attached` | `draft`          | **last audio deleted** (single explicit backward transition, ADR-003)                                                                                                                                                | §32/§31 |
-| `transcribed`    | `audio_attached` | **any audio deleted** — the merged transcription row cascades and the report's `transcription` ref clears (§22.4/§23.4); draft if it was the last audio                                                              | §32/§31 |
+| `transcribed`    | `audio_attached` | **any audio deleted** — the merged transcription row cascades (Option X: the row is removed; no report field to clear, §22.4/§23.4); draft if it was the last audio | §32/§31 |
 
 **Guard principles:** never skip states forward except the listed
 steps; no implicit rewind on edits (BR-10 — edits never rewind);
@@ -6979,26 +7017,26 @@ orthogonal to status
 (guards apply within archived reports for
 content-changing actions; read-only views still open).
 
-### 31.5 Capture & visit updates
+### 31.5 Capture & visit updates (Meta tab)
 
-- `PUT /reports/:reportId/visits/:visitIndex` — update a single
-  row by **position** (branch/time fields); re-runs §31.2-2's
-  rules for the row; capture edits allowed only at status <
-  `generated` (403 at `generated`, §21.7). **The main entry at
-  index 0 is locked** (owner's model, C3): 403 on any
-  `visitIndex` 0 write — the main branch entry is immutable.
-- `DELETE /reports/:reportId/visits/:visitIndex` — removes the
-  row by position; audio rows are unaffected (they bind to the
-  report, never to visits — §22); the report row is never deleted
-  by this; capture edits allowed only at status < `generated`
-  (403 at `generated`). **Index 0 is undeletable** (403) — the
-  main entry always stands; `visits` never drops below 1.
-- `PATCH /reports/:reportId` — header fields
-  (`date`, `clockIn`, `clockOut`; `branch` only while no
-  transcription/generation exists) — the wizard's step-1 save;
-  capture edits allowed only at status < `generated` (403 at
-  `generated`). Swapping `branch` re-validates the §31.2-1 main
-  lock (`visits[0].branch` must equal the new `branch`).
+**Amended (R1):** the visit-subpath endpoints
+(`PUT /reports/:reportId/visits/:visitIndex`,
+`DELETE /reports/:reportId/visits/:visitIndex`) are **dropped**.
+The report has only `date` + `visits[]`, so the **whole meta block is
+edited in one `PATCH /reports/:reportId`** (the Meta tab's save):
+
+- `PATCH /reports/:reportId` — body `{ date?, visits }`: replaces the
+  meta block. Re-runs the §31.2 create validation (visits ≥ 1,
+  exactly-one-main when >1, per-visit `in<out`, day-span `in<out`,
+  chronological, every `branch` resolves to an active branch, `HH:mm`).
+  **Capture edits are allowed only at status < `generated`** — at
+  `generated` the whole metadata block (`date`, `visits`, main branch)
+  is frozen → **403** (metadata + items = report). Ethiopian boundary
+  for `date`. Returns the updated list DTO.
+- No separate visit-add/remove endpoints: adding, removing, or
+  reordering visits is done by editing the `visits` array in this
+  PATCH. Audio rows bind to the report, never to a specific visit
+  (§22), so visit edits never affect audio.
 
 ### 31.6 Corrections, content & item endpoints
 
@@ -7074,12 +7112,16 @@ rating? }`: per-type validation via `ITEM_STATUSES_BY_TYPE`
 - `POST /reports/:reportId/archive` / `POST /reports/:reportId/restore`
   — set/clear `isArchived`/`archivedAt`; 409 on state mismatch;
   archive allowed at any status (including `generated`).
-- `DELETE /reports/:reportId` — step 1 archive (BR-15; the
-  physical removal happens in the §62 sweeper after 30 days).
-  Hard-delete cascade is §62's, always in session
-  (audio docs + `fs.unlink` after commit, the transcription row,
-  the item rows,
-  conversation row); no `deletedAt`.
+- `DELETE /reports/:reportId` — targets an **already-archived**
+  report (Branches mirror; look up `{ _id, user, isArchived: true }`
+  → 404 if absent). On an archived report, the controller performs a
+  **physical session delete + child cascade** (audio docs +
+  `fs.unlink` after commit, the transcription row, the item rows,
+  the conversation row), `{ success, message: "Report deleted",
+  data: null }`, 200. `DELETE` does not first archive — Archive is the
+  separate action that sets `isArchived`. No `deletedAt`. The §62
+  sweeper + TTL remain the safety net for anything the controller
+  misses (BR-15: no other path hard-deletes user data once archived).
 
 ### 31.8 Cascade / rewind / presence invariants
 
@@ -7087,8 +7129,9 @@ rating? }`: per-type validation via `ITEM_STATUSES_BY_TYPE`
   an `audio_attached` report rewinds to `draft`; deleting any
   audio of a `transcribed` report rewinds to `audio_attached`
   (or `draft` if it was the last) and cascades the merged
-  Transcription row + clears the report's `transcription` ref
-  (§22.4/§23.4); a `generated` report never rewinds — audio
+  Transcription row (the row no longer exists — under Option X there
+  is no `transcription` ref to clear; transcribed = `Transcription.exists({report})`,
+  §23/R4); a `generated` report never rewinds — audio
   removal is frozen (BR-12) — the §51.4 confirm copy
   states the consequence (§32 owns the audio endpoint; §31 owns
   the transition).
@@ -7109,13 +7152,13 @@ rating? }`: per-type validation via `ITEM_STATUSES_BY_TYPE`
 
 | Method+Path                                    | Auth                   | Request                                                                         | Success                                               | Errors                                     |
 | ---------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------ |
-| `POST /reports`                                | access                 | `{ branch, date?, clockIn, clockOut, visits }` (visits ≥ 1, main-locked at [0]) | 201 ReportDto                                         | 401, 422                                   |
-| `GET /reports`                                 | access                 | query filters + pagination                                                      | 200 list                                              | 401, 422                                   |
-| `GET /reports/:reportId`                       | access                 | `?withContent`                                                                  | 200 ReportDto                                         | 401, 404                                   |
-| `PATCH /reports/:reportId`                     | access                 | `{ date?, clockIn?, clockOut?, branch? }`                                       | 200                                                   | 404, 422, 403 (generated)                  |
-| `PUT /reports/:reportId/visits`                | access                 | visits block (main-locked at [0], day clock pairs, OQ-002 §6.3)                 | 200                                                   | 404, 422, 403 (generated)                  |
-| `PUT /reports/:reportId/visits/:visitIndex`    | access                 | visit fields                                                                    | 200                                                   | 404, 422, 403 (generated / index 0 locked) |
-| `DELETE /reports/:reportId/visits/:visitIndex` | access                 | —                                                                               | 200                                                   | 404, 403 (generated / index 0 locked)      |
+| `POST /reports`                                | access                 | `{ date?, visits }` (visits ≥ 1, exactly-one-main when >1)                      | 201 ReportDto (list DTO)                             | 401, 422                                   |
+| `GET /reports`                                 | access                 | query filters (`isArchived` active\|archived\|all default all, `status`, `branch` Q1, `sort` date\|-date) + pagination | 200 list | 401, 422 |
+| `GET /reports/:reportId`                       | access                 | — (meta read, no `?withContent`)                                                | 200 ReportDto (list DTO)                             | 401, 404                                   |
+| `PATCH /reports/:reportId`                     | access                 | `{ date?, visits }` (whole meta block, < generated)                             | 200 ReportDto                                        | 404, 422, 403 (generated)                  |
+| ~~`PUT /reports/:reportId/visits`~~            | —                      | — (dropped — PATCH edits visits)                                               | —                                                    | —                                          |
+| ~~`PUT /reports/:reportId/visits/:visitIndex`~~| —                      | — (dropped)                                                                     | —                                                    | —                                          |
+| ~~`DELETE /reports/:reportId/visits/:visitIndex`~~ | —                  | — (dropped)                                                                     | —                                                    | —                                          |
 | `GET /reports/:reportId/items`                 | access                 | —                                                                               | 200 `{ items: [...] }`                                | 401, 404                                   |
 | `PATCH /reports/:reportId/items/:itemId`       | access                 | `{ status?, rating? }`                                                          | 200 ItemDto                                           | 404, 422                                   |
 | `POST /reports/:reportId/generations`          | access (ai tier §27.3) | —                                                                               | 200 ReportDetailDto with generated `latest` + `items` | 404, 403 (regen gate), 502 (providers)     |
@@ -7123,36 +7166,29 @@ rating? }`: per-type validation via `ITEM_STATUSES_BY_TYPE`
 | `PUT /reports/:reportId/content`               | access                 | — (revert: replace `latest` with `raw`)                                         | 200 `{ content }`                                     | 404                                        |
 | `POST /reports/:reportId/corrections`          | access                 | instruction or multipart clip (optional provider, §35.2)                        | 200 corrected snapshot (ephemeral candidate)          | 404, 502 (providers)                       |
 | `POST /reports/:reportId/archive` / `restore`  | access                 | —                                                                               | 200                                                   | 404, 409                                   |
-| `DELETE /reports/:reportId`                    | access                 | —                                                                               | 200 (archived→retention)                              | 404, 409                                   |
+| `DELETE /reports/:reportId`                    | access                 | — (already-archived target)                                                     | 200 (physical session delete + cascade)               | 404                                        |
+
+**Dropped (R1):** `GET /reports/:reportId` no `?withContent`;
+`PUT .../visits` + `PUT/DELETE .../visits/:visitIndex` removed.
+**Open/TBD:** `GET /reports/:reportId/details` (separate brainstorm).
 
 **Contract JSON** (folded from the route-contract review,
 2026-08-19; ReportDto is §31.3's serialized surface; report
 statuses are the four `REPORT_STATUSES` members).
 
-`POST /reports` — request (owner's visits model):
+`POST /reports` — request (amended, R1):
 
 ```json
 {
-  "branch": "64f1a2b3c4d5e6f7a8b9c0d3",
   "date": "2026-08-19T00:00:00.000Z",
-  "clockIn": "08:30",
-  "clockOut": "17:30",
   "visits": [
-    {
-      "branch": "64f1a2b3c4d5e6f7a8b9c0d3",
-      "clockIn": "08:30",
-      "clockOut": "17:30"
-    },
-    {
-      "branch": "64f1a2b3c4d5e6f7a8b9c0d4",
-      "clockIn": "10:00",
-      "clockOut": "12:00"
-    }
+    { "branch": "64f1a2b3c4d5e6f7a8b9c0d3", "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
+    { "branch": "64f1a2b3c4d5e6f7a8b9c0d4", "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
   ]
 }
 ```
 
-201:
+201 (list DTO — populated `user` + `visits[].branch`; no `transcription` ref):
 
 ```json
 {
@@ -7160,25 +7196,13 @@ statuses are the four `REPORT_STATUSES` members).
   "message": "Report created",
   "data": {
     "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "user": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "user": { "_id": "64f1a2b3c4d5e6f7a8b9c0d1", "firstName": "ዳዊት", "lastName": "በየነ", "fullName": "ዳዊት በየነ" },
     "date": "2026-08-19T00:00:00.000Z",
-    "branch": "64f1a2b3c4d5e6f7a8b9c0d3",
-    "clockIn": "08:30",
-    "clockOut": "17:30",
     "visits": [
-      {
-        "branch": "64f1a2b3c4d5e6f7a8b9c0d3",
-        "clockIn": "08:30",
-        "clockOut": "17:30"
-      },
-      {
-        "branch": "64f1a2b3c4d5e6f7a8b9c0d4",
-        "clockIn": "10:00",
-        "clockOut": "12:00"
-      }
+      { "branch": { "_id": "64f1a2b3c4d5e6f7a8b9c0d3", "name": "ሳሪስ ኮፌ", "location": "ቦሌ መንገድ" }, "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
+      { "branch": { "_id": "64f1a2b3c4d5e6f7a8b9c0d4", "name": "ቢኤስ ኮፌ", "location": "ጊዮርጊስ" }, "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
     ],
     "status": "draft",
-    "transcription": null,
     "isArchived": false,
     "archivedAt": null,
     "createdAt": "2026-08-19T08:00:00.000Z",
@@ -7187,7 +7211,7 @@ statuses are the four `REPORT_STATUSES` members).
 }
 ```
 
-422 main-lock violation (also the empty-visits shape):
+422 validation (e.g., no main when visits.length > 1, or per-visit in>out):
 
 ```json
 {
@@ -7195,48 +7219,23 @@ statuses are the four `REPORT_STATUSES` members).
   "message": "Check the highlighted fields",
   "data": null,
   "details": [
-    {
-      "field": "visits[0].branch",
-      "message": "The main branch must be the first visit"
-    }
+    { "field": "visits", "message": "Exactly one visit must be marked as the main branch" }
   ]
 }
 ```
 
-`PUT /reports/:reportId/visits` — request:
-
-```json
-{
-  "visits": [
-    {
-      "branch": "64f1a2b3c4d5e6f7a8b9c0d3",
-      "clockIn": "08:30",
-      "clockOut": "17:30"
-    },
-    {
-      "branch": "64f1a2b3c4d5e6f7a8b9c0d5",
-      "clockIn": "14:00",
-      "clockOut": "15:30"
-    }
-  ]
-}
-```
-
-200 returns the updated ReportDto; 403 at `generated`.
-
-`PATCH /reports/:reportId` — request:
+`PATCH /reports/:reportId` — request (amended; whole meta block, < generated):
 
 ```json
 {
   "date": "2026-08-20T00:00:00.000Z",
-  "clockIn": "09:00",
-  "clockOut": "18:00",
-  "branch": "64f1a2b3c4d5e6f7a8b9c0d4"
+  "visits": [
+    { "branch": "64f1a2b3c4d5e6f7a8b9c0d5", "clockIn": "09:00", "clockOut": "18:00", "isMain": true }
+  ]
 }
 ```
 
-200 returns the updated ReportDto; a `branch` swap re-validates
-the main lock (§31.5).
+200 returns the updated list DTO; 403 at `generated` (metadata frozen).
 
 `GET /reports/:reportId/items` — 200:
 
@@ -7386,7 +7385,9 @@ sizeBytes, durationSec, createdAt, updatedAt }` (all fields,
 
 `DELETE /audios/:audioId` (access): removes the Audio doc and —
 when the report sits at `transcribed` — cascades the report's 1:1
-Transcription row + clears the report's `transcription` ref
+Transcription row (Option X: removes it; there is no report
+`transcription` ref to clear — the invariant is the unique index on
+`Transcription.report`, §23/R4)
 (in-session, §22/§23) and, after commit,
 `fs.unlink`s the physical file (failure → orphan-sweep retry,
 §62). Status consequences per §31.4 — this endpoint applies the

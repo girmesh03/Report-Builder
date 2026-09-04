@@ -28,6 +28,119 @@
   campaign), findings.md (this entry), progress.md (this entry).
 - **Gates:** branch created, roadmap pushed, no merge.
 
+## Session 2026-09-01 — R1: Report resource amendment (model §21 + API §31)
+
+Design-only amendment with the owner (Step-1.1). No implementation —
+recorded in this file, progress.md, task_plan.md, AGENTS.md + spec §21/§31
+in one commit (§66.6).
+
+### Report model (§21) — amended
+Dropped from root: `branch`, `clockIn`, `clockOut`, `transcription` ref.
+A single source of truth lives in `visits[]` (Option X — all children
+child-side: audio, items, transcription; no parent refs).
+
+```
+Report {
+  _id           ObjectId auto (only key, never `id`)
+  user          ObjectId (ref User) required    // BR-13; fullName via virtual
+  date          Date optional (null until captured) // Ethiopian workday; stored UTC-midnight; Ethiopian at boundary
+  visits        Array<Visit> ≥1 required        // positional, chronological
+  status        String default "draft"          // REPORT_STATUSES; stored, transition-guarded
+  isArchived    Boolean default false
+  archivedAt    Date default null
+  createdAt/updatedAt Date auto (§18.2)
+}
+Visit (subdoc, _id: false) {
+  branch   ObjectId (ref Branch) required
+  clockIn  String "HH:mm" required
+  clockOut String "HH:mm" required
+  isMain   Boolean required  // exactly one true when visits.length > 1; user-decided
+}
+```
+
+### Indexes (§21.3)
+- `{ user, isArchived, date: -1, createdAt: -1 }` — owner list + date sort
+- `{ user, "visits.branch" }` — branch filter (Q1) + visited-branch + cascade ref-check (multikey)
+- `{ user, date }` — analytics/date rollups
+- `{ user, status }` — status filter/roles
+- `{ archivedAt }` TTL = ARCHIVED_TTL_SECONDS (sweeper safety net)
+
+### Invariants (validator-enforced, §29)
+1. visits ≥ 1
+2. exactly one isMain when visits.length > 1 (single visit implicitly main)
+3. per-visit clockIn < clockOut
+4. day-span clockIn < clockOut (visits[0].clockIn < visits[n-1].clockOut)
+5. chronological: visits[i].clockIn ≤ visits[i+1].clockIn
+6. main branch position-independent (user-decided)
+
+### Derived (read time, never stored)
+- day start = visits[0].clockIn; day exit = visits[n-1].clockOut
+- main branch = the visit with isMain → branch
+- Type = visits.length (Type-1 single; Type-N changes report format)
+- transcribed = Transcription.exists({ report }) [Mongoose 9.9.3 confirmed]
+
+### Content model (owner definition)
+metadata + items = report. Items = activities/issues/comment extracted
+by the AI agent from the transcription (raw|latest) using metadata.
+`generated` freezes the whole metadata block (date, visits, main branch).
+
+### §31 Report & Status API — amended
+| Endpoint | Contract |
+|---|---|
+| POST /reports | meta-only create (date+visits) → draft; 201 list DTO; 401/422 |
+| GET /reports | list; page/limit/isArchived active\|archived\|all (Branches mirror)/status/branch (Q1)/sort date\|-date; 200; 401/422 |
+| GET /reports/:reportId | single meta read (Meta-tab seed); 200; 401/404 |
+| PATCH /reports/:reportId | meta edit (date+visits); < generated only (metadata frozen at generated); 200; 401/404/422/403 |
+| POST /reports/:reportId/archive | 200; 404/409 (already archived) |
+| POST /reports/:reportId/restore | 200; 404/409 (not archived) |
+| DELETE /reports/:reportId | already-archived target; physical session delete + child cascade (Branches mirror); 200; 404 |
+
+Dropped: `PUT /reports/:reportId/visits`, `PUT/DELETE .../visits/:visitIndex`,
+`?withContent`. Open/TBD: `GET /reports/:reportId/details` (separate brainstorm).
+
+GET /reports filters (approved):
+- isArchived: active|archived|all, default all (Branches mirror)
+- status: REPORT_STATUSES members
+- branch: Q1 — main-branch only, $elemMatch { branch, isMain: true }
+- sort: date/-date allowlist (business-date, createdAt tiebreak)
+- page/limit like Branches (PAGINATION_*, clamp 1-100)
+
+### List/meta DTO (populated, light — no content/items/audio)
+- user → { _id, firstName, lastName, fullName }
+- visits[].branch → { _id, name, location }
+- status, isArchived, archivedAt, createdAt, updatedAt
+- (no transcription ref — Option X)
+
+### Editing & navigation (frontend facts, some amended)
+- Edit icon (card action / MuiDataGrid action column) → navigates to
+  `/reports/:reportId/edit` (a route distinct from `/reports/:reportId/details`).
+- Edit page: 3 tabs — Meta, Audio, Transcription.
+- Tabs use strictly <Tab/><TabContext/><TabList/><TabPanel/>
+  <TabScrollButton/><Tabs/>.
+- Tabs are NOT a wizard; user may move tab↔tab except on submit/failure edges.
+- Audio + Transcription tab UI/endpoints kept OPEN → R3 (§32) / R4 (§33).
+- Create dialog: reports page header action → button → dialog →
+  react-hook-form { date, visits } → submit → POST /reports → update page UI.
+- Branch-visit dialog component: client/src/components/branches/,
+  wraps reusable MuiDialog (never edit MuiDialog unless asked), loading via
+  LoadingSpinner, each item: left select-checkbox, avatar initial +
+  utils/avatarColor.js, title name, subtitle location, right-end main checkbox
+  (disabled once another is main), per-selected-branch clockIn/clockOut
+  MuiTimePicker, max-height overflow-scroll content, MuiPagination at bottom.
+
+### Cross-cutting (Ethiopian, everywhere)
+Ethiopian date/time shown everywhere (fields, filter, select/pick); backend
+converts Ethiopian↔UTC at the boundary; stores UTC-midnight Date.
+
+### Open (deferred)
+- GET /reports/:reportId/details — complete, separate exhaustive brainstorm.
+- Audio (R3 §32) + Transcription (R4 §33) endpoints + tab UI — their own increments.
+
+### Gate notes (for eventual implementation review)
+- 422 for body-field validation incl. invalid/foreign/archived visits.branch
+  (not 404).
+- date-range filter held (defer to details/analytics brainstorm).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
