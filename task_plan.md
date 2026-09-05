@@ -501,7 +501,7 @@ first campaign of that process.
 | # | Increment | Model | API | Involved-with-it | Blocked-by | Pages consumed later |
 |---|---|---|---|---|---|---|
 | R1 | **Report resource ✅ (amended)** | §21 | §31 | §6 skeleton/type; status enums (§21.4/§31.4); visits[]+isMain capture (Option X); §21.3 multikey indexes; §30.6 delete-cascade + ref-check; constants; envelope shapes; Ethiopian date/time boundary | — | §50, §51, §53, §58 |
-| R2 | Item resource | §24A | §31.6 | per-type vocabulary (activities/issues/comment, §6.10); partial-unique index; generation-time atomic persist contract | R1 | §51 details |
+| R2 | **Item resource ✅ (amended)** | §24A | §31.6 | per-type vocabulary (activity completed/in_progress default completed; issue reported/in_progress/completed default reported; comment no-status/no-rating, text nullable); ItemDto `{_id,report,branch,date,type,text,status,createdAt,updatedAt}`; `GET /reports/:reportId/items` + `GET /items` (paginated, 403 archived, two-surface split); `PATCH items/:itemId {status}` (same-status→200, not generated-gated); partial-unique comment index; micro-decisions (no per-item delete, text immutable, any-direction, defaults at accept) | R1 | §51 details |
 | R3 | **Audio resource ✅ (amended)** | §22 | §32 | multer config, `uploads/` location, nested `/reports/:reportId/clips` routes, no stream/no archive/direct-delete, final-clip→draft, add-at-transcribed keeps status/drops readiness, temp-chunk-cleanup, Audio-tab one-card layout | R1 | §53/§54 |
 | R4 | Transcription | §23 | §33 | addis provider contract; stored shape (raw/latest, language codes §7.7); session contract | R3 | §54 review |
 | R5 | Generation service | — | §34 | §8 16-rules applicability; provider selection; generation→Item persist + terminal-status transition | R1, R2, R4 | §53 workspace |
@@ -531,7 +531,7 @@ User ✅ → Branch ✅ → R1 Report → R2 Item
 | OQ-2 | Status machine: exact enum values and legal transitions (§5.3/§21.4/§31.4) | Every lifecycle endpoint guards on these | R1 |
 | OQ-3 | `raw` + `latest` content: exact shape/typing and the single-undo revert contract | Drives §31 endpoints, §34 generation, §35 correction | R1 |
 | OQ-4 | §56.5 Branch Details scope: what does `GET /branches/:branchId/detail` return? | Blocks the last branches-domain remnant | R9 |
-| OQ-5 | Item: separate collection or embedded subdoc? Per-type fields exact shapes | Shapes §24A + §31.6 | R2 |
+| OQ-5 | Item: separate collection or embedded subdoc? Per-type fields exact shapes | **RESOLVED (R2, 2026-09-01)** — separate collection; per-type statuses; no rating; ItemDto confirmed | R2 ✅ |
 
 **Amendment session mechanics (per increment):**
 
@@ -606,10 +606,16 @@ Activities&Issues page / Dashboard band / Branch Details / exports-only); chat s
 (R7).
 
 ### Next increments
-- **R2 — Item resource:** status `PATCH` (open #1), `GET /items` contract
-  (confirmed — paginated ItemDto envelope), open #1 verify. Ready now.
-- R4 transcription-create details; R5 Generation+Presets (digest+exemplars);
-  R6 Correction; R7 Chat (streaming + MUI + card protocol); R8 Export.
+- **R2 — Item resource: **COMPLETE (2026-09-01).** Item model/ItemDto/lists/
+  status PATCH recorded (findings.md "R2"; spec §24A/§31.6/§31.9). Status
+  PATCH = direct `PATCH items/:itemId {status}` (same-status→200; 403 archived;
+  not generated-gated); two-surface split (`GET .../reports/:reportId/items`
+  report-context + `GET /items` cross-report boss/agent/sheet); 401 = global
+  auth gate only.
+- **R4 transcription-create details** (pending-clip/re-transcribe bookkeeping —
+  the deferred contributions replacement) — next.
+- R5 Generation+Presets (digest+exemplars+correction-habits); R6 Correction;
+  R7 Chat (streaming + MUI + card protocol); R8 Export.
 - GET /items consumer page decided later.
 
 ### Spec reconciliation sweep (2026-09-01) — COMPLETE

@@ -6683,13 +6683,19 @@ freeze gate = generated. §34/§36 own accept/revert.
   (`{ latest }` — review edit / correction result, §35) and
   `PUT .../transcription/revert` (`latest ← raw`, single undo,
   pre-generated). `raw` immutable (BR-11).
-- Item surface: `GET /reports/:reportId/items`; **status-update
+- Item surface: `GET /reports/:reportId/items` (report-scoped list,
+  paginated ItemDto envelope; filters `type|status`; **403 archived**;
+  404 report-not-found-for-user; 422 per-type; §31.9); **status-update
   confirmed 2026-09-01 — direct `PATCH
   /reports/:reportId/items/:itemId { status }`** with per-type
   `ITEM_STATUSES_BY_TYPE` validation, any direction, never an AI call
-  (§24A/§29; owned by R2); no rating; text never edited per-row.
+  (§24A/§29; owned by R2; **same-status → 200**; **403 archived**;
+  not generated-gated); no rating; text never edited per-row.
 - `GET /items?branch=&dateFrom=&dateTo=&status=&type=` — cross-report
-  boss/export/agent query (pagination open in R2).
+  boss/export/agent/sheet query (**403 archived**; sheet variant →
+  R8; consumer page undecided). Both item lists share the one ItemDto
+  and the paginated envelope; 401 = global auth gate only (middleware
+  + reauth chain, never a controller error).
 
 ### 31.7 Two-path lifecycle (BR-16, mirrors §30.5)
 
@@ -6731,9 +6737,9 @@ freeze gate = generated. §34/§36 own accept/revert.
 | `PUT /reports/:reportId/transcription` | transcribe pending/re-transcribe | updated transcription | 401, 404, 403 (pc), 422, 502 |
 | `PATCH /reports/:reportId/transcription` | `{ latest }` | `{ latest }` | 404, 422 |
 | `PUT /reports/:reportId/transcription/revert` | — (latest←raw) | `{ latest }` | 404 |
-| `GET /reports/:reportId/items` | — | `{ items: [ItemDto] }` | 401, 404 |
-| `PATCH /reports/:reportId/items/:itemId` | `{ status }` (confirmed; owned by R2) | 200 ItemDto | 404, 422 |
-| `GET /items` | `branch/dateFrom/dateTo/status/type` + page/limit/sort | 200 paginated `{docs,page,limit,totalDocs,totalPages}` of ItemDto (branch populated) | 401, 422 (comment+status) |
+| `GET /reports/:reportId/items` | `type`/`status` (opt) + page/limit/sort | 200 paginated `{docs,page,limit,totalDocs,totalPages}` of ItemDto (branch populated) | 401, 403 (archived), 404, 422 |
+| `PATCH /reports/:reportId/items/:itemId` | `{ status }` (confirmed; owned by R2; same-status → 200) | 200 ItemDto | 401, 403 (archived), 404, 422 |
+| `GET /items` | `branch/dateFrom/dateTo/status/type` + page/limit/sort | 200 paginated `{docs,page,limit,totalDocs,totalPages}` of ItemDto (branch populated) | 401, 403 (archived), 422 (comment+status) |
 | `POST /reports/:reportId/clips` | multipart clip (+ duration) | 201 AudioDto | 401, 404, 403, 422 |
 | `GET /reports/:reportId/clips` | — | `{ clips: [AudioDto] }` | 401, 404 |
 | `GET /reports/:reportId/clips/:clipId` | — | AudioDto (+ byte source) | 401, 404 |

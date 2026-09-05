@@ -145,6 +145,20 @@
 - **Gates:** recorded; design-only; push to branch, no merge.
 - **Next:** R2 Item Step-1.1 (status PATCH + GET /items + open #1 verify).
 
+## Session 2026-09-01 — R2: Item resource — COMPLETE
+- **Item model / ItemDto / lists / status PATCH recorded** — details in
+  findings.md "R2: Item resource amendment".
+- Item surfaces: `GET /reports/:reportId/items` (report-scoped, paginated,
+  403 archived), `GET /items` (cross-report boss/agent/sheet, paginated,
+  403 archived), `PATCH .../items/:itemId { status }` (same-status → 200;
+  403 archived; not generated-gated). Two-surfaces split confirmed.
+- Errors: **401 = global auth gate only** (middleware + reauth chain — never
+  a controller error); 404 indistinguishable; 422 per-type; 403 archived.
+- Lifecycle micro-decisions confirmed (no per-item delete; text immutable;
+  comment.text null; include comments; any-direction; defaults at accept).
+- Files: findings/progress/task_plan/AGENTS + spec §24A/§31.6/§31.9.
+- Gates: verified; no merge. Next: R4 transcription-create details.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

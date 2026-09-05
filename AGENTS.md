@@ -65,15 +65,20 @@ sets — see `task_plan.md` Phase 6 section.
   default reported; comments no status/no rating; `text` field; status-update = direct PATCH, closed 2026-09-01).
   See `progress.md` sweep record.
 
-**Status:** consolidated re-amendment complete (supersedes R1/R3). History-digest scope
-RESOLVED per-user (2026-09-01). **All 8 open items CLOSED (2026-09-01):** status-update =
-direct PATCH; duplicate-day allowed; system-wins + teach-itself exemplars; zero-preset RHF
-dialog (provider-conditional) + composer-fill IFF generated===""; digest = items + light
-transcription + correction-habits, fresh, DIGEST_MAX_TOKENS; §11 caps confirmed; chat
-streaming deferred to R7; preset per-message user-adjustable. **GET /items contract
-confirmed** (R2 — paginated ItemDto envelope; status+comment → 422). Remaining open only:
-GET /items consumer page (later), chat streaming (R7). Next: R2 Item, R4
-transcription-create, R5 Generation+Presets, R6 Correction, R7 Chat, R8 Export, R9/R10.
+**Progress:**
+- R2 complete (design-only): **Item resource** amended — model/ItemDto/lists/
+  status PATCH (see `findings.md`/`progress.md`/`task_plan.md` + spec
+  §24A/§31.6/§31.9). Two-surface split confirmed (`GET .../reports/:reportId/
+  items` report-context + `GET /items` cross-report boss/agent/sheet); 401 =
+  global auth gate only; 403 archived; status-update direct PATCH
+  (same-status→200, not generated-gated).
+
+**Status:** consolidated re-amendment complete (supersedes R1/R3). R1/R3/R2
+amended; open items closed (2026-09-01); GET /items contract confirmed.
+**R2 done. Next = R4 transcription-create details** (pending-clip/re-transcribe
+bookkeeping), then R5 Generation+Presets (digest+exemplars), R6 Correction,
+R7 Chat (streaming + MUI), R8 Export, R9/R10. Remaining open only: GET /items
+consumer page (later), chat streaming (R7).
 
 ## What this repo is
 

@@ -470,6 +470,61 @@ progress.md + task_plan.md + AGENTS.md + spec §11/§24A/§34/§36/§31/§69 in 
 ### Notes
 - `/chat` route = `/reports/:reportId/chat` only (no standalone /chat).
 
+## Session 2026-09-01 — R2: Item resource amendment (model + lists + status PATCH)
+
+Design-only, Step-1.1, with the owner. Mirrors: progress.md, task_plan.md,
+AGENTS.md, spec §24A/§31.6/§31.9 (one commit, §66.6).
+
+### Item model (separate collection)
+`_id, user, report, branch (denorm main-visit), date (denorm), type
+(activity|issue|comment), text, status, createdAt/updatedAt`; **no `rating`**.
+Per-type: **activity** → `completed|in_progress` (default **completed**);
+**issue** → `reported|in_progress|completed` (default **reported**);
+**comment** → no status (`null`), `text` required-but-nullable (no opinion
+voiced), one comment per report. Indexes: `{user}`, `{user,report}`,
+`{user,branch,date,type,status}`, `{user,type,status,date}`, one-comment
+partial-unique.
+
+### ItemDto (exact, single source)
+`_id`, `report` (raw ObjectId), `branch` (populated `{_id,name,location}`),
+`date` (Ethiopian at boundary), `type`, `text`, `status` (null for comment),
+`createdAt`, `updatedAt`. Excluded: `rating`, `user`, `filePath`,
+transcription text, archive fields. Flat rows, no per-branch grouping.
+
+### GET /reports/:reportId/items (report-scoped list)
+Paginated envelope `{docs,page,limit,totalDocs,totalPages}` (A, confirmed);
+filters `type|status` (opt; no branch/date-range — report-scoped); sort
+allowlist `date/-date/createdAt/-createdAt` default `-date`; **403 archived**;
+404 report-not-found-for-user (indistinguishable); 422 invalid type/status +
+`status`+`type=comment`; **401 = global auth gate only** (middleware +
+reauth chain, never a controller error).
+
+### PATCH /reports/:reportId/items/:itemId { status }
+Body `{status}` only; `ITEM_STATUSES_BY_TYPE`, any direction, never an AI
+call. **Same-status → 200 no-op.** Comment → 422. Missing/non-member → 422.
+404 indistinguishable (report/item). 403 archived. 401 global gate.
+Single-doc write (no session); `updatedAt` auto; no status-history field.
+**NOT gated by `generated`** (boss-facing lifecycle; writable post-
+generation). Status edits on a live item are lost if the user later reverts
+the accepted response (accepted consequence).
+
+### GET /items (cross-report; closure-confirmed + Item-3 consistency)
+Paginated envelope; filters `branch/type/status/dateFrom/dateTo` + sort;
+`status`+`type=comment` → 422; **403 archived** (Item-3 lean, confirmed).
+No `?report=` filter (report-scoped read covers the single report). Sheet
+variant deferred to R8; consumer page undecided.
+
+### Two-surfaces split (confirmed)
+`GET /reports/:reportId/items` is the report-context read (exact key —
+required because duplicate-day makes branch+date ambiguous); `GET /items` is
+the cross-report boss/export/agent/sheet query. They share one ItemDto.
+
+### Lifecycle micro-decisions (all confirmed)
+1. No per-item delete (revert deletes all). 2. `text` immutable per-row
+(corrections never touch item rows). 3. comment.text null valid, one per
+report. 4. GET .../items includes comments (status:null). 5. Any-direction
+transitions (no chain). 6. Defaults written at accept, never by schema.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
