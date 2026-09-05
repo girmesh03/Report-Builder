@@ -256,11 +256,21 @@ Indexes: {user,isArchived,date,createdAt}; {user,"visits.branch"}; {user,date};
 ### Item (separate collection) — boss/agent/sheet surface
 ```
 Item { _id, user, report (ref), branch (DENORM from report main visit), date (DENORM),
-       type (activities|issues|comment), payload, status (reported|in_progress|completed), timestamps }
+       type (activities|issues|comment), text, status (per-type), timestamps }
 Indexes: {user,branch,date,status}; {user,report}.
+No rating field (owner 2026-09-01).
 ```
 Denorm safe because metadata freezes once items exist. Created on ACCEPT; deleted on REVERT
 (delete ALL the report's items; post-accept item status edits lost on revert — accepted).
+
+**Per-type status (owner directive 2026-09-01):**
+- activities → status ∈ {completed, in_progress}, default **completed**;
+- issues → status ∈ {reported, in_progress, completed}, default **reported**;
+- comments → **no status and no rating** (both removed).
+Field name is **`text`** (confirmed 2026-09-01 — reconciled the earlier
+`payload` wording). The **status-update mechanism is an OPEN item**
+(how activities/issues statuses get updated — pending owner verdict;
+candidate: direct `PATCH /reports/:reportId/items/:itemId { status }`).
 
 ### GenerationPreset (user CRUD, NO default)
 ```

@@ -40,8 +40,9 @@
 >   main = isMain visit, Type = visits.length, generated = items exist
 >   (read-side batch query).
 > - **Item = separate collection.** `_id,user,report,branch(denorm),
->   date(denorm),type(activities|issues|comment),payload,
->   status(reported|in_progress|completed),timestamps`; indexes
+>   date(denorm),type(activities|issues|comment),text,
+>   status(reported|in_progress|completed),no-rating,timestamps`;
+>   indexes
 >   `{user,branch,date,status}`, `{user,report}` — the boss/agent/sheet
 >   query surface. Created on chat accept, deleted on revert.
 > - **GenerationPreset = user CRUD, NO default.**
@@ -917,31 +918,32 @@ day-level invariants above.
 
 ### 5.3 Workflow & status-machine invariants
 
-- **BR-05 — Wizard-driven creation.** A report is created through the
-  report-creation wizard (Steps 1–5, each step defined in §52). The wizard
-  is the only creation path from the Reports UI.
-- **BR-06 — Status machine (forward-only, explicit rewind).** Every report moves through the
-  four states — `draft → audio_attached → transcribed → generated`
-  — in order, without skipping states. `generated` is **terminal**: no
-  forward state exists beyond it (regeneration keeps the status), and
-  the content stays editable through corrections (BR-10). The
-  authoritative transition-guard table lives in §31 and is reused
-  identically by §51/§52 UI actions (status–guard consistency).
-  Backward movement exists only as the explicit transitions declared
-  in §31 — the single material-removal rewind (last audio deleted,
-  §17.4/§17.6) — never implicit, never triggered by edits or content
-  changes (ADR-003).
+- **BR-05 — Atomic dialog creation.** A report is created through a
+  single create dialog (the consolidated atomic `POST /reports` —
+  metadata `date` + `visits[]` and 1+ audio clips submitted together,
+  §31). The dialog is the only creation path from the Reports UI; there
+  is **no wizard** (§52 retired).
+- **BR-06 — No status machine; derived presence.** There is **no stored
+  `status` field** on Report. "Generated" is **derived**: the report is
+  generated when its `generated` string field is non-empty (set on chat
+  accept) **and** its Item rows exist. Transcription presence and clip
+  readiness are likewise data-derived (transcription embedded; pending-
+  clip bookmarking deferred). Acceptance is reversible: revert clears
+  `generated` and removes the Item rows (reopens editing). The old
+  `draft → audio_attached → transcribed → generated` machine and its
+  transition-guard table are **removed**.
 - **BR-07 — Transcription is raw material only.** The transcription is never
   the final report; the AI-generated report is produced from the captured
   form metadata (header values) and the reviewed transcription (body content;
   fallback for missing metadata) (§1.4, §2.3, §6.1, §33).
-- **BR-08 — Review after generation.** Generation produces the report
-  content — writing the transcription's `latest` plus the report's Item
-  rows (activities, issues, comment) in one session (§34.4) — and
-  moves the report to `generated`, the terminal state. There is no
-  accept ceremony: the supervisor reviews and corrects the generated
-  content through the three correction modes of §1.4 (BR-09/BR-10),
-  and the report remains editable at `generated` (§21).
+- **BR-08 — Generation is acceptance-driven.** From the report's chat
+  (`/reports/:reportId/chat`), the supervisor accepts one AI response;
+  acceptance **writes the report's `generated` field (the §6-format
+  body string) + the Item rows (activities, issues, comment — with
+  their per-type default statuses) in one session (§34)**. There is no
+  auto-accept ceremony: nothing is generated until the supervisor
+  accepts a chat card. Revert deletes the Item rows and clears
+  `generated` — the report returns to not-yet-generated (BR-06).
 
 ### 5.4 Correction, editing & versioning rules
 
@@ -1105,21 +1107,19 @@ from the requirements:
 ከ07:55 - 12:20 ኤርፖርት ብራንች
 ```
 
-**Type-1 — single branch (main visit only):**
+**Type-1 — single branch (sole visit):**
 
-- The day covers the report's branch only — `visits[]` holds
-  exactly the main entry (`visits.length === 1`; the main branch
-  is always the first visit, `visits[0].branch === branch` —
-  owner's visits model, §31.2-1, 2026-08-19).
-- `ብራንች:` line contains the report's branch name.
+- The day covers one branch only — `visits.length === 1`; the sole
+  visit is implicitly the main one (`isMain`, §21.2).
+- `ብራንች:` line contains the report's branch name (the main visit's).
 - `ስራ የገባሁበት ሰዓት:` line contains a single work-start time —
   the day pair's `clockIn` (`HH:mm`).
 
-**Type-2 — multiple branches (main visit plus one or more
-additional visits):**
+**Type-2 — multiple branches (two or more visits):**
 
-- The day covers the report's branch plus one or more additional
-  visits (`visits.length ≥ 2`).
+- The day covers two or more visits (`visits.length ≥ 2`); the main
+  branch is the visit where `isMain === true` — position-independent
+  (owner amendment 2026-09-01).
 - `ብራንች:` line lists all visited branches joined with `/` (e.g.
   `መድኃኒዓለም / ኤርፖርት`); a branch visited more than once is listed
   once in this header line.
@@ -1135,11 +1135,11 @@ additional visits):**
 The type is derived deterministically from the **visit count**:
 `visits.length === 1` → Type-1; `visits.length ≥ 2` → Type-2 —
 the count of visits governs, not the count of distinct branches,
-so a day visiting one branch twice (main + return) is a Type-2
-day (§21.2). **Type = visits.length** — the main branch is always
-the first visit (`visits[0]`), so the count already includes it
-(owner's visits model, 2026-08-19; C1 kernel amendment). The day
-sequence is `visits[]` in stored order (main first), sorted by
+so a day visiting one branch twice is a Type-2 day (§21.2).
+**Type = visits.length.** The main branch is the visit where
+`isMain === true` — position-independent (owner amendment
+2026-09-01); on Type-1 the sole visit is implicitly main. The day
+sequence is `visits[]` in stored (chronological) order, sorted by
 `clockIn`; the `ብራንች:` line and the time-range
 lines follow that order.
 
@@ -1389,8 +1389,7 @@ generation. Content items share one status vocabulary,
   `in_progress` when the narration promises a visit (e.g.
   `ነገ መጥቶ ያስተካክላል`) or to `completed` when it verifies one
   (e.g. `መጥቶ አስተካክሎታል`);
-- comments → no status; an optional integer `rating` 0–5, `null`
-  allowed (no rating voiced = `null`); at most one comment per
+- comments → **no status and no rating**; at most one comment per
   report (§24A partial-unique index);
 - clip-level transcription review state → the same vocabulary as
   **UI/capture state only, never a document field** (§23.2: no
@@ -1401,10 +1400,11 @@ Statuses are settable during review to **any member of the type's
 set, any direction** (activities and issues alike; §54) —
 `PATCH /reports/:reportId/items/:itemId { status }` is a single-row
 atomic write with per-type validation (§24A/§29), never an AI call
-and never a re-derivation. Defaults are written by generation, not
-by the schema. Item text is never editable per-row: text changes
-flow through the editor/corrections (Modes 1–3), which never touch
-item rows (§35).
+and never a re-derivation. **There is no `rating` field** (comments
+carry no rating; removed 2026-09-01). Defaults are written by
+generation, not by the schema. Item text is never editable per-row:
+text changes flow through the editor/corrections (Modes 1–3), which
+never touch item rows (§35).
 
 **Locked decisions (normative).** The capture-model decisions
 locked for this phase:
@@ -1413,25 +1413,30 @@ locked for this phase:
    fallback `form → reviewed transcription → blank` (BR-19).
 2. Audio carries content only (activities, issues, comments; any
    order) — never metadata.
-3. Type = visits.length — the main branch is always the first
-   visit (`visits[0]`, owner's visits model 2026-08-19); main only
-   → Type-1, additional visits → Type-2 (§6.4, ADR-010).
-4. Header lines derive deterministically from `date`/`branch`/
-   `clockIn`/`clockOut`/`visits[]`; the `ብራንች:` value is the
-   chronological `/` join — never a stored copy, never
-   LLM-composed at print time (§21.2).
-5. **No per-visit recording tabs** — one recording tab per report;
-   every clip belongs to the report (§22).
+3. Type = visits.length — a single visit → Type-1; additional visits
+   → Type-2 (§6.4, ADR-010). **The main branch is the visit where
+   `isMain === true` — user-decided, position-independent (owner
+   amendment 2026-09-01 — supersedes the earlier "main is always the
+   first visit" rule).** On a Type-1 day the sole visit is implicitly
+   main.
+4. Header lines derive deterministically from `date`/`visits[]`; the
+   `ብራንች:` value is the chronological `/` join — never a stored
+   copy, never LLM-composed at print time (§21.2). Day start =
+   `visits[0].clockIn`, day exit = `visits[n-1].clockOut`.
+5. **Type-2 body is main-branch-attributed.** The body sections
+   (`የተሰሩ ስራዎች` / `መፍትሄ የሚፈሉ ጉዳዮች` / `አጠቃላይ አስተያየት`) carry
+   the main branch's content only (the supervisor does not narrate
+   branch names); the header still lists all visited branches and
+   their time-line ranges (§6.4).
 6. Item rows carry the report's `branch` + `date` captured at
    generation — no attribution machinery, no `attributionBasis`,
    no unassigned panel (§24A; retired decision 10 of the
    pre-2026-08-18 capture model).
 7. Content editing (Modes 1–3) never touches item rows; item
-   status/rating changes are single-row writes (§24A/§29/§35).
+   status changes are single-row writes (§24A/§29/§35).
 8. Status vocabulary: `reported → in_progress → completed`;
    activities `completed` (default) or `in_progress`; issues
-   `reported` (default); comments have no status; `rating` 0–5
-   optional, `null` allowed.
+   `reported` (default); **comments have no status and no rating**.
 9. Multi-branch body may carry `በ[branch] ብራንች፡` prefixes
    (§6.7 rules 10–11); single-branch body stays natural.
 10. Capture edits (date/times/branch/visits) are allowed only at
@@ -1447,7 +1452,7 @@ locked for this phase:
 | 2   | Audio mentions two branches in one clip                                           | The content remains one report's content; no splitting, no per-branch items, no `unassignedItems` (retired rule 2 of the pre-2026-08-18 model).         |
 | 3   | Branch archived/deleted after the report                                          | Branch removal is refused while any report, visit, or item row references the branch — references never dangle (§20/§30/§62; no tombstone text needed). |
 | 4   | Correction adds/removes a visit                                                   | `visits[]` is re-derived on the report row; item rows are untouched (they carry the report's branch + date, not visits).                                |
-| 5   | No rating voiced                                                                  | `rating: null` — valid.                                                                                                                                 |
+| 5   | No rating voiced                                                                  | **No rating exists** (removed 2026-09-01) — comments carry no status and no rating; this case is moot.                                                |
 | 6   | No comment voiced                                                                 | `comment.text: null` — valid (the comment row exists with null text).                                                                                   |
 | 7   | No audio (visits are never zero — the main visit is always present, §6.4/§31.2-1) | The wizard blocks generation (invalid report; §31.2 creation steps, §52.10).                                                                            |
 | 8   | Multiple clips on the report tab                                                  | All merge into the report's transcription (§33) — order-independent.                                                                                    |
@@ -1683,6 +1688,15 @@ interpretation and implementation pointers. The outline scope for this
 section — 16 generation rules, correction rules, and the no-invent
 rule — is fully covered here: generation rules in §8.2–§8.4, correction
 behavior in §8.5.
+
+> **Consolidated amendment (2026-09-01).** Generation is
+> **acceptance-driven from the report chat** (§34): the input is
+> `metadata + transcription.latest + GenerationPreset + history-digest`
+> (per-user digest; grounded-history agent). The produced output is the
+> report body (written into `Report.generated` on accept) plus the
+> Item rows (per-type statuses; no rating). The 16 rules below remain
+> canon for the generated body text. Type-2 body content is
+> main-branch-attributed (§6.4/§6.10 locked decision 5).
 
 ### 8.2 The 16 generation rules (verbatim)
 
@@ -2240,12 +2254,14 @@ Client reads only VITE\_ variables. No API keys are ever exposed there
 
 | Constant                | Value                                                                                                                                                                                                                                                                                                         | Used by                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `REPORT_STATUSES`       | `['draft', 'audio_attached', 'transcribed', 'generated']`                                                                                                                                                                                                                                                     | §5, §31, §51            |
+| `REPORT_STATUSES`       | **REMOVED (2026-09-01)** — no report status machine; "generated" is derived from the `generated` field (§21) + Item existence (BR-06)                                                                                                  | §5, §31, §50            |
 | `ITEM_TYPES`            | `['activity', 'issue', 'comment']`                                                                                                                                                                                                                                                                            | §24A, §34, §38          |
 | `ITEM_STATUSES`         | `['reported', 'in_progress', 'completed']`                                                                                                                                                                                                                                                                    | §24A, §54               |
-| `ITEM_STATUSES_BY_TYPE` | `{ activity: ['completed', 'in_progress'], issue: ['reported', 'in_progress', 'completed'], comment: [] }`                                                                                                                                                                                                    | §24A, §54               |
+| `ITEM_STATUSES_BY_TYPE` | `{ activity: ['completed', 'in_progress'], issue: ['reported', 'in_progress', 'completed'], comment: [] }` — no rating on comments (2026-09-01)                                                                                                                                                              | §24A, §54               |
 | `AI_PROVIDERS`          | `['addis', 'gemini', 'nvidia']`                                                                                                                                                                                                                                                                               | §16, §34, §35, §36      |
 | `LANGUAGE_CODES`        | `{ am: 'am', en: 'en' }` with `om`/`ti` reserved, not activated                                                                                                                                                                                                                                               | §7.7, §16, §33, §34     |
+| `CONTENT_MAX_SIZE_BYTES`| 1048576 (1 MB) — cap for `raw`/`latest`/`generated` (16 MB guardrail; proposed, §21)                                                                                                                                                                                                                          | §21, §34                |
+| `DIGEST_MAX_TOKENS`     | proposed — bound for the history-digest context (grounded-history agent, §34)                                                                                                                                                                                                                                 | §34                     |
 | `AI_MODELS`             | per-provider model registry, see §16.2: every model entry carries an id, a `default` flag, and a `reasoning` capability flag. Initial registry: addis `[Addis-፩-አሌፍ]` (default, reasoning off); gemini `[gemini-3.1-flash-lite]` (default, reasoning on); nvidia `[deepseek flash 4]` (default, reasoning on) | §16, §34, §35, §36, §54 |
 | `AI_REASONING_EFFORTS`  | `['off', 'low', 'medium', 'high']`                                                                                                                                                                                                                                                                            | §16, §34, §35, §36, §54 |
 | `AI_REASONING_DEFAULT`  | `'off'` — the conversation-level standing reasoning effort applied to every TTT request (§16.2, §24.2)                                                                                                                                                                                                        | §16, §24, §34, §35, §36 |
@@ -3225,10 +3241,11 @@ backend/
 |   |-- index.js                    (implemented)  # the single route registry (§12.2, §26)
 |   |-- auth.routes.js              (implemented)  # §28 surface incl. the §28.6 Google stub (added 2026-08-19)
 |   |-- branch.routes.js            (implemented)  # §30 surface (added 2026-08-20)
-|   |-- report.routes.js            (implemented)  # §31 surface incl. generations/corrections (§34/§35; added 2026-08-20)
-|   |-- audio.routes.js             (implemented)  # §32 surface (added 2026-08-20)
-|   |-- transcription.routes.js     (implemented)  # §33 surface incl. the STT-only transcripts endpoint (added 2026-08-20)
-|   |-- chat.routes.js              (implemented)  # §36 surface (added 2026-08-20)
+|   |-- report.routes.js            (implemented)  # §31 surface incl. atomic create, items, generations/corrections (§34/§35; added 2026-08-20)
+|   |-- audio.routes.js             (implemented)  # §32 surface — nested /reports/:reportId/clips (embedded AudioClip, 2026-09-01; added 2026-08-20)
+|   |-- transcription.routes.js     (implemented)  # §33 surface incl. the STT-only transcripts endpoint + embedded transcription reads (added 2026-08-20)
+|   |-- chat.routes.js              (implemented)  # §36 surface — post-creation agent cards (thread/send/retry/accept/revert, 2026-09-01; added 2026-08-20)
+|   |-- preset.routes.js            (planned)      # GenerationPreset CRUD (§34, 2026-09-01)
 |   |-- export.routes.js            (implemented)  # §37 — content surface; the docs route unmounted behind EXPORT_DOCS_ENABLED (added 2026-08-20)
 |   |-- analytics.routes.js         (implemented)  # §38 — dashboard + items (added 2026-08-20)
 |   |-- search.routes.js            (implemented)  # §39 — global search (added 2026-08-20)
@@ -3323,7 +3340,7 @@ client/
     |   |-- ethiopianDateAdapter.js    (implemented)  # field display → Ethiopian DD-MM-YY (§46.6)
     |   |-- toast.jsx                  (implemented)  # showToast/dismissToast — the §60.3 trigger API (§60)
     |   |-- sanitizeHtml.js            (implemented)  # DOMPurify wrapper — the §61.3 double gate (§61)
-    |   |-- wizardValidation.js        (implemented)  # wizard rule helpers (§52)
+    |   |-- wizardValidation.js        (RETIRED, 2026-09-01)  # §52 wizard retired — superseded by the atomic create dialog + /edit tabs
     |   `-- useMediaRecorder.js        (implemented)  # recording hook; reused by Mode 3 (§53)
     |-- hooks/
     |   `-- useLogout.js               (implemented)  # the single logout flow (§47.6)
@@ -4096,23 +4113,31 @@ no new path is introduced here; any future entity requires amending
 | ---------------- | ------------- | --------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
 | User             | §19           | user-scoped                 | `_id`                        | single actor; no roles (ADR-036)                                                                   |
 | Branch           | §20           | user-scoped (`user`)        | `_id`                        | created and owned by the registering user; two-path lifecycle (BR-14, BR-16); no TTL index (§18.3) |
-| Report           | §21           | user-scoped (`user`)        | `_id`, date field            | four-status machine (`REPORT_STATUSES`, §11.4; BR-06); one branch, visits[]                        |
-| Audio            | §22           | user-scoped (`user`)        | `_id`                        | document carries metadata only; binary on local FS (§12.9); report-level, no visit key             |
-| Transcription    | §23           | user-scoped (`user`)        | `_id`                        | 1:1 with report; `raw` + `latest` (F5, BR-11)                                                      |
-| Item             | §24A          | user-scoped (`user`)        | `_id`                        | activities/issues/comment rows; per-type status (§6.10)                                            |
-| ChatConversation | §24           | user-scoped (`user`)        | `_id`                        | one per report; messages carry `{ provider, model, reasoning }` (§16.2, §36)                       |
+| Report           | §21           | user-scoped (`user`)        | `_id`, date field            | single collection; **no status machine** — generated derived from the `generated` field + Items (BR-06); `visits[]` with `isMain`; **embeds `audios[]` + `transcription{raw,latest}`** |
+| Item             | §24A          | user-scoped (`user`)        | `_id`                        | activities/issues/comment rows in a **separate collection**; per-type status; no rating (2026-09-01) |
+| ChatConversation | §24           | user-scoped (`user`)        | `_id`                        | one per report; post-creation agent cards + `acceptedResponseId` (2026-09-01); grounded-history digest per user |
 
-Ownership: every row of the seven collections is bound to the
+> **Consolidated amendment (2026-09-01):** Audio and Transcription are
+> **embedded members of Report**, not entities — the persisted system
+> of record is now **five entities**: User, Branch, Report (with
+> `audios[]` + `transcription{}` embedded), Item (separate), and
+> ChatConversation (per report). GenerationPreset is a user CRUD
+> resource (config; §34), not a system-of-record entity. This supersedes
+> the earlier seven-collection inventory and the standalone Audio/
+> Transcription models (§22/§23 rewritten as embedded members).
+
+Ownership: every row of the five collections is bound to the
 authenticated, server-assigned user (`req.user._id.toString()`,
 §3.2.3); all queries across §30–§39 resolve the owning user
 server-side; nothing is shared between users. Branches are owned by
 their creator, and reports reference them by plain `ObjectId`
-(`report.branch`, `visits[].branch`, `items[].branch`); branch
-removal is refused while references exist — references never dangle
-(BR-14). The seven collections above are the complete
-persisted system of record; the `visits[]` block and conversation
-messages are child documents of their owning
-entity (§17.3), not separate collections.
+(`visits[].branch`, `items[].branch` — the report has **no root
+`branch`/`clockIn`/`clockOut` fields**; those are derived from
+`visits[]`); branch removal is refused while references exist —
+references never dangle (BR-14). The five collections above are the
+complete persisted system of record; `visits[]`, `audios[]`,
+`transcription`, and conversation messages are child documents of
+their owning entity (§17.3), not separate collections.
 
 ### 17.3 Entity–relationship map (ERD) & cardinalities
 
@@ -4123,60 +4148,59 @@ the authoritative edge list):
 | ------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | User — Branch             | 1 — N       | `user` on Branch                                                                                                                                                                                                      | §3.2.3, §20      |
 | User — Report             | 1 — N       | `user` on Report                                                                                                                                                                                                      | §3.2.3, §21      |
-| Branch — Report           | 1 — N       | `report.branch` (plain `ObjectId` join)                                                                                                                                                                               | §20, §21, BR-14  |
 | Branch — Visit            | 1 — N       | `visits[].branch` (plain `ObjectId` join)                                                                                                                                                                             | §20, §21, BR-14  |
-| Report — Audio            | 1 — N clips | `report` on Audio                                                                                                                                                                                                     | BR-01/BR-02, §22 |
-| Report — Transcription    | 1 — 1       | `report` on Transcription (unique, sparse — a required ref, the sparse option is the null-safe choice there) + the report's `transcription` ref (**unique, partial `$type: objectId`** — corrected 2026-08-20, §21.3) | §23, §33, §21.3  |
-| Report — Item             | 1 — N       | `report` on Item                                                                                                                                                                                                      | §24A, §34        |
+| Report — Audio            | 1 — N clips | **embedded** `audios[]` on Report (AudioClip subdoc; no separate collection)                                                                                                                                          | BR-01/BR-02, §21 |
+| Report — Transcription    | 1 — 1       | **embedded** `transcription{raw,latest}` on Report (no separate collection, no ref, no unique index)                                                                                                                   | §21, §23, §33    |
+| Report — Item             | 1 — N       | `report` on Item (separate collection)                                                                                                                                                                                | §24A, §34        |
 | Report — ChatConversation | 1 — 1       | `report` on ChatConversation (unique, sparse)                                                                                                                                                                         | §24, §36         |
 
 No collection reads another collection's private cells except through
 the edges above. Reports reference branches by **plain `ObjectId`**
-(`report.branch`, `visits[].branch`, `items[].branch` — the live
-join key, rename-proof; used by branch filters and pickers). There
-is **no snapshot shape and no embedded name copy**: display names
-always join to the live Branch document, and branch removal is
-refused while any report, visit, or item row references the branch
-(§20/§30/§62) — references can never dangle and no tombstone is
-needed (BR-14; owner-correction set 2026-08-18).
+(`visits[].branch`, `items[].branch` — the live join key,
+rename-proof; used by branch filters and pickers). The report has
+**no root `branch` / `clockIn` / `clockOut` fields** — they are
+derived from `visits[]` (day start = `visits[0].clockIn`, day exit =
+`visits[n-1].clockOut`, main = the `isMain` visit). There is **no
+snapshot shape and no embedded name copy**: display names always
+join to the live Branch document, and branch removal is refused while
+any report visit or item row references the branch (§20/§30/§62) —
+references can never dangle and no tombstone is needed (BR-14;
+owner-correction set 2026-08-18).
 
-**Audio–report binding (source side).** Each Audio row carries
-`report`, written once at upload — the report's clips bind to the
-report, never to a visit (§6.10). A report's clips resolve by
-query — `Audio.where({ report })` — then each clip's 1:1
-transcription ref (§33) — never by array position, clip count, or
-ordering assumption. The binding has a single write site; the report
-row keeps no audio or transcription field beyond the 1:1
-`transcription` ref (§21.2/§23); re-transcription rewrites the
-report's transcription row in place; removing a report cascades its
-clips' documents in the same write session (§17.4, §18.5).
+**Audio–report binding (embedded, 2026-09-01).** Each report embeds
+its `audios[]` (AudioClip subdoc: `{ _id, mimeType, sizeBytes,
+durationSec, filePath, createdAt }` — metadata only; the binary lives
+on local disk §12.9). The report's clips resolve by reading the
+embedded array — never a separate query. Re-transcription rewrites
+the embedded `transcription` in place; removing a clip removes the
+subdoc AND unlinks the physical file (direct delete, §21/§22); no
+separate Audio/Transcription collections exist.
 
 ### 17.4 Cascade, lifecycle & integrity map
 
 - **Hard delete** happens only via the service layer, inside
-  sessions/transactions (§18): report delete cascades its
-  audio documents, transcription row, item rows, and conversations;
-  audio delete cascades its transcription; binary unlink failures are
-  retried by the orphan sweep (§12.9, §31, §62).
-- **Audio removal (delete a clip).** Deleting
-  one audio of a report always cascades its transcription and leaves
-  the report row and every other artifact intact. Pre-generation the
-  status survives as long as the presence map of §17.6 still holds;
-  deleting the **last** audio of an `audio_attached` report rewinds to
-  `draft`, and of a `transcribed` report rewinds to
-  `audio_attached` — the single explicit backward transition
-  (ADR-003; declared in §31). At `generated` audio removal is
-  **frozen** (BR-12, §31.4): the generated content is the
-  deliverable, and corrections are the editing path (BR-10, §35).
-  The remaining clips re-merge in chronological order before the next
-  generation (§6.4).
-- **Audio addition.** New clips can be attached
-  at every status **below `generated`**; adding never rewinds a
-  status — at `draft` it
-  simply enables the next forward step (`draft` → `audio_attached`)
-  when the user proceeds, and at later statuses it adds source
-  material for the next generation/correction cycle. At `generated`
-  audio addition is frozen (BR-12, §31.4).
+  sessions/transactions (§18): report delete cascades its embedded
+  `audios[]` (subdocs + `fs.unlink` of physical files), its embedded
+  `transcription`, item rows, and conversations; binary unlink
+  failures are retried by the orphan sweep (§12.9, §31, §62).
+- **Audio removal (delete a clip).** Deleting one clip removes the
+  `audios[]` subdoc AND unlinks the physical file (direct delete,
+  2026-09-01 — no archive/restore on clips). **There is no status
+  machine**, so no rewind statuses exist: the report stays not-...
+  until it is generated (its `generated` field non-empty + Items
+  exist, BR-06). Deleting a clip while the report is generated is
+  **frozen** (403, §31): the generated content is the deliverable,
+  and corrections are the editing path (BR-10, §35). Deleting a clip
+  of a not-yet-generated report that has a transcription drops
+  readiness (the transcription becomes stale); the pending-clip
+  bookmarking mechanism (the re-sync of `generated`/transcription to
+  the remaining clips) is **deferred** (R4/R7).
+- **Audio addition.** New clips can be attached while the report is
+  **not generated** (its `generated` field empty); adding never
+  changes a derived state — an added clip on a transcription-bearing
+  report drops readiness until re-transcribed (pending-clip mechanism
+  deferred, R4/R7). Once the report is generated (via chat accept),
+  audio addition is frozen (BR-12, §31).
 - **Two-path lifecycle** (BR-14, BR-16): archive is soft (`isArchived`,
   `archivedAt`, hidden from pickers by default) and reversible
   (`restore`); the retention-window anchor is declared per owning
@@ -4208,8 +4232,9 @@ clips' documents in the same write session (§17.4, §18.5).
 
 ### 17.5 Storage, retention & seeding map
 
-- Single system of record: MongoDB (the seven collections of 17.2),
-  built by the §19–§24A models (§12.3, §12.9, §15). Binary audio lives
+- Single system of record: MongoDB (the five collections of 17.2),
+  built by the §19–§24A models and the §21 embedded members (AudioClip,
+  Transcription — §12.3, §12.9, §15). Binary audio lives
   on the local filesystem (`uploads/audio/`, gitignored) with only
   metadata (path, size, duration, MIME) in the Audio document; no
   GridFS, no object store (§12.9).
@@ -4222,37 +4247,29 @@ clips' documents in the same write session (§17.4, §18.5).
   seed endpoints; never hard-coded into models (§40).
 - Out of scope: backups, external object storage, CDN (§12.9, §4.2).
 
-### 17.6 Status-machine data-presence invariants
+### 17.6 Data-presence invariants (consolidated 2026-09-01 — no status machine)
 
-The statuses are `REPORT_STATUSES` (§11.4; BR-06). The table below
-states which persisted artifacts exist while a report sits in each
-state — the data presence requirement; the _transitions_ and their
-guards live exclusively in §30/§31, so this table is the mirror view,
-never the rule book. The only backward movement anywhere in the
-machine is the explicit material-removal rewind of §17.4 (last audio
-deleted), declared in §31 (ADR-003); because the rewind moves a row
-to the highest state whose presence requirements still hold, the map
-below stays valid at every instant — including immediately after any
-audio addition, removal, or content edit (BR-10).
+There is **no `status` field and no `REPORT_STATUSES`** (BR-06,
+§11.4). Report state is **derived from persisted data**:
 
-| Status           | Required persisted artifacts                                                                                                                                                                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `draft`          | report row only (no audio required)                                                                                                                                                                                                                                                  |
-| `audio_attached` | report + at least one `Audio` row                                                                                                                                                                                                                                                    |
-| `transcribed`    | report + audio rows + the 1:1 Transcription row with `raw` (and `latest`, both initialized equal), connected via the report's `transcription` ref (unique partial `$type: objectId`, §21.3 — corrected 2026-08-20) — the presence check is the ref/query, never a materialized field |
-| `generated`      | the report's Transcription `latest` holds the generated content; the report's Item rows (activities, issues, comment — §24A) exist; report exported (§37) — the export is a deliverable, never a persisted artifact on any row (§58, §37)                                            |
+| Derivation                         | Required persisted artifacts                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| materialized (created)             | report row with `visits[]` + `audios[]` + embedded `transcription{raw,latest}` (atomic create commits all, §31)                  |
+| generated                          | `report.generated` non-empty (§6-format body string, written on chat accept) **and** the report's Item rows exist (§24A)        |
+| not-yet-generated                  | report row materialized; `generated === ""`, no Items (revert reopens, BR-06/BR-08)                                            |
+| readiness-to-generate (deferred)   | pending-clip bookmarking mechanism (R4/R7) — whether every current clip is represented in the transcription                     |
 
-An invariant across every status: the report's `user` equals the
-session owner and every artifact of §17.4/§17.6 is present — a row that
-violates the map above is a data-integrity violation (§30). Content and
-transcription edits never change these rows (BR-11), audio removal
-cascades transcription (17.4), and the last-audio rewind lands on the
-highest state whose presence holds — so the map is never violated by
-an allowed material change (BR-10).
+An invariant across every derived state: the report's `user` equals
+the session owner and every artifact is present — a row that violates
+the map above is a data-integrity violation (§30). Content and
+transcription edits never move derivation (BR-11); clip removal
+direct-deletes and, on a transcription-bearing not-yet-generated
+report, drops readiness (deferred re-sync, R4/R7); accept sets
+`generated` + writes Items, revert clears them (BR-08).
 
 ### 17.7 Verification usage
 
-- Grep gates: `ARCHIVED_TTL_SECONDS`, `REPORT_STATUSES`,
+- Grep gates: `ARCHIVED_TTL_SECONDS`,
   `ADDIS_AI_STT_MAX_DURATION_SEC` resolve to §11.3/§11.4 — never the
   literals `2592000`, status strings, or durations; only the seven
   §19–§24A entities appear in §17; the edges of 17.3 map to BR-01/
@@ -4427,7 +4444,9 @@ catch → abortTransaction → finally → endSession` (ADR-018, §12.2,
   and no hook deletes dependents — deletions cascade in the service
   transaction (§17.4, §31).
 
-### 18.7 Common shapes (the seven-models contract)
+### 18.7 Common shapes (the five-entity contract)
+
+The five entities of §17.2 are the only
 
 - **Ownership.** Every collection except the User root (§19)
   carries a required `user` (`ObjectId`) — the single owner
@@ -4438,8 +4457,9 @@ catch → abortTransaction → finally → endSession` (ADR-018, §12.2,
   shared between users (BR-13; the live join of §17.4/§20 stays
   within the owner's rows).
 - **Branch reference shape.** Models reference branches by the
-  plain `ObjectId` field only (`report.branch`, `visits[].branch`,
-  `items[].branch`) — the live join key. There is **no snapshot
+  plain `ObjectId` field only (`visits[].branch`,
+  `items[].branch` — the report has no root `branch` field,
+  §21) — the live join key. There is **no snapshot
   shape and no embedded name copy**: display names always join to
   the live Branch document, and branch removal is refused while any
   report, visit, or item row references the branch (§20/§30/§62) —
@@ -4865,843 +4885,423 @@ finally endSession`); write statics accept a `{ session }` option.
 ### 21.1 Purpose & scope
 
 §21 is the model section for the Report — the daily supervision report
-of the single actor (§3), the core deliverable of the product. It
-renders the §17.2 Report row ("user-scoped, key `_id` and the date
-field; four-status machine (`REPORT_STATUSES`, §11.4; BR-06)")
-as a schema contract: the field set (including the capture metadata
-stored at capture time, §6.1), the keys and the TTL declaration, the
-status and content-presence contract, the lifecycle
-fields, the capture-visits contract, and the transforms. It follows
-the §18 conventions exactly like §19 and §20.
+of the single actor (§3). This section carries the **consolidated
+amendment (2026-09-01)** — the user-first re-amendment that SUPERSEDES
+the earlier §21/§31 letter and the R1 amendment banner (see
+`findings.md` "CONSOLIDATED re-amendment"; `task_plan.md`
+"Consolidated supersession"). The Report is a **single collection** that
+**embeds** `audios[]` (metadata-only AudioClip subdocs) and
+`transcription{raw,latest}` (1:1). There is **no separate Audio or
+Transcription collection** (§17.2) and **no `status` field** — the
+report's state is derived (BR-06, §17.6). The report body is NOT stored
+in `latest`; it lives in the **`generated`** string field (the §6-format
+body) written on chat accept.
 
-> **R1 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
-> the trust overlay (owner directive 2026-09-01), §21 is no longer a
-> single source of truth until amended. This amendment supersedes the
-> older letter below: the report carries **no root `branch`,
-> `clockIn`/`clockOut`, or `transcription` fields** — capture is
-> `date` + `visits[]` (sub-schema `{ branch, clockIn, clockOut,
-> isMain }`, `_id: false`), the main branch is user-decided via
-> `isMain` (exactly one when visits.length > 1, position-independent),
-> visits are positional + chronological, day start/exit and Type are
-> derived from `visits[]`, and all child edges (audio, transcription,
-> items) are child-side (Option X). `status` is stored and
-> transition-guarded; lifecycle = `isArchived`/`archivedAt` (no
-> `deletedAt`). Ethiopian date/time is shown/selected/filtered at the
-> boundary everywhere. See findings.md/progress.md/task_plan/AGENTS.md
-> R1 record.
-
-- **Owned here (normative).** Field registry and report identity
-  (§21.2); keys, indexes and TTL (§21.3); status and content
-  presence (§21.4); lifecycle fields and document states (§21.6);
-  capture metadata and the visits contract (§21.7); hooks and session
-  contract (§21.8); transforms and exposure (§21.9); seeds and mocks
-  (§21.10); evolution (§21.11).
-- **Owned elsewhere — deliberately not repeated here.** Status
-  transitions and their guards, the archive/restore/delete flows,
-  and the report delete cascade = §31; the capture & content
-  contract (form-only metadata, the item status vocabulary, the
-  defaults and ratings) = §6.10; the report content slots (`raw`/
-  `latest`, dual-phase) = §23; the Item rows = §24A;
-  audio documents, upload and removal = §22/§32; chat
-  conversations = §24/§36; content generation and correction writes
-  to the transcription content slots = §34/§35; export fidelity =
-  §37/§58; the sweeper and windows = §62; field validators = §29;
-  wizard steps and Reports UI = §52, §50–§54; search = §39;
-  analytics = §38/§49; the ownership guard = §3.2.3/BR-13; the
-  retention constants = §11.
-- **Explicitly out of scope §21.** No endpoint, no transition or
-  guard rule (§30–§31 own them), no retention arithmetic (§62), no
-  capture-contract rules (§6.10, §52), no content mechanics (§23/§24A
-  own the slots and rows), no new constant (§11 unchanged), no new
-  package — the model layer is `mongoose` (^9.7.4 in the §13.3
-  manifest, nothing to install), and no seed data (§18.8, §25, §40).
+It follows the §18 conventions exactly like §19 and §20.
 
 ### 21.2 Field registry & report identity
 
-| Field                     | Type                         | Required                                             | Rule                                                                                                                                                           |
-| ------------------------- | ---------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId                     | auto                                                 | the only key; never `id` (§12.11-3)                                                                                                                             |
-| `user`                    | ObjectId (ref User)          | yes                                                  | creator-owner — reports are private to the authenticated user (BR-13, §3.2.3); the key of the ERD User — Report edge (§17.3); the user's `fullName` virtual renders the report header name at read time (§19.4, §6.3 field 3) |
-| `date`                    | Date                         | no (null while not captured)                         | the report date field of §17.2 — the `ቀን` workday value (§6.3); Ethiopian date/time shown/selected/filtered at the boundary everywhere; stored as a UTC `Date` normalized to UTC midnight by the §29 validators (§18.2, §29); displayed as Ethiopian at the boundary (§6.5, §7.6); range queries use the same UTC-midnight normalization |
-| `visits`                  | Array                        | yes (≥ 1)                                            | the single source of truth for the capture block — the report's root holds **no** `branch`/`clockIn`/`clockOut` copies. Each entry is `{ branch: ObjectId (ref Branch, required), clockIn: String (required, `HH:mm`), clockOut: String (required, `HH:mm`), isMain: Boolean (required) }` with `_id: false`; entries are **positional and chronological** (visits[i].clockIn ≤ visits[i+1].clockIn, §9.3); the main branch is user-decided via `isMain` — **exactly one `isMain: true` when visits.length > 1** (a single visit is implicitly main), and the main position is **independent of array index**; Type = visits.length (§6.4) |
-| `status`                  | String                       | yes (default `draft`)                                | member of `REPORT_STATUSES` (§11.4, BR-06, §17.2); the value always comes from the constants file, never a literal (§17.7 gates); **stored and transition-guarded** — it is the authoritative cell of the §31.4 status machine (not derived); reports enter at `draft` from the create dialog (BR-05 replaced by the meta-only create dialog §31.2) |
-| `isArchived`              | Boolean                      | yes (default `false`)                                | lifecycle flag (BR-16, F4); archived rows are hidden from default reads and appear only under explicit filters (§17.4)                                           |
-| `archivedAt`              | Date                         | no (null while active)                               | set when the report is archived; cleared on restore; the retention-window anchor and the TTL index target (§21.3, §21.6)                                           |
-| `createdAt` / `updatedAt` | Date                         | auto                                                 | §18.2 timestamps                                                                                                                                                 |
+| Field            | Type                | Required   | Rule                                                                                                                                                                                                 |
+| ---------------- | ------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_id`            | ObjectId            | auto       | the only key; never `id` (§12.11-3)                                                                                                                                                                   |
+| `user`           | ObjectId (ref User) | yes        | creator-owner — reports are private to the authenticated user (BR-13); the ERD User—Report edge (§17.3); the `fullName` virtual renders the header `ስም` (§19.4)                                        |
+| `date`           | Date                | no (null until captured) | the report date field of §17.2 — the `ቀን` workday value (§6.3); stored as a UTC `Date` normalized to UTC midnight by the §29 validators (§18.2); displayed Ethiopian `DD-MM-YY` at the boundary (§6.5); range queries use the same normalization; fallback from the reviewed transcription, missing stays blank (BR-19) |
+| `visits`         | Array               | yes (≥ 1)  | the single source of truth for the capture block — the report holds **no root `branch`/`clockIn`/`clockOut`**; each entry is `{ branch: ObjectId (ref Branch, required), clockIn: String (required `HH:mm`), clockOut: String (required `HH:mm`), isMain: Boolean (required) }` with `_id: false`; entries are **positional + chronological** (`visits[i].clockIn ≤ visits[i+1].clockIn`, §9.3); the main branch is **user-decided** via `isMain` — **exactly one `isMain: true` when visits.length > 1** (a single visit is implicitly main), position-independent; a visited branch resolves to an **active** branch of this user (foreign/archived → 422, §29) |
+| `audios`         | Array (embedded)    | no         | **embedded AudioClip subdocs** (`_id` on): `{ mimeType (AUDIO_ALLOWED_MIME_TYPES), sizeBytes (≤ AUDIO_MAX_SIZE_BYTES = 50 MB), durationSec (≤ AUDIO_MAX_DURATION_SEC = 900 s, ffprobe), filePath (server-internal under uploads/audio/, STRIPPED from every DTO, never logged), createdAt }` — binary lives on local disk, never MongoDB (§12.9); direct-delete removes the subdoc + unlinks the file (§21.6); frozen while generated |
+| `transcription`  | Object (embedded)   | yes (present on a committed report) | `{ raw: String, latest: String }` — **embedded 1:1**, written at atomic create; `raw` = merged STT result, immutable except STT re-runs (BR-11); `latest` = the transcription content slot (init = `raw`; review edits overwrite it) — **NOT the report body** (§6, §23) |
+| `generated`      | String              | no (default "") | the **§6-format report body** written on chat **accept** (§34); empty until accepted; **cleared on revert** (§36); non-empty + Item existence ⇒ derived "generated" (BR-06/BR-08, §17.6); content cap `CONTENT_MAX_SIZE_BYTES` (§11.4) |
+| `isArchived`     | Boolean             | yes (default false) | lifecycle flag (BR-16); archived rows hidden from default reads (§17.4)                                                                                                                                |
+| `archivedAt`     | Date                | no (null while active) | set at archive, cleared on restore; the retention anchor + TTL index target (§21.3)                                                                                                                    |
+| `createdAt`/`updatedAt` | Date          | auto       | §18.2 timestamps                                                                                                                                                                                       |
 
-**Amended (R1 amendment, 2026-09-01):** the report carries **no root
-`branch`, `clockIn`, `clockOut`, or `transcription` fields** — all
-replaced by the `visits[]`-only capture (Option X). No `deletedAt`
-exists by design: the archive timestamp is the single retention anchor
-(§17.4). Day start/exit and the type (Type-1/Type-N) are derived
-deterministically:
+**Dropped (consolidated 2026-09-01):** root `branch`, root
+`clockIn`/`clockOut`, `status`, `generatedAt`, `transcription.contributions`,
+`language`, `stt.requestId`/`stt.model`, embedded `items` (Items are a
+separate collection, §24A). No `deletedAt` exists by design (archive
+timestamp is the single retention anchor, §17.4). No `supervisorName`
+is stored — the `ስም` header renders the user's `fullName` virtual
+(§19.4). No snapshot fields; header values are live-derived.
+
+**Derived values (read time, never stored):**
 - day start = `visits[0].clockIn`; day exit = `visits[n-1].clockOut`
-- main branch = the visit where `isMain === true` → its `branch`
-- Type = `visits.length`
+- main branch = the visit where `isMain === true` → its `.branch`
+- Type = `visits.length` (Type-1 = single visit; Type-2 = ≥ 2)
+- generated = `generated !== ""` **and** Items exist (§17.6)
 
-They are never stored. The report carries **no content fields**:
-`raw`/`latest` live on the 1:1 Transcription row (§23, §18.7) and the
-report's content items live as Item rows (§24A); `supervisorName` is
-not stored — the `ስም` header renders the user's `fullName` virtual at
-the boundary (§19.4, §6.3 field 3). Audio, item, and transcription
-edges of §17.3 are all served from the **child side** (Option X): each
-Audio row carries `report` (§22), each Item row carries `report`
-(§24A), and the Transcription row carries `report` (§23) — the Report
-holds no parent ref arrays and no 1:1 transcription ref. No
-`acceptedAt` and no `exportedAt` field exists — there is no accept
-ceremony (BR-08) and export artifacts live outside the system of
-record (§37/§58). No other field exists: nothing outside this table is
-persisted.
-
-**Open items (per the §69 open-question rule).**
-
-- **OQ-007 (closed at the §66 P4 editor phase, 2026-08-15 — recorded
-  here).** The storage format of the transcription content is
-  decided: **`raw` is plain text, `latest` is rich-text HTML** (the
-  de-facto convention of the §40 fixtures and the §66.10 mock
-  generation — `RAW_R*` plain with `±` leads, `latestFromRaw` HTML —
-  now the normative rule). Both slots stay plain `String` (§23.2);
-  sanitize-on-store and the HTML contract are owned by the ADR-038
-  owner sections (§46.16/§53/§54/§61); §21 does not re-open the
-  format.
-- **OQ-001 (closed by amendment, recorded here).** The version-history
-  question was closed by the ADR-005 retirement amendment
-  (2026-08-09, §14.3/§14.5): no version chain — the `raw`/`latest`
-  single-undo model is the content model (BR-11).
+**Content model:** `metadata + items = report`. The report body is the
+`generated` field; `latest` is the transcription slot.
 
 ### 21.3 Keys, indexes & TTL
 
-- **Owner-scoped list index.** `schema.index({ user: 1, isArchived:
-1, date: -1, createdAt: -1 })` serves the reports list read
-  paths (Reports UI, §50–§54): active rows by default, archived rows
-  on explicit filter, most recent working day first, always scoped to
-  the owner (`user`, BR-13); reports without a `date` yet
-  resolve deterministically through the `createdAt` tiebreak.
-  Declared via `schema.index(..)` per §18.3; no field-level
-  `unique: true` combined with a separate index.
+- **Owner-scoped list index.** `schema.index({ user: 1, isArchived: 1,
+  date: -1, createdAt: -1 })` serves the reports list read paths
+  (§50): active rows by default, archived on explicit filter, most
+  recent working day first, owner-scoped. Declared via
+  `schema.index(..)` per §18.3.
 - **Branch/visits multikey index.** `schema.index({ user: 1,
-'visits.branch': 1 })` serves both the **main-branch filter** (Q1 —
-  reports whose main visit `isMain === true` is the filter branch,
-  `$elemMatch { branch, isMain: true }`) and the **visited-branch
-  filter** (Q2 — a report matches when any visit's `branch` equals the
-  filter branch), plus the reports-domain branch cascade ref-check
-  (§30.6). `branch` is no longer a root field — all branch queries are
-  multikey over the embedded `visits[]`.
-- **Date and status indexes.** `schema.index({ user: 1, date: 1 })`
-  serves the §38.5/§49 rollup windows and date-range
-  filters (UTC-midnight buckets, §29); `schema.index({ user: 1,
-  status: 1 })` serves the §50 status filters and §49/§56 rolls.
-- **No transcription index on Report.** Under Option X the Report has
-  no `transcription` ref; the 1:1 one-transcription-per-report
-  invariant is enforced **child-side** on the Transcription model via a
-  unique index on `Transcription.report` (§23/R4) — nothing is declared
-  here.
-- **TTL declaration.** Exactly the §18.3 declaration applies: an
-  index on `archivedAt` with `expireAfterSeconds` =
-  `ARCHIVED_TTL_SECONDS` (§11.3) as the MongoDB-internal safety net —
-  the sweeper wins races, TTL runs server-side without cascade or
-  session (§12.2, §62), and no other TTL index exists on the model.
-- **No further indexes.** The join directions live on the child side
-  (Audio, ChatConversation, Transcription, Item); the search strategy over report
-  content and branch names is decided
-  by §39, which will prove any text index it needs; nothing else is
-  indexed without proof (§18.3).
+  'visits.branch': 1 })` serves the main-branch filter (Q1 —
+  `$elemMatch { branch, isMain: true }`), the visited-branch filter,
+  and the reports-domain branch cascade ref-check (§30.6). `branch`
+  is no longer a root field — all branch queries are multikey.
+- **Date and status-derived indexes.** `schema.index({ user: 1,
+  date: 1 })` serves §38/§49 rollups and date-range filters;
+  `schema.index({ user: 1, generated: 1 })` serves the
+  "generated / not-generated" list filter (`generated: { $ne: '' }`).
+- **No Audio/Transcription indexes** — they are embedded members of
+  this collection (no separate collections to index).
+- **No `status` index** — no status field exists.
+- **TTL declaration.** `schema.index({ archivedAt: 1 },
+  { expireAfterSeconds: ARCHIVED_TTL_SECONDS })` as the
+  MongoDB-internal safety net; the sweeper wins races, TTL runs
+  server-side without cascade or session (§12.2, §62).
+- **No further indexes** without the §18.3 proof rule.
 
-### 21.4 Status & content presence contract
+### 21.4 Derived-state & content-presence contract
 
-The four statuses are `REPORT_STATUSES` (BR-06, §11.4). The table
-below is the mirror of the §17.6 presence map — it states which
-artifacts exist at each status; the transitions and their guards live
-exclusively in §30/§31, so this table is never the rule book:
+Report state is **derived** (§17.6, BR-06): `materialized (created)` =
+the row exists with `visits[]` + `audios[]` + `transcription` (the
+atomic create commits all together); `generated` = `generated !== ""`
+**and** Items exist; `not-yet-generated` = `generated === ""`, no Items
+(revert reopens). Readiness-to-generate (every clip represented in the
+transcription) uses a **deferred** pending-clip bookmarking mechanism
+(R4/R7). Content and transcription edits never move the derived
+`generated` (BR-11); **accept** sets it + writes Items; **revert**
+clears it + deletes Items (BR-08).
 
-| Status           | Required persisted artifacts (mirror of §17.6)                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `draft`          | report row only (no audio required); the `date` + `visits[]` capture metadata holds what the create dialog captured (BR-05)      |
-| `audio_attached` | report + at least one `Audio` row                                                                                               |
-| `transcribed`    | report + audio rows + the 1:1 Transcription row with `raw` (and `latest`, both initialized equal)                               |
-| `generated`      | the Transcription row's `latest` holds the generated content; the report's Item rows (activities, issues, comment — §24A) exist |
-
-- The report row itself carries **no content**: `raw` and `latest`
-  live on the 1:1 Transcription row (§23), null until the first
-  transcription; the first generation writes the content into the
-  transcription's `latest` and persists the Item rows in the same
-  session (BR-11, §18.7, §34.4).
-- Content and capture edits never change this table (BR-11); the only
-  status movement caused by material changes is the explicit
-  last-audio rewind of §17.4 (ADR-003), declared in §31 — never
-  restated as a transition here.
-- An invariant across every status: the report's `user` equals the
-  session owner and the §17.4/§17.6 artifacts are present — a row
-  that violates the map is a data-integrity violation (§30).
-- **Amended (R1):** creation is the meta-only **create dialog** (`date`
-  + `visits` → `draft`); audio/transcription are post-creation steps
-  driven from the edit page Audio/Transcription tabs — not a wizard.
+### 21.5 (reserved)
 
 ### 21.6 Lifecycle fields & document states
 
 The lifecycle is exactly the Branch pattern: two fields —
 `isArchived` (Boolean, default `false`) and `archivedAt` (Date,
 default `null`). There is **no third stored state and no `deletedAt`**;
-"permanently removed" is row **deletion**, not a document state. The
-interpretable combinations:
+"permanently removed" is row **deletion**, not a document state.
 
-| State                        | `isArchived` | `archivedAt`   | Behavior                                                                                                                                                                                                                                                                |
-| ---------------------------- | ------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| active                       | `false`      | `null`         | the default for every read — pickers and Reports UI (F4); create, edit, and status flows happen here (§31)                                                                                                                                                               |
-| archived (prepare-to-delete) | `true`       | set at archive | hidden from default reads (F4); the 30-day window (`ARCHIVED_TTL_SECONDS`, §11.3) opens the moment the report is archived; **restore** is possible inside the window and only from this state — it sets `isArchived: false` and clears `archivedAt` (§17.4, BR-16, §31) |
-| permanently removed          | —            | —              | row **deletion**, not a state — the row and its child artifacts (audio documents + `fs.unlink`, the transcription row, item rows, conversations — §17.4) are physically removed by the sweeper (§62, BR-15) or, if the app missed the deadline, by the TTL safety net (§18.3); `DELETE /reports/:reportId` on an already-archived report also deletes in-session with the child cascade (Branches mirror) |
+| State                        | `isArchived` | `archivedAt`   | Behavior                                                                                                                                 |
+| ---------------------------- | ------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| active                       | `false`      | `null`         | the default for every read; create/accept/revert flows happen here (§31/§34/§36)                                                         |
+| archived (prepare-to-delete) | `true`       | set at archive | hidden from default reads; 30-day window (`ARCHIVED_TTL_SECONDS`); restore possible inside the window and only from here (BR-16)         |
+| permanently removed          | —            | —              | row **deletion** by the sweeper (§62) or by `DELETE /reports/:reportId` on an already-archived report (physical session delete + child cascade, §31) |
 
-- Archiving never breaks branch history — removal is refused while
-  any report/visit/item references the branch (BR-14, §17.4).
-- No controller may hard-delete an archived row before the window:
-  BR-15 ("no other path may hard-delete user data once archived");
-  §31 implements the guard, §62 implements the window.
-- §21 declares the fields and their values; the transitions and
-  guards are exclusively §30–§31.
+- **Direct clip delete.** Deleting a clip removes the embedded
+  `audios[]` subdoc AND `fs.unlink`s the physical file
+  (direct delete, 2026-09-01: both the DB row and the file are
+  deleted; failure → orphan-sweep retry). Allowed only while
+  not-generated; **frozen at generated** (403, §31). No archive/restore
+  on clips.
+- **Freeze gate = generated.** While the report is generated
+  (`generated !== ""` + Items), metadata (`date`/`visits`/main) and
+  clip add/delete are refused (403, §29/§31); revert reopens the door.
+- **Branch compatibility (BR-14).** Archiving never breaks branch
+  history — removal is refused while any report visit or item
+  references the branch (§17.4/§30/§62).
+- No controller may hard-delete an archived row before the window
+  (BR-15). §21 declares the fields; transitions and guards are §30–§31.
 
 ### 21.7 Capture metadata & the visits contract
 
-- **Stored metadata (amended, Option X).** The values the report
-  header prints from — date, main branch, visit time lines, type —
-  are captured on this row at capture time (the create dialog, §31.2).
-  The row stores **`date` and `visits[]` only** — there is **no root
-  `branch`, `clockIn`, or `clockOut` field**; `visits[]` is the single
-  source of truth. The `ብራንች:` header line, the time-range lines, the
-  day start/exit, and the type are derived per the locked §6.4 rules:
-  - day start = `visits[0].clockIn`
-  - day exit = `visits[n-1].clockOut`
-  - main branch = the visit where `isMain === true` → its `branch`
-  - Type = `visits.length`
-  - per-visit time-range lines = each `visits[i].{clockIn, clockOut}`
-  - chronological visit-start order (`visits[i].clockIn ≤
-    visits[i+1].clockIn`)
-  - Type-2 names joined with `/` where a branch visited more than once
-    is listed once in the header while its visits keep separate
-    time-range lines.
-- **One block, one source.** `date` + `visits[]` (with `isMain`) are
-  written at the same capture moment from the create dialog; the main
-  branch is **user-decided** — the `isMain` flag marks which visit the
-  report is about, independent of array position. Every `visits[]`
-  entry is a full visit with its own required `HH:mm` pair (OQ-002
-  closed by amendment below). Capture edits (the Meta tab, §31.5) update
-  the block inside a single write — the coupling is data-level here;
-  the flows own execution, hooks never recompute the block (§21.8).
-  **Capture edits are allowed only at status < `generated`** — at
-  `generated` the whole metadata block (`date`, `visits`, main branch)
-  is frozen and a capture edit is refused (403, §31.4); the Item rows'
-  captured `branch`/`date` (§24A) can therefore never go stale
-  (metadata + items = report).
-- **OQ-002 (closed by amendment, recorded here).** Whether `clockIn`/
-  `clockOut` are required per visit was closed on 2026-08-10: **every
-  visit carries a required `HH:mm` clock pair**. On a Type-1
-  (single-visit) day the sole visit is implicitly main; on a Type-2
-  (multi-visit) day each visit supplies its own pair (§6.3 field 4).
-  Day start/exit remain derived (§6.4, §21.7) — nothing is stored
-  above `visits[]`.
+- **Stored metadata (consolidated).** The row stores **`date` and
+  `visits[]` only** for the capture block — there is **no root
+  `branch` / `clockIn` / `clockOut` field**; `visits[]` is the single
+  source of truth. Derived per §6.4: day start = `visits[0].clockIn`;
+  day exit = `visits[n-1].clockOut`; main = the `isMain` visit;
+  Type = `visits.length`.
+- **Main branch is user-decided** (`isMain`), position-independent,
+  exactly one when > 1. `visits` are chronological.
+- **Capture edits** (`PATCH /reports/:reportId`) update the block
+  inside a single write; allowed only while not-generated (403 when
+  generated, §29/§31). The Item rows' captured `branch`/`date`
+  (§24A) can therefore never go stale.
+- **Ethiopian boundary.** `date` is presented/selected/filtered
+  Ethiopian at the boundary; stored as UTC-midnight Date; converted
+  Ethiopian↔UTC by the §29 validators (¶18.2); never stored as the
+  Ethiopian string; no native Date arithmetic on domain dates.
 - **No dangling references.** Every visit's `branch` is a plain
-  `ObjectId`; branch removal is refused while any report visit
-  references the branch (§17.4, §20/§30/§62) — a lookup never returns
-  `null` for a referenced branch and no tombstone path exists.
+  `ObjectId` (active, owner-scoped); branch removal is refused while
+  any visit references it (BR-14).
 
 ### 21.8 Hooks, methods & session contract
 
-- **No business-logic hooks (§18.6).** The schema holds no middleware
-  that computes status, derives header values, archives, restores,
-  deletes, cascades, or edits the capture block; hooks, where any
-  exist, are mechanical only (timestamps are automatic).
-- **Write contract (§18.5, ADR-018).** Every write flow — wizard
-  creation (§52/§31), capture edits (§52), content writes (§34/§35),
-  generation (§34), archive
-  and restore (§31), the report delete cascade (§17.4, §31) — runs
-  inside a session transaction
-  (`startSession → startTransaction → writes → commit/abort →
-finally endSession`); write statics accept a `{ session }` option.
-- **Read contract (§12.2, §18.4).** List, detail, and export reads
-  follow the §18.4 read paths (lean, or document reads where the DTO
-  needs declared virtuals) with no session; the
-  active-by-default filter is part of the query — the archive-state
-  filter is never applied in a hook.
-- **Transcription 1:1 write (amended, Option X).** The Transcription
-  row carries the `report` ref and is written in the parent's session
-  (§23.2) — there is no `transcription` ref on the report to
-  maintain; the 1:1 is enforced by the unique index on
-  `Transcription.report` (§23/R4).
+- **No business-logic hooks** (§18.6): nothing computes derived state,
+  touches files, calls STT, or enforces the §17.3 chain from a hook.
+- **Write contract (§18.5).** Every write flow — the atomic create
+  (report + embedded audios + transcription in one §27.7 transaction),
+  capture edits, clips delete/add, accept (generated + items),
+  revert, generation, archive/restore, delete cascade — runs in a
+  session transaction. Write statics/methods accept `{ session }`.
+- **Read contract.** §18.4 read paths; the light list DTO projects
+  out `transcription` and `audios[].filePath`.
 
 ### 21.9 Transforms & exposure
 
-- **`toObject`/`toJSON` deletion contract.** Both transforms delete
-  the derived `id` virtual and the `__v` version key from every
-  serialized Report (uniform with §19.5/§20.7) — a serialized
-  document carries `_id` and the stored fields (§12.11-3) and no
-  Mongoose bookkeeping.
-- **No mutation (§18.4).** Transforms never write back to the stored
-  document and never rename fields; nothing is recomputed or
-  re-derived inside a transform.
-- **No secrets exist** on this model; which lifecycle and capture
-  fields appear in API responses (for example `archivedAt` for an
-  "archived since" label, or `visits` for the edit page's Meta tab)
-  stays with the §27/§31 DTOs.
+- `toObject`/`toJSON` delete the derived `id` virtual and `__v`; no
+  secrets. `filePath` is stripped from every emitted form.
+- Serialized surface (list DTO): `_id`, populated `user`
+  (`{_id, firstName, lastName, fullName}`), `date`, `visits[]`
+  (populated `branch` `{_id, name, location}`), `audios[]` (metadata,
+  no filePath), `generated` (presence on list; content only on
+  detail-style reads), `isArchived`, `archivedAt`, `createdAt`,
+  `updatedAt`.
+- Heavy content is never returned on the paginated list (projection).
 
 ### 21.10 Seeds & mocks
 
-- The model contains no seed reports, demo reports, or default rows
-  (§18.8); mock reports arrive exclusively through the §25/§40
-  injection and wipe mechanisms, whose writes support sessions
-  (§18.5). A report's creation data always comes from the create
-  dialog (BR-05, §31.2), never from defaults.
+No seed/demo/default report rows (§18.8). Mock reports arrive
+exclusively through the §25/§40 injection/wipe mechanisms
+(session-aware); a report's creation data always comes from the atomic
+create dialog (§31), never from defaults.
 
 ### 21.11 Evolution
 
-- Field, capture, or content changes are authored here first (§18.9);
-  a change that touches a §14.3 register decision (ADR-003,
-  ADR-005, ADR-010, BR-15/BR-16) or the §18.3 TTL declaration
-  follows the §14.5 protocol — register row and owning text move
-  together.
-- New fields are additive; the capture shapes (`date`, `visits[]`
-  with `isMain`) are never extended without §21/§6.4 coordination,
-  because report history and the capture contract depend on them
-  (§20.9, §18.7).
+Additive-only (§18.9); destructive changes flow through the §25/§40
+wipe in development (§12.10). The capture shapes (`date`, `visits[]`
+with `isMain`) and the `generated`/`latest` distinction are never
+extended without §6/§34 coordination (§14.5).
 
-### 21.12 Design rationale (why the report schema is shaped this way)
+### 21.12 Design rationale
 
-The shape above is deliberate; each choice below is justified by its
-owning subsection and repeated nowhere else:
-
-1. **No `supervisorName` — the name is a join, not a snapshot.** The
-   `ስም` header renders the user's `fullName` virtual at the boundary
-   (§19.4, §6.3 field 3); the report stores no name field and the
-   creation payload never accepts one (a `supervisorName` key in
-   `POST /reports` → 422 — owner directive 2026-08-19; the
-   frontend dropped the field). A profile
-   rename applies to new prints; the report's other header values
-   (branch names) are live joins too — the whole header derives from
-   live data, never stored copies (→ §21.2; §18.7; removed by the
-   owner-correction set 2026-08-18).
-2. **`date` is a business date, not a lifecycle timestamp.** It is
-   the report's `ቀን` business identity, distinct from the lifecycle
-   timestamps (`createdAt`/`updatedAt`); the list sort depends on
-   the distinction (→ the `date` row of §21.2; the §21.3 index;
-   UTC-midnight normalization §29).
-3. **Day start/exit and the type are derived, never stored.** Day
-   start = the earliest `clockIn` of the day sequence; day exit = the
-   latest `clockOut`; type = 1 + visits.length (the requirement's own
-   definition, §6.3 field 8, §6.4). Storing them
-   would be a second source of truth that contradicts `clockIn`/
-   `clockOut`/`visits[]` after an edit (→ §21.7, §6.4).
-4. **All content edges are child-side (Option X).** Audio rows are
-   child-side (`Audio.report`, §22), the content slots live on the
-   Transcription row (`Transcription.report`, §23), and Item rows are
-   child-side (`Item.report`, §24A) — presence is the child ref/query,
-   never a parent array or a parent `transcription` ref that must be
-   rewritten on upload, re-transcription, or deletion and can go stale
-   (→ §22.1, §17.3, §23.2). The 1:1 transcription invariant is enforced
-   by the unique index on `Transcription.report`, not by a report field.
-5. **Visits are positional rows, not keyed rows.** A visit is an
-   embedded row addressed by array index; routes mirror the position
-   (`/visits/:visitIndex`), and no key field exists (→ the `visits`
-   row of §21.2; §9.3).
-6. **Activities, issues, and opinion are Item rows, not prose
-   fields.** The format defines them as report sections (§6.3 fields
-   5–7); their persistence is the Item collection with per-type
-   status and rating (§24A), written by generation and status-edited
-   by review — while text changes always flow through the editor/
-   corrections (Modes 1–3), which never touch item rows (§35) (→
-   §24A; §6.10).
+1. **Embedded audio + transcription.** Audio and transcription are
+   report-private and bounded by one workday → embedded (aggregate-root
+   rule). The 16 MB limit is safe: binaries on disk; content caps
+   (`CONTENT_MAX_SIZE_BYTES`, §11.4); chat/version history never embed.
+2. **No status field.** The atomic create commits the report only when
+   fully materialized; everything else (generated, readiness) is
+   data-derived — the old four-state machine and its guard table are
+   removed.
+3. **`generated` holds the report body; `latest` holds the
+   transcription.** The report is `metadata + items = report`; `latest`
+   is the transcription slot; `generated` is the accepted §6-format
+   body (accept writes, revert clears).
+4. **Main branch is user-decided** via `isMain` — position-independent
+   (supersedes "visits[0] is always main").
+5. **Single source of truth in `visits[]`.** No duplicate root fields
+   to keep in sync.
 
 ### 21.13 Verification usage
 
-- Grep gates: `status` values always resolve to `REPORT_STATUSES`
-  (§11.4) — no literal status strings anywhere in §21;
-  `ARCHIVED_TTL_SECONDS` resolves to §11.3 — the literal `2592000`
-  never appears; `isArchived`/`archivedAt` appear as the lifecycle
-  pair with **no `deletedAt`** anywhere in the section; no
-  snapshot/tombstone shape (`branches[]`, `branchName`, "tombstone")
-  appears; the content slots (`raw`/`latest`) appear only as §23
-  references — the report row stores no content field;
-  `clockIn`/`clockOut` appear only in the main pair and the
-  `visits` block, every
-  visit carrying the required `HH:mm` pair (the closed OQ-002
-  rule, §21.7); no `supervisorName`/`reportDate`/`branchDigest`/
-  `acceptedAt`/`exportedAt`; no version
-  wording; no §6.8 sample branch or person names; the field set
-  matches §17.2, F3–F5, G4–G5, and §6.1/§6.3 — no invented fields.
-- Cross-section checks: §21 asserts no endpoint (§30–§39 own them),
-  no transition or guard (§30–§31), no window arithmetic (§62), no
-  capture-contract rule (§6.10/§52), no content mechanics (§23/§24A),
-  no audio/upload material (§22/§32), no conversation material (§24),
-  no export mechanics (§37/§58); it mirrors §18 (indexes §18.3,
-  transforms §18.4, hooks §18.6, sessions §18.5, validation §18.8,
-  evolution §18.9) and §17.2/§17.4/§17.6 exactly.
-- §21 introduces no constant, no path (§15.4 unchanged),
-  and no package (§13.3 manifest unchanged — nothing to install);
-  it is standalone — it references only specification sections.
+- `audios[]` subdocs resolve their caps to §11 constants (no
+  literals); `filePath` absent from every DTO; no `status`,
+  `generatedAt`, `contributions`, `language`, `stt.*` on the model;
+  no Audio/Transcription collections; `{archivedAt}` TTL =
+  `ARCHIVED_TTL_SECONDS`; derived-state checks match §17.6/§6.4.
+- Cross-section: mirrors §17.2/§17.3 (five entities), §24A (Items),
+  §31 (create/accept/revert/delete), §34 (accept writes generated +
+  items), §6 (format/derivation).
 
 ---
-
 ## 22. Audio Model
 
 ### 22.1 Purpose & scope
 
-> **R3 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
-> the trust overlay, §22 is no longer a single source of truth until
-> amended. This amendment confirms the Audio model (8 fields, child-side
-> 1:N `report`, direct-delete lifecycle, no archive/restore, no TTL) and
-> adds the **lifecycle/status rules**: deleting the final clip returns
-> the report to `draft`; adding clips at `transcribed` keeps status
-> `transcribed` but drops transcription readiness. It also adds the
-> **temp-chunk-cleanup rule** (pipeline chunks are removed on successful
-> transcription + merge; only the original uploaded clips persist).
-> Audio endpoints ride nested under `/reports/:reportId/clips` (no flat
-> `/audios/*`, no `/play` stream). Audio-tab UI: one card = big orb +
-> drag-drop upload, "Narrations" divider, per-clip play/seek/duration/
-> size/delete/transcribe; Transcribe-all shown only when any clip is
-> pending (engine deferred to R4). See findings/progress/task_plan/
-> AGENTS.md R3 record.
+> **CONSOLIDATED AMENDMENT (2026-09-01).** §22 no longer authors a
+> standalone Audio **collection** — the clip is the **embedded
+> `AudioClip` subdoc of Report** (§21.2/§17.2). This supersedes the R3
+> standalone Audio model and the Audio API's flat `/audios/*` routes
+> (see `findings.md` "CONSOLIDATED re-amendment"; `task_plan.md`
+> "Consolidated supersession"). The binary lives on the local
+> filesystem; the Report embeds metadata only.
 
-This section authors the Audio row — the metadata-only document that
-represents one recorded audio clip (the binary itself lives on the
-backend local filesystem, §12.9). The section owns the Audio schema,
-its keys and indexes, its lifecycle fields, and the binary/metadata
-contract. It does **not** own: upload mechanics, multer usage, and
-temp-cleanup execution (§32); chunking, ffmpeg/WAV preparation, and
-the STT call sequence (§33); cascade execution and status transitions
-(§31); request validation and error shaping (§29, §27); provider
-contracts (§16); or the capture contract (§6.10, §52).
-
-Audio rows are user-scoped (BR-13, §3.2.3): every row binds to the
-authenticated, server-assigned user (`req.user._id.toString()`,
-§17.2). The row is the **child-side join key holder** of the
-Report—Audio edge (§17.3): it carries `report`, written
-once at upload — the clip binds to the report, never to a visit
-(§6.10 locked decision 5). The report row keeps no audio field
-(§21.2); nothing in this section re-introduces one.
-
-The seven persistent entities are User, Branch, Report, Audio,
-Transcription, Item, and ChatConversation (§17.2). The complete
-persisted system of record is those seven collections only (§17.3);
-the Audio
-document itself contains **metadata only** — binary audio never enters
-MongoDB, GridFS is excluded (§13.6), and the physical file path is the
-only binary contact point (§12.9, §12.10).
+This section authors the **AudioClip sub-document** — the metadata-only
+representation of one recorded audio clip, embedded in `Report.audios[]`
+(the binary itself lives on the backend local filesystem, §12.9). It
+owns the subdoc fields, the binary/metadata contract, and the
+**direct-delete lifecycle** (subdoc removal + `fs.unlink`). It does
+**not** own: upload mechanics and multer usage (§32); ffmpeg/chunking
+and the STT call (§33); report derived-state rules (§21.4/§17.6).
 
 ### 22.2 Field registry
 
-| Field                     | Type     | Required | Rule                                                                                                                                                                                                                                                                                                    |
-| ------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId | auto     | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                     |
-| `user`                    | ObjectId | yes      | owner-scoping (BR-13, §3.2.3, §18.7); all queries throughout §30–§39 resolve the owning user server-side                                                                                                                                                                                                |
-| `report`                  | ObjectId | yes      | the owning report — child-side join key of the Report—Audio edge (§17.3); document reference fields carry the plain model name — no `Id` suffix (§9.3); set once at upload inside the §32 session, never moved between reports; clips bind to the report, never to a visit (§6.10)                      |
-| `filePath`                | String   | yes      | server-internal absolute-ish path under `backend/uploads/audio/` (§12.9, §15.4) — gitignored (§12.9, §32); never exposed by any transform (§22.7) and never logged (§9.5); the physical file is unlinked after commit, non-transactionally, with failures retried by the orphan sweep (§17.4, §31, §62) |
-| `mimeType`                | String   | yes      | member of `AUDIO_ALLOWED_MIME_TYPES` (§11.3) — the recorded browser MIME per the client recording priority (§53); schema enum constrained to the constant (§18.2); never `audio/webm` for STT chunks (chunk MIME is the §33 pipeline's own rule)                                                        |
-| `sizeBytes`               | Number   | yes      | the uploaded byte size; the `AUDIO_MAX_SIZE_BYTES` (50 MB) cap is enforced by the §29/§32 validators — schema validation is shape-only (§18.8)                                                                                                                                                          |
-| `durationSec`             | Number   | yes      | recorded duration in seconds — informational metadata only, never used in pipeline math; validated server-side via ffprobe by §32                                                                                                                                                                       |
-| `createdAt` / `updatedAt` | Date     | auto     | §18.2 timestamps                                                                                                                                                                                                                                                                                        |
+| Field        | Type    | Required | Rule                                                                                                                    |
+| ------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `_id`        | ObjectId | auto   | subdoc identity; referenced nowhere else on the report (no parent ref arrays; audio is report-private)                    |
+| `mimeType`   | String  | yes      | member of `AUDIO_ALLOWED_MIME_TYPES` (§11.3); video MIME rejected (422, §32)                                             |
+| `sizeBytes`  | Number  | yes      | upload size; ≤ `AUDIO_MAX_SIZE_BYTES` (50 MB) via §29/§32 validator                                                       |
+| `durationSec`| Number  | yes      | informational; ≤ `AUDIO_MAX_DURATION_SEC` (900 s) via ffprobe                                                             |
+| `filePath`   | String  | yes      | server-internal under `uploads/audio/`; **never exposed**, never logged (DTO gate, §22.7-equivalent transform rule)       |
+| `createdAt`  | Date    | yes      | capture time; chronological order of `audios[]` is `createdAt` asc                                                        |
 
-No `status` field exists: audio presence is expressed exclusively
-through the report machine (`audio_attached`, §17.6) — a clip is
-either uploaded (row exists) or not.
-No `isArchived`/`archivedAt` exists: only Report and Branch are
-archivable (§20.4, §21.6); no archivable model may evade the §20/§21
-rule list. No `deletedAt` exists (BR-15, §18.3). No ordering field
-exists: within a report the clips' chronological order is
-`createdAt`, and the §17.3 contract forbids any array-position or
-ordering assumption as a _binding_ — `Audio.where({ report })`
-is the resolution query.
+No `status`, no `isArchived`/`archivedAt`, no `deletedAt`, no `report`
+ref (the parent is the embedding Report), no ordering field beyond
+`createdAt`.
 
 ### 22.3 Keys, indexes & TTL
 
-- **Owner scope.** `schema.index({ user: 1 })` — the mandatory
-  owner-scoping index (§18.3, BR-13); every clip query resolves the
-  owning user first.
-- **Report source query.** `schema.index({ user: 1, report: 1 })` —
-  serves the §17.3 report-source resolution and
-  the clip group reads of the review UI (§54); declared via
-  `schema.index(..)` (§18.3), no field-level `unique: true` (a report
-  legitimately holds several clips).
-- **No TTL.** The spec declares exactly one TTL index — Report on
-  `archivedAt` (§18.3, §21.3). Audio declares none;
-  the expiry of a finished report's clips is governed by the owning
-  report's retention anchor, never by an index on this model.
-- **No further indexes.** Anything else is indexed only under the
-  §18.3 proof rule.
+No separate indexes — `audios[]` is embedded in Report; the Report's
+`{user}` owner index and `{user, "visits.branch"}` cover scoping and
+branch filters. No TTL on clips; retention is inherited from the owning
+report's `ARCHIVED_TTL_SECONDS` anchor (§21.3/§62).
 
-### 22.4 Lifecycle fields & document states
+### 22.4 Lifecycle & derived-state interaction
 
-The Audio row has **no document states** — it exists from upload until
-cascade removal, and the report machine (`REPORT_STATUSES`, §17.6)
-observes it through presence queries, never through a state stored on
-this row.
-
-- **Creation.** Insert happens inside the §32 upload session: the
-  `report` binding is written at insert (the single write
-  site, §17.3) and the owning report is validated as existing,
-  owned by the session user, and **not at `generated`** (audio
-  addition is frozen at `generated`, BR-12/§31.4) in the same
-  transaction (BR-13, §17.4).
-  The physical binary write follows the session commit; a failure is
-  retried by the orphan sweep (§17.4, §31, §62) — the document and the
-  file never form a two-phase promise inside a hook (§18.6).
-- **Removal (direct delete = DB + physical file).** Deleting one
-   audio is a **direct delete**: the Audio **document (DB)** is
-   removed in the §32 session and the **physical file under
-   `backend/uploads/audio/`** is `fs.unlink`ed after commit (both are
-   deleted; failure → orphan-sweep retry). It cascades nothing on the
-   report row;
-   at `transcribed` it also cascades the report's 1:1 Transcription
-   row (the merged `raw` covered all clips — a deleted clip
-   invalidates the merge; §23.4/§17.4, Option X: the transcription row
-   is removed — there is no report field to clear). Status movement:
-   - delete **one** clip while some remain — was `audio_attached` →
-     stays `audio_attached`; was `transcribed` → cascades the
-     transcription and lands `audio_attached`;
-   - **delete the report's final clip (zero remain) → `draft`** — no
-     audio = the `draft` presence (§17.6), always, regardless of prior
-     status.
-   At `generated` audio removal is
-   **frozen** (BR-12, §31.4): the generated content is the
-   deliverable and corrections are the editing path (§35).
-- **Addition below `generated`** never rewinds; new clips attach as
-   new rows (§17.4, BR-10). **Adding 1+ clips at `transcribed` keeps
-   the status `transcribed`** (adding never rewinds, BR-10), but the
-   **new clips are untranscribed → readiness drops** (the data-derived
-   "every current clip is transcribed" check is now false): the new
-   clips show Transcribe, the Transcribe-all act reappears, and the
-   story stays hidden until every take is re-transcribed + merged into
-   the existing transcription (§33.6, R4). The existing `raw`/`latest`
-   and the `stt.audios` ledger are retained.
-- **Report cascade.** Report hard-delete removes the audio documents
-   and their physical files in one transaction-pair: documents in the
-   session, `fs.unlink` after commit, failures retried by the orphan
-   sweep (§17.4, app-level sweeper §62).
+- **Creation.** Clip subdocs are written at the **atomic create**
+  (`POST /reports`, §31): the report (+ `audios[]` + `transcription`)
+  is committed in one §27.7 transaction only when every clip is heard.
+  No clip row exists before the report exists.
+- **Direct delete = DB + physical file.** Deleting a clip removes the
+  embedded subdoc AND `fs.unlink`s the file under `uploads/audio/`
+  (both deleted; failure → orphan-sweep retry, §62). No archive/restore
+  on clips (2026-09-01). Allowed only while not-generated; **frozen at
+  generated** (403, §31).
+- **Temp-chunk-cleanup.** The §33 pipeline's transient artifacts
+  (ffmpeg conversions, PCM/WAV chunks) are cleaned on successful
+  transcription + merge; only the **original uploaded clips** persist
+  (originals, never the temp chunks).
+- **Addition at generated** is frozen (403). Adding a clip on a
+  transcription-bearing not-yet-generated report drops readiness until
+  re-transcribed (deferred pending-clip mechanism, R4/R7).
+- **Report delete** removes the embedded subdocs + unlinks the files
+  (session + after-commit sweep).
 
 ### 22.5 Binary & metadata contract
 
-- Binary audio lives at `backend/uploads/audio/` (gitignored); the
-   collection stores metadata only (§12.9). No GridFS, no S3/object
-   store — that class of storage is excluded (§13.6).
-- **Temp-chunk-cleanup (R3 amendment).** The §33 pipeline's transient
-   artifacts — ffmpeg conversions and PCM/WAV chunks created during
-   transcription — are **cleaned on successful transcription + merge**,
-   leaving only the **original uploaded clips** under `uploads/audio/`.
-   On partial/failed transcription, consumed chunks are also cleaned
-   (transient, never retained); originals always persist.
-- The Audio document never contains audio bytes; the transform layer
-  never forwards `filePath` to the client (§22.7) — consumers reach
-  binaries exclusively through the §30–§39 audio endpoints.
-- Retention is inherited from the owning report's lifecycle: the
-  30-day window (BR-15, `ARCHIVED_TTL_SECONDS` §11.3) binds the report
-  row; this model stores no window anchor of its own.
-- Logs never include audio content, raw file bytes, or full
-  transcription texts (§9.5, §16.3); provider keys never appear on any
-  client surface or log (§16.3).
+- Binary audio lives at `backend/uploads/audio/` (gitignored); staging
+  during create lives at `backend/uploads/audio/staging/` (TTL ~1 h,
+  sweeper-cleaned, §31/§62). The collection stores metadata only
+  (§12.9). No GridFS, no S3/object store (§13.6).
+- The embedded subdoc never contains audio bytes; every transform/`$5`
+  response strips `filePath` (§21.9). Consumers reach the file only
+  server-side (STT pipeline; playback via a §32 byte read → client
+  Blob/object URL — never a `/play` stream, never a public mount).
 
-### 22.6 Hooks & session contract
+### 22.6 Hooks, session & exposure
 
-- **No business-logic hooks** — nothing that computes status, derives
-  bindings, deletes, cascades, or touches the filesystem runs in a
-  hook (§18.6): audio binaries are out-of-DB and out-of-hook platform
-  (§18.6, §12.9). Hooks are awaitable and session-aware when present
-  (§18.6).
-- **Write contract.** All write statics/methods accept `{ session }`
-  and are invoked from a caller-owned session (ADR-018, §18.5); a
-  statics method never opens a hidden session (§18.5). Read endpoints
-  use no transactions (§18.5).
-- **Read contract.** Reads follow the §18.4 read paths (lean, or
-  document reads where the DTO needs declared virtuals); no transform
-  mutates the document (§18.4).
-
-### 22.7 Transforms & exposure
-
-- `toJSON`/`toObject` with `virtuals: true`; delete `id` and `__v`
-  (§18.4, §18.2).
-- `filePath` is stripped from every serialized output — it is a
-  server-internal value (§22.5); the DTO exposes the metadata surface
-  only (`_id`, `report`, `mimeType`, `sizeBytes`,
-  `durationSec`, timestamps).
-- Exposed refs keep the §9.3 plain-name doctrine; route parameters
-  keep the `Id` suffix (`:audioId`, §12.11-1) — the two namespaces
-  never collide.
-
-### 22.8 Seeds & mocks
-
-Audio seeds are **metadata-only** clips — real binaries are never
-written by seeding (ADR-037, §25). Seeded rows carry valid
-`report`/`mimeType`/`sizeBytes`/`durationSec` values that
-satisfy §17.6 presence and the §22 registry; injection and wipe are
-session-aware (§18.5) and arrive exclusively through the §25/§40
-mechanisms — never hard-coded in the model (§18.8).
-
-### 22.9 Evolution
-
-Changes are additive-only (§18.9, §14.5); a documented destructive
-schema change is applied through the §25/§40 wipe mechanism in
-development (§12.10). The binding field (`report`) is load-bearing
-for the §17.3 source contract; a
-change to its shape requires §17.3/§21.2 coordination (§18.9) and
-an amendment record (§14.5).
-
-### 22.10 Verification usage
-
-- Grep gates: no `status`, no `isArchived`, no `archivedAt`, no
-  `deletedAt`, no `visitNo`, no `transcription` ref on this model; no
-  TTL declaration beyond §18.3's one;
-  `mimeType` values always resolve to `AUDIO_ALLOWED_MIME_TYPES`; the
-  binding field is exactly `report` (no `reportId`
-  anywhere — §9.3); no array-position or ordering vocabulary as a
-  binding (§17.3).
-- Cross-section checks: mirrors §17.2/§17.3 (exact-key edges, child
-  side), §17.4 (cascades, rewind, unlink + orphan sweep), §17.6
-  (presence rows), §18 (indexes, sessions, hooks, transforms,
-  evolution), §12.9/§32 (paths, gitignore, metadata-only), §16
-  (proxy, keys, contracts), §9.5 (log bans). Endpoints, multer
-  mechanics, chunking, and STT calls are owned by §32/§33/§30–§31 —
-  this section asserts none.
-- §22 introduces no constant, no path (§15.4 unchanged —
-  `audio.model.js` is the §15.4 `<entity>.model.js` file), and no
-  package (§13.3 manifest unchanged — nothing to install); it is
-  standalone — it references only specification sections.
+No business-logic hooks (§18.6). Writes are session-aware (§18.5).
+`toJSON`/`toObject` delete `__v` (subdocs carry `_id`); `filePath` is
+stripped everywhere (§21.9). Seeds/mocks never create physical audio
+(ADR-037; §25/§40 write metadata-only). Evolution is additive-only;
+clip binding to the embedded report is never extended without §21/§32
+coordination.
 
 ---
-
 ## 23. Transcription Model
 
 ### 23.1 Purpose & scope
 
-This section authors the Transcription row — the STT output document
-of a report, in a **1:1 relationship with the Report** (Report—
-Transcription 1:1, §17.3): one transcription per report, carrying the
-**merged** STT result of all the report's clips (§33). The section
-owns the Transcription schema, its keys and lifecycle,
-the `raw`/`latest` content contract (F5, BR-11, §18.7), and the
-re-transcription persistence semantics (ADR-030). It does **not**
-own: the chunked STT pipeline, ffmpeg/WAV preparation, retry/backoff,
-and the Addis AI call sequence (§33); report status transitions and
-guards (§31); the review/edit user flows and correction modes
-(§54, §35); provider contracts and error mapping (§16); request
-validation (§29); the Item rows and their status vocabulary
-(§24A); or the clip-level review vocabulary
-(`reported → in_progress → completed`) — stated in §6.10, applied
-as UI/capture state in §54, and never a field in this model.
-
-Transcription rows are user-scoped (BR-13, §3.2.3). The transcription
-is _raw material_: it is the Amharic text version of the recorded
-conversation — informal, possibly unordered — and is never treated as
-the final report (§8.2, §8.4); the report's body content is generated
-from the **reviewed** transcription (§6.1 rule 4, §8.5.1). This model
-is the **single content-bearing model** (the Report carries no
-content fields, §21.2) and implements the shared `raw`/`latest`
-shape (§18.7) with a **dual-phase `latest`**: the editable story
-pre-generation, the generated report content from generation onward.
+**CONSOLIDATED AMENDMENT (2026-09-01):** the Transcription is the
+**embedded `transcription{raw, latest}` member of Report** (§21.2),
+not a standalone collection. There is **no `Transcription.report` ref,
+no unique index, no `stt.*`/`language`/`contributions` fields** — this
+supersedes the earlier §23 letter (see `findings.md` "CONSOLIDATED
+re-amendment"). `raw`/`latest` are the shared content slit of the
+report's transcription (§18.7), initialized equal at create.
 
 ### 23.2 Field registry & content contract
 
-| Field                     | Type       | Required                                 | Rule                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------- | ---------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId   | auto                                     | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                                                                                                                                          |
-| `user`                    | ObjectId   | yes                                      | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                                                                                                                                                                                                                                                                                                         |
-| `report`                  | ObjectId   | yes                                      | the owning report — plain-model-name reference field (§9.3); many audio rows per report (1:N, §22/R3 — index/uniqueness to be amended in R3), child-side edge (Option X); audio writes happen in the report's session (§23.4/R4). See R3 for the audio schema amendment                                                                                                                                                              |
-| `raw`                     | String     | yes (null until transcription completes) | the **merged STT result** of all the report's clips, written at transcription completion; rewritten **only by STT re-runs** (new takes, re-transcription — §23.4); never by content edits (BR-11, §18.7); the §16.4 `data.transcription` values merged here (§12.4 stage 3)                                                                                                                                                  |
-| `latest`                  | String     | yes (null until transcription completes) | the single current-content slot, initialized equal to `raw` at creation (§18.7); **dual-phase**: the editable story pre-generation, the generated report content from generation onward; review edits overwrite it (§54), generation overwrites it with the report body (§34.4), re-transcription rewrites both (§23.4), and one-click restore copies `raw` into it — single-undo, no version chain (ADR-005 retired, §14.3) |
-| `language`                | String     | yes (default `am`)                       | the STT language of the transcription — member of `LANGUAGE_CODES` (§11.4); `am` active, `om`/`ti` reserved and not activated (§7.7); the §16.4 `request_data.language_code` echoed here                                                                                                                                                                                                                                     |
-| `stt.requestId`           | String     | no (null if unknown)                     | the Addis AI request correlation id from `usage_metadata.requestId` (§16.4) — persisted per the §16.4 permission (ADR-019 audit); provider request ids may be logged (never secrets)                                                                                                                                                                                                                                         |
-| `stt.model`               | String     | no (null if unknown)                     | the Addis voice model actually used (e.g. `አሌፍ-Audio-AM`) — a free provider-native string: the `AI_MODELS` registry (§11.4, §16.2) is the **text-generation** registry only; STT model choice is the §33 pipeline's own, stored here as audit metadata                                                                                                                                                                       |
-| `stt.audios`              | ObjectId[] | no (default `[]`)                        | the **D8 merge ledger** (added 2026-08-20) — the `_id`s of the Audio rows whose clips the current `raw` merge covers; the §33.6 cross-call skip source; server-internal — **excluded from the DTO** (§23.7, D21)                                                                                                                                                                                                             |
-| `createdAt` / `updatedAt` | Date       | auto                                     | §18.2 timestamps                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Field    | Type   | Required | Rule                                                                                                                    |
+| -------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `raw`    | String | yes (null until transcription completes) | the **merged STT result** of all the report's clips, written at atomic-create STT completion; rewritten only by STT re-runs (re-transcription); never by content edits (BR-11) |
+| `latest` | String | yes (null until completes) | the single current-transcription slot, initialized equal to `raw` at creation (§18.7); review edits overwrite it (correction Modes 1–3, §35); restore copies `raw` into it — single-undo, no version chain |
 
-No `status` field exists, by design: transcription presence and the
-review lock are expressed exclusively through `REPORT_STATUSES`
-(`transcribed`, `generated` — §17.6, §21.4); the clip-level
-`reported → in_progress → completed` vocabulary of §6.10 is
-UI/capture state only — never a document field — and introducing a
-`TRANSCRIPTION_STATUSES` enum would fork the state machine of §31
-against §17.6. No `isArchived`/`archivedAt` (only Report and Branch
-are archivable, §20.4), no `deletedAt` (BR-15, §18.3), no version or
-history fields of any kind (ADR-005 retired), and no
-`aiCorrectedText` or equivalent — corrections write `latest`
-(§8.5.2). Token/usage accounting beyond `stt.requestId` is not
-persisted here: per-message usage metadata is the §36 conversation
-domain (§16.1).
+No further fields. No `status` (transcription presence and readiness
+are derived per §17.6); no `language` (always `am`); no
+`stt.requestId`/`stt.model` (provider traceability via the Winston log
+line at the §33 call, never persisted); no `contributions` ledger;
+no `isArchived`/`archivedAt`/`deletedAt`; no version/history fields
+(ADR-005 retired); no `aiCorrectedText` (corrections write `latest`).
 
 ### 23.3 Keys, indexes & TTL
 
-- **Owner scope.** `schema.index({ user: 1 })` (§18.3, BR-13).
-- **1:1 edge.** `schema.index({ report: 1 }, { unique: true,
-sparse: true })` — one transcription per report (§17.3, ADR-030,
-  §21.3).
-- **No TTL.** Exactly one TTL index exists in the spec — Report on
-  `archivedAt` (§18.3). Transcription declares none; its
-  lifetime is bounded by the owning report's lifecycle and cascades
-  (§17.4).
-- **No further indexes** without the §18.3 proof rule.
+None — `transcription` is an embedded member of Report. No unique
+index, no separate index, no TTL (bounded by the owning report's
+lifecycle and cascades, §17.4).
 
 ### 23.4 Lifecycle, re-transcription & content contract
 
-- **Creation.** The row is created at STT completion inside the §33
-  pipeline session: `raw` set from the merged STT result, `latest`
-  initialized to it, `language` from the request, `stt` metadata
-  filled, and `report.transcription` pointed at the new row — all in
-  the same write session (§12.4 stage 3, ADR-018): the circular pair
-  is created atomically (§21.8). A row never exists before its report
-  (the chain of §17.3 is enforced by the pipeline's
-  write path, never by a hook — §18.6).
-- **Review contract.** During the review step (§1.4, §54) `latest` is
-  the editable slot; `raw` stays untouched (BR-11); the four review
-  paths — direct edit (Mode 1), typed instruction (Mode 2), voice
-  instruction (Mode 3), re-transcription — all persist through the
-  same review write path (§12.4 stage 4).
-- **Wizard transcription step (round-4 amendment, §52.7).** The
-  transcription step's story is the transcription's `latest` slot:
-  before the first correction it is the client-joined take texts (the
-  merged story, §5.1 of the report contract); a Mode-1 save writes it
-  through `PATCH /reports/:reportId/content` (§31.6),
-  `raw` stays untouched, and "Revert to original" restores
-  the untouched merged transcription (single undo — `latest` returns
-  to the joined state). Generation honors a corrected story (the
-  report contract CR-081: corrections made at the transcription step
-  are already reflected in the body).
-- **Re-transcription (ADR-030).** Re-transcription **rewrites the
-  row in place** — `raw` = the new merged STT result, `latest` = the
-  same value, `stt` metadata refreshed — atomically in one session;
-  the `report` ref never moves and the 1:1 keying stays stable
-  (§17.3). Allowed at every report
-  status **except `generated`** (BR-12, §31.4); at `transcribed`
-  nothing else moves; a new take attached at `transcribed` is
-  transcribed and merged — the step becomes not-ready until heard
-  (§52.7, BR-10). The
-  rewind rules of §17.4 apply to audio removal, not to
-  re-transcription: no audio is removed here.
-- **Cascade.** Audio deletion at `transcribed` cascades the report's
-   transcription row (the merged `raw` covered all clips — a deleted
-   clip invalidates the merge; Option X: the row is removed — there is
-   no report field to clear, §17.4); report deletion
-  cascades the transcription row (§17.4). Orphan transcriptions left
-  by sweeper races are
-  removed by the orphan sweep (§31, §62).
-- **Presence.** `transcribed` requires the transcription row with
-  `raw` (and `latest`, equal at transcription time); `generated`
-  requires `latest` to hold the generated content and the report's
-  Item rows to exist (§17.6, §24A) — the checks
-  are queries/refs, never stored flags on this row.
+- **Creation.** `raw`/`latest` are written in the **atomic create**
+  session (§31) — the report appears only when all clips are heard;
+  `raw` = merged STT text, `latest` initialized equal. A transcription
+  never exists before its report (embedded; enforced by the create
+  transaction, never a hook).
+- **Review contract.** During review (§54) `latest` is the editable
+  slot; `raw` stays untouched (BR-11). Direct edit (Mode 1), typed
+  instruction (Mode 2), voice instruction (Mode 3), and re-transcription
+  all persist through the same review write path (§35).
+- **Re-transcription (ADR-030).** Rewrites the embedded `raw`/`latest`
+  in place; allowed at every non-generated state; frozen at generated
+  (403, §31/§34). A new clip attached to a transcription-bearing report
+  drops readiness until re-transcribed (deferred pending-clip
+  mechanism, R4/R7).
+- **Cascade.** Clip removal on a transcription-bearing
+  not-yet-generated report leaves the transcription but drops
+  readiness (deferred re-sync). Generated reports never lose content
+  via clip edits (frozen). Report hard-delete removes the embedded
+  transcription with the report (single doc).
+- **Presence.** `generated` requires the report's `generated` field
+  (the §6 body) + Items, not the transcription. The transcription is
+  the LLM input (`metadata + transcription.latest + preset + digest`,
+  §34) — never the report body itself.
 
-### 23.5 Single-undo content contract
+### 23.5–23.10 (compressed)
 
-- No snapshot fields exist: the transcription carries no branch or
-  visit names (those live on the report row, §21.2/§21.7) and no
-  report-derived values — reads through live references never dangle
-  (§17.4).
-- The content slots are exactly `raw` + `latest` (single-undo,
-  BR-11, §18.7): `raw` immutable (STT re-runs are the only
-  rewrites), `latest` current; restore =
-  copy `raw` over `latest` — available pre-generation only
-  (transcription-stage undo; after generation, corrections are the
-  editing path); no version chain exists beside them.
-
-### 23.6 Hooks & session contract
-
-- **No business-logic hooks** (§18.6): nothing computes statuses,
-  touches files, calls STT, or enforces the §17.3 chain from a hook.
-- **Write contract:** statics/methods accept `{ session }`; never
-  open hidden sessions (§18.5); caller-owned sessions for the §33
-  write and all correction writes (ADR-018).
-- **Read contract:** §18.4 read paths (lean, or document reads where
-  the DTO needs declared virtuals); reads take
-  no transactions (§18.5).
-
-### 23.7 Transforms & exposure
-
-- `toJSON`/`toObject` with `virtuals: true`; delete `id` and `__v`
-  (§18.4).
-- Exposed surface: `_id`, `report`, `language`, `raw`, `latest`,
-  `stt.requestId`, `stt.model`, timestamps. Full transcription texts
-  are **never logged** (§9.5) and never enter analytics payloads; the
-  transform layer adds no derived text fields.
-- Margin: the §16.4 `confidence` value is STT-call information, not a
-  document field — it is not persisted here (§16.4 permission covers
-  `requestId` only).
-
-### 23.8 Seeds & mocks
-
-Mock transcriptions are written directly as documents (valid `raw` =
-`latest`, `language: am`, matching `report` ref) through the §25/§40
-mechanism — seeding never invokes STT, writes no physical audio
-(ADR-037, §25), and stays session-aware (§18.5). No seed content is
-hard-coded in the model (§18.8).
-
-### 23.9 Evolution
-
-Additive-only (§18.9, §14.5); destructive changes flow through the
-§25/§40 wipe in development (§12.10). The `raw`/`latest` contract and
-the `report` 1:1 ref are load-bearing for §17.3/§17.6/§21.2 — shape
-changes require coordinated amendments (§18.9).
-
-### 23.10 Verification usage
-
-- Grep gates: no `status`, no `isArchived`, no `archivedAt`, no
-  `deletedAt`, no `audio` ref (the 1:1 key is `report`); no
-  version/history vocabulary; no `aiCorrectedText`;
-  no `TRANSCRIPTION_STATUSES`; content slots exactly `raw` + `latest`;
-  `language` members resolve to `LANGUAGE_CODES`; `stt.requestId`
-  only as provider correlation (§16.4); no invention of STT
-  response fields beyond §16.4's contract.
-- Cross-section checks: mirrors §12.4 stage 3/4 (write site), §16.4
-  (STT contract, permission), §17.2/§17.3 (1:1 report-side edge),
-  §17.4 (cascades, orphan sweep), §17.6 (presence rows), §18.7
-  (`raw`/`latest` shape, F5), §21.2/§21.8 (the circular
-  `transcription` ref pair), §8.5/§54 (review paths — owned there),
-  §6.1/§6.3 (reviewed transcription is source-of-truth fallback).
-  Endpoints, pipeline mechanics, and transitions are owned by
-  §33/§31/§30 — this section asserts none.
-- §23 introduces no constant, no path (§15.4 unchanged —
-  `transcription.model.js` is the §15.4 `<entity>.model.js` file), and
-  no package (§13.3 manifest unchanged — nothing to install); it is
-  standalone — it references only specification sections.
+- **Single-undo content contract (23.5).** `raw` immutable (STT
+  re-runs only); `latest` current; restore = copy `raw` over `latest`,
+  available while not-yet-generated; after generation, corrections are
+  the editing path. No version chain. No snapshot fields (branches/
+  visit names derive live from the report).
+- **Hooks & session (23.6).** No business-logic hooks; transcription
+  writes are session-aware (§18.5/§31).
+- **Transforms & exposure (23.7).** `raw`/`latest` return on
+  detail-style transcription reads; the light list DTO projects them
+  out (§21.9). Full text is never logged (§9.5).
+- **Seeds & mocks (23.8).** Mock transcriptions are valid
+  `raw === latest` embedded objects via §25/§40; no STT invocation.
+- **Evolution (23.9); verification (23.10).** Additive-only; grep
+  gates: no `status`, no `stt.*`, no `language`, no `contributions`,
+  no `report` ref on the embedded transcription.
 
 ---
-
 ## 24. ChatConversation Model
 
 ### 24.1 Purpose & scope
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The ChatConversation is the
+> **post-creation AI agent** conversation of a report (`/chat`,
+> §36): each AI response is a **card**, and the single-accept
+> invariant is persisted via `acceptedResponseId`. Message entries are
+> agent turns (`{ id, role, content, type: 'response' }`) with the
+> card actions (Copy / Re-try / Like accept-revert) driven by the
+> conversation + accepted pointer. Grounded-history inputs come from
+> the user's accepted reports (per-user digest, §34) and the
+> conversation. MUI X Chat is the R7 candidate surface (bring
+> licensing/streaming/package decisions before adoption, §13).
+
 This section authors the ChatConversation row — the persistent AI
 chat history of a report (F7, §12.8, §36, §55). The section owns the
 conversation document shape, its one-per-report keying, and the
-embedded message-document contract including the per-message
-`{ provider, model, reasoning }` triple (ADR-014, §16.2, §18.7). It
+embedded message/turn contract with the single-accept pointer. It
 does **not** own: the chat service, conversation API endpoints, and
-the message-append business flow (§36); the MUI X Chat correction
-interface and rendering (§55); usage-token accounting and what
-additional per-message metadata is persisted (§16.1 assigns that
-decision to §36); provider request/response contracts and the
-conversation_history formation rules (§16.4); rate limiting (§27) or
-validation (§29).
+the send/retry/accept/revert business flows (§36); the chat UI
+rendering (§55); rate limiting (§27) or validation (§29).
 
 There is exactly **one** conversation per report (§17.2, §17.3 —
 Report—ChatConversation 1—1): a single conversation document owned
-by each report, whose messages are embedded child documents.
-Messages are **embedded child
-documents** of the conversation — they are not a separate collection
-(§17.2). Rows are user-scoped (BR-13, §3.2.3). Conversation turns are
-saved for display (§12.8) and are also the `conversation_history`
-source used by §16.4's regeneration contract. The conversation may be
-in Amharic, English, or mixed (content surface, §7.6); translation is
-never invoked by any chat path (§7.7).
+by each report, whose turns are embedded child documents (not a
+separate collection, §17.2). Rows are user-scoped (BR-13). Turns are
+saved for display (§12.8); the **accepted turn** (the card the
+supervisor accepted) is the generation trigger — accept creates the
+report's `generated` body + Item rows, revert clears them (§34/§36).
+The conversation may be in Amharic, English, or mixed (content
+surface, §7.6); translation is never invoked by any chat path (§7.7).
 
 ### 24.2 Field registry & message contract
 
-| Field                     | Type     | Required              | Rule                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------- | -------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId | auto                  | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                                                                                                 |
-| `user`                    | ObjectId | yes                   | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                                                                                                                                                                                                                                                                |
-| `report`                  | ObjectId | yes                   | the owning report — plain-model-name reference field (§9.3); **unique + sparse: one conversation per report** (§17.2)                                                                                                                                                                                                                                                               |
-| `reasoning`               | String   | yes (default `'off'`) | the **standing reasoning effort for every TTT request of this conversation** (S12, 2026-08-18): member of `AI_REASONING_EFFORTS` — the default value is `AI_REASONING_DEFAULT` `'off'` (§11.4); set through the §54/§46.17 reasoning select; consumed by every §34/§35 call (§16.2/§16.6); the per-message `messages[].reasoning` records the effort actually used per turn (§36.4) |
-| `messages`                | Array    | yes (default `[]`)    | the embedded message-document list — each entry is `{ role, content, provider, model, reasoning, createdAt }` (§18.7); empty until the first saved turn (§36)                                                                                                                                                                                                                       |
-| `messages[].role`         | String   | yes                   | member of `MESSAGE_ROLES` (`system` \| `user` \| `assistant`, §11.4) — schema enum constrained to the constant (§18.2); the §16.4 `conversation_history` projection passes only `user`/`assistant` entries (§16.4)                                                                                                                                                                  |
-| `messages[].content`      | String   | yes                   | the message text — Amharic, English, or mixed (content surface, §7.6); never logged verbatim (§9.5)                                                                                                                                                                                                                                                                                 |
-| `messages[].provider`     | String   | yes                   | member of `AI_PROVIDERS` (§11.4) — the provider that produced this turn (§16.2); different providers may serve different turns (initial generation vs corrections, ADR-014, §16.2)                                                                                                                                                                                                  |
-| `messages[].model`        | String   | yes                   | a registry member id of `AI_MODELS` for the text-generation provider in use (§11.4, §16.2); validated against the registry by §36/§29 — a non-member is rejected 422, never stored                                                                                                                                                                                                  |
-| `messages[].reasoning`    | String   | yes                   | member of `AI_REASONING_EFFORTS` (§11.4, §16.2, §16.4) — the effort governing this turn; the Gemini/NVIDIA mapping and the Addis ignore-rule are §16.4's                                                                                                                                                                                                                            |
-| `messages[].createdAt`    | Date     | auto (subdoc)         | per-message timestamp; reads re-merge chronologically (§18.7, §16.4)                                                                                                                                                                                                                                                                                                                |
-| `createdAt` / `updatedAt` | Date     | auto                  | §18.2 timestamps                                                                                                                                                                                                                                                                                                                                                                    |
+| Field                     | Type     | Required              | Rule                                                                                                                                                                                                                                    |
+| ------------------------- | -------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_id`                     | ObjectId | auto                  | the only key; never `id` (§12.11-3)                                                                                                                                                                                                     |
+| `user`                    | ObjectId | yes                   | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                                                                                                                    |
+| `report`                  | ObjectId | yes                   | the owning report — plain-model-name reference field (§9.3); **unique + sparse: one conversation per report** (§17.2)                                                                                                                   |
+| `acceptedResponseId`      | String   | no (null)             | the **single-accepted turn id** (2026-09-01) — at most one accepted response per report; set on accept, cleared on revert; persisted so single-accept survives reload (§36)                                                                |
+| `messages`                | Array    | yes (default `[]`)    | the embedded turn list — each entry is `{ id, role, content, createdAt }`; agent responses are cards (accept/retry/copy surfaced by §36/§55)                                                                                            |
+| `messages[].id`           | String   | yes                   | stable turn id (§36) — the pointer target of `acceptedResponseId` and the re-try target                                                                                  |
+| `messages[].role`         | String   | yes                   | member of `MESSAGE_ROLES` (`system` \| `user` \| `assistant`, §11.4)                                                                                                      |
+| `messages[].content`      | String   | yes                   | the turn text — Amharic, English, or mixed (content surface, §7.6); never logged verbatim (§9.5)                                                                          |
+| `messages[].createdAt`    | Date     | auto (subdoc)         | per-message timestamp; reads re-merge chronologically (§18.7)                                                                                                             |
+| `createdAt` / `updatedAt` | Date     | auto                  | §18.2 timestamps                                                                                                                                                                                                                         |
+
+No `provider`/`model`/`reasoning` stored per message (generation is
+preset-driven: the GenerationPreset `{provider, model, language,
+reasoning, systemPrompt, personaPrompt}` is selected per message,
+§34; the LLM/STT call metadata lives in logs, not the conversation).
 
 Explicitly absent: `reasoning_content` (or any reasoning text) is
 **never stored** (§16.4 — provider reasoning output is not surfaced to
@@ -5824,146 +5424,151 @@ per-message metadata field is introduced by §36, not here (§16.1).
 
 ### 24A.1 Purpose & scope
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Items are a **separate
+> collection** (the boss-query/sheet/agent surface). **Comments carry
+> NO status and NO rating** (owner directive 2026-09-01 — the `rating`
+> field is **removed**). Activities: status ∈ `{completed,
+> in_progress}`, default **`completed`**. Issues: status ∈
+> `{reported, in_progress, completed}`, default **`reported`**. Items
+> are **created on chat accept** (with their default statuses) and
+> **deleted on revert** (§34/§36). The earlier §21/§31 letter's
+> `generated`-presence link now means `report.generated !== ""` +
+> Item existence (§17.6).
+
 This section authors the Item row — the persisted content item of a
 generated report: one row per activity, per issue, and per comment.
-The Item model replaces the branch-digest itemization (retired,
-§6.11): items are real documents with per-type status and rating,
-queryable by `{ user, branch, date, type, status }`. The section owns
-the Item schema, its keys and indexes, the per-type status contract
-(§6.10), and the transform surface. It does **not** own: the item
-vocabulary and defaults (§6.10), generation that writes the rows
-(§34.4), the status/rating edit endpoint (§31.6), read queries
-(§38/§39/§50), or the review UI (§54).
+Items are real documents with per-type status, queryable by
+`{ user, branch, date, type, status }`. The section owns the Item
+schema, its keys and indexes, and the per-type status contract
+(§6.10). It does **not** own: the item vocabulary and defaults
+(§6.10), accept/revert creation and deletion (§34/§36), the status
+edit endpoint mechanism (open item — status-update path to be
+decided; candidates: direct `PATCH`), read queries (§38/§39/§50), or
+the review UI (§54).
 
-Item rows are user-scoped (BR-13, §3.2.3, §18.7). Items belong to a
-report and therefore to the report's branch; there is no per-visit
-binding and no attribution machinery (§6.10). Items carry the
-report's `branch` and `date` **captured at generation** (safe
-denormalization: capture edits are frozen at `generated`, §21.7 —
-the captured values can never go stale).
+Item rows are user-scoped (BR-13). Items belong to a report and
+therefore to the report's main branch; there is no per-visit binding
+and no attribution machinery (§6.10). Items carry the report's
+`branch` and `date` **captured at accept** (safe denormalization:
+metadata is frozen once the report is generated, §21.7 — the captured
+values can never go stale).
 
 ### 24A.2 Field registry & per-type contract
 
-| Field                     | Type                  | Required                     | Rule                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------- | --------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_id`                     | ObjectId              | auto                         | the only key; never `id` (§12.11-3)                                                                                                                                                                                                                                                                                                                       |
-| `user`                    | ObjectId              | yes                          | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                                                                                                                                                                                                                                      |
-| `report`                  | ObjectId              | yes                          | the owning report — plain-model-name reference field (§9.3); set at generation, never moved (§34.6)                                                                                                                                                                                                                                                       |
-| `branch`                  | ObjectId (ref Branch) | yes                          | the report's branch, **captured at generation** (§21.7) — the item-level branch key of the §38 filtering contract; branch removal is refused while items reference it (§20/§30/§62)                                                                                                                                                                       |
-| `date`                    | Date                  | yes                          | the report's `date`, **captured at generation** — UTC midnight (§21.2/§29); the item-level date key of the §38 rollups                                                                                                                                                                                                                                    |
-| `type`                    | String                | yes                          | member of `ITEM_TYPES` (§11.4) — `activity`, `issue`, or `comment`; written at generation, never changed                                                                                                                                                                                                                                                  |
-| `text`                    | String                | no (null only for `comment`) | the item's report wording (§8.4 — the rewritten line); required unless `type === 'comment'` (a comment may be `null` when no opinion was voiced, §6.10 edge 6); never edited per-row — text changes flow through the editor/corrections (Modes 1–3), which never touch item rows (§35)                                                                    |
-| `status`                  | String                | no (null only for `comment`) | per-type member of `ITEM_STATUSES` (§11.4) validated by `ITEM_STATUSES_BY_TYPE` (§29): `activity` → `completed` (default) or `in_progress`; `issue` → `reported` (default), `in_progress`, or `completed`; `comment` → **null only** (no status exists for comments, §6.10); schema-level validator enforces the per-type set at write time (§24A.3, §29) |
-| `rating`                  | Number                | no (null)                    | `null` OR an integer 0–5 **and** `type === 'comment'` (schema-level validator; §6.10); no rating voiced = `null`                                                                                                                                                                                                                                          |
-| `createdAt` / `updatedAt` | Date                  | auto                         | §18.2 timestamps                                                                                                                                                                                                                                                                                                                                          |
+| Field       | Type                  | Required | Rule                                                                                                                                      |
+| ----------- | --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `_id`       | ObjectId              | auto     | the only key; never `id` (§12.11-3)                                                                                                        |
+| `user`      | ObjectId              | yes      | owner-scoping (BR-13, §3.2.3, §18.7)                                                                                                       |
+| `report`    | ObjectId              | yes      | the owning report — plain-model-name reference field (§9.3); set at accept, never moved (§34/§36)                                          |
+| `branch`    | ObjectId (ref Branch) | yes      | the report's main branch, **captured at accept** (§21.7) — the item-level branch key of the §38 filtering contract; branch removal refused while items reference it (§20/§30/§62) |
+| `date`      | Date                  | yes      | the report's `date`, **captured at accept** — UTC midnight (§21.2/§29); the item-level date key of the §38 rollups                         |
+| `type`      | String                | yes      | member of `ITEM_TYPES` (§11.4) — `activity`, `issue`, or `comment`; written at accept, never changed                                        |
+| `text`      | String                | no (null only for `comment`) | the item's report wording (§8.4 — the rewritten line; field name `text`, confirmed 2026-09-01); required unless `type === 'comment'` (a comment may be `null` when no opinion was voiced, §6.10); never edited per-row — text changes flow through the editor/corrections (Modes 1–3), which never touch item rows (§35) |
+| `status`    | String                | no (null only for `comment`) | per-type member of `ITEM_STATUSES` (§11.4) validated by `ITEM_STATUSES_BY_TYPE` (§29): `activity` → `completed` (default) or `in_progress`; `issue` → `reported` (default), `in_progress`, or `completed`; `comment` → **null only (no status, owner 2026-09-01)**; schema-level validator enforces the per-type set at write time (§24A.3, §29) |
+| `createdAt` / `updatedAt` | Date                 | auto     | §18.2 timestamps                                                                                                                           |
+
+**No `rating` field exists** (owner 2026-09-01 — comments carry no
+rating; removed from the schema, validators, DTO, and §6.10).
 
 Defaults (`completed` for activities, `reported` for issues) are
-written by **generation**, never by the schema (§6.10). The status is
+written by **accept**, never by the schema (§6.10). The status is
 settable during review to **any member of the type's set, any
-direction** — a single-row atomic write (`PATCH
-/reports/:reportId/items/:itemId { status | rating }`, §31.6/§29),
-never an AI call, never a re-derivation. Item text is never editable
-per-row (§35).
+direction** — a single-row atomic write, never an AI call, never a
+re-derivation. **The status-update mechanism (endpoint + path) is an
+open item** (to be decided — candidates: `PATCH
+/reports/:reportId/items/:itemId { status }`, direct, supervisor
+action; mechanism pending owner verdict). Item `text` is never
+editable per-row (§35).
 
 No `isArchived`/`archivedAt` exists (only Report and Branch are
-archivable, §20.4/§21.6), no `deletedAt` (BR-15, §18.3). No other
-field exists — in particular no `attributionBasis`, no `sourceClip`,
-no `visitNo`, and no `itemId` (retired with §6.11): nothing outside
-this table is persisted.
+archivable), no `deletedAt` (BR-15), no `rating`, no
+`attributionBasis`, `sourceClip`, `visitNo`, or `itemId`: nothing
+outside this table is persisted.
 
 ### 24A.3 Keys, indexes & validation contract
 
 - **Owner scope.** `schema.index({ user: 1 })` (§18.3, BR-13).
-- **Report join.** `schema.index({ user: 1, report: 1 })` — serves
-  the report-detail DTO join (§31.6/§50, `withContent`).
+- **Report join.** `schema.index({ user: 1, report: 1 })`.
 - **Branch–date–type–status.** `schema.index({ user: 1, branch: 1,
-date: 1, type: 1, status: 1 })` — serves the §38 filtering contract
-  (`GET /analytics/items?branch&type&status&date…` — canonical
-  path, §38.2) and the §49/§56
-  rolls.
+  date: 1, type: 1, status: 1 })` — the boss/export/agent query
+  surface (§38/§50/§34).
 - **Type–status–date.** `schema.index({ user: 1, type: 1, status: 1,
-date: 1 })` — serves the §49 dashboard counts (status distribution
-  per item type) and the §38 export queries.
+  date: 1 })` — §49 dashboard counts.
 - **One comment per report.** `schema.index({ report: 1 }, { unique:
-true, partialFilterExpression: { type: 'comment' } })` — at most one
-  comment row per report (§6.10); uniqueness proven by the format
-  itself (§6.3 field 7).
-- **Validation contract (§18.8, §29).** Schema-level validators are
-  shape-only: per-type `status` membership via
-  `ITEM_STATUSES_BY_TYPE` and the `rating` type/`comment` restriction
-  are enforced by the §29 validators on **creation** and by the §31.6
-  PATCH path on **updates** (fetch row, validate manually — Mongoose
-  update validators lack document context; the schema fields carry
-  plain `enum`/`min`/`max` as a second net, §29).
-- **No TTL.** Exactly one TTL index exists in the spec — Report on
-  `archivedAt` (§18.3). Items inherit the owning report's lifecycle
-  and cascade (§17.4).
+  true, partialFilterExpression: { type: 'comment' } })` — at most one
+  comment row per report (§6.10).
+- **Validation contract (§18.8, §29).** Schema-level validators
+  enforce per-type `status` membership via `ITEM_STATUSES_BY_TYPE` and
+  the `type`/`status` restriction; the item `type` is immutable. No
+  `rating` validation exists (field removed).
+- **No TTL.** Items inherit the owning report's lifecycle and cascade
+  (§17.4).
 
 ### 24A.4 Lifecycle & cascades
 
-- **Creation.** Item rows are created by **generation only** (§34):
-  the structured-output items are persisted in the same session as
-  the transcription content write; the report's `branch` and `date`
-  are captured onto each row at that moment (§24A.2).
-- **Edits.** Status and rating changes are single-row writes
-  (§31.6); text edits do not exist per-row (§24A.2). Item rows never
-  change a report's status (BR-10: status changes are content edits
-  at `generated`, which stay at `generated`).
+- **Creation.** Item rows are created by **accept** (§34): the
+  structured items of the accepted report/response are persisted with
+  their **default per-type statuses** in the same session as the
+  report's `generated` write (§34). The report's main-branch `branch`
+  and `date` are captured onto each row at that moment (§24A.2).
+- **Deletion (revert).** Reverting the accepted response **deletes
+  all the report's Item rows** and clears `report.generated` in the
+  same session (§36). Post-accept item status edits are lost on revert
+  (accepted consequence, 2026-09-01).
+- **Edits.** Status changes are single-row writes (mechanism open —
+  §24A.2); text edits do not exist per-row.
 - **Cascade.** Report hard-delete removes the report's item rows in
-  the same session (§17.4, §31). Audio/capture edits never touch
-  item rows (§21.7/§35).
-- **Presence.** `generated` requires the report's item rows to exist
-  (§17.6/§21.4); the rows are written atomically with the content —
-  a generation that fails to persist the items rolls back the whole
-  session (§34.6).
+  the same session (§17.4, §31).
+- **Presence.** `generated` requires the report's `generated` field
+  non-empty **and** item rows to exist (§17.6).
 
 ### 24A.5 Transforms & exposure
 
 - `toJSON`/`toObject` with `virtuals: true`; delete `id` and `__v`
   (§18.4).
 - Exposed surface: `_id`, `report`, `branch`, `date`, `type`, `text`,
-  `status`, `rating`, timestamps. The DTO never invents per-branch
-  grouping — items are flat rows (§31.6/§50).
-- No secrets exist on this model; which fields appear in API
-  responses stays with the §27/§31 DTOs.
+  `status`, timestamps. No `rating`. The DTO never invents per-branch
+  grouping — items are flat rows (§50).
 
 ### 24A.6 Seeds & mocks
 
 Mock items are written directly as documents through the §25/§40
-mechanism (valid per-type statuses, `rating` rules, matching `report`
-ref) — session-aware (§18.5), never hard-coded in the model (§18.8).
+mechanism (valid per-type statuses, matching `report` ref, no
+`rating`) — session-aware (§18.5), never hard-coded in the model.
 
 ### 24A.7 Evolution
 
-Additive-only (§18.9, §14.5); destructive changes flow through the
-§25/§40 wipe in development (§12.10). The per-type status contract
-(`ITEM_STATUSES_BY_TYPE`) is load-bearing for §6.10/§31.6/§29 —
-a change to the sets requires coordinated amendments (§14.5, §11.4).
+Additive-only (§18.9); destructive changes flow through the §25/§40
+wipe in development (§12.10). The per-type status contract
+(`ITEM_STATUSES_BY_TYPE`) and the no-rating rule are load-bearing for
+§6.10/§29 — a change requires coordinated amendments (§14.5, §11.4).
 
 ### 24A.8 Verification usage
 
 - Grep gates: `type` values resolve to `ITEM_TYPES`; `status` values
-  resolve to `ITEM_STATUSES`/`ITEM_STATUSES_BY_TYPE` (§11.4); no
-  `attributionBasis`, `sourceClip`, `visitNo`, `itemId`,
-  `unassignedItems`, or digest vocabulary (§6.11 retired); no
-  `isArchived`/`archivedAt`/`deletedAt`; `rating` only with
-  `type === 'comment'`; the one-comment partial unique index is the
-  only uniqueness on the model (§18.3).
-- Cross-section checks: mirrors §6.10 (vocabulary, defaults, ratings,
-  status edits), §17.2/§17.3 (seven-models ERD, Report—Item edge),
-  §17.4 (cascades), §17.6/§21.4 (generated presence), §34.4
-  (generation writes), §38 (filtering contract), §50/§54 (UI).
-  Endpoints and transitions are owned by §31.6 — this section asserts
-  none.
-- §24A introduces no constant (§11.4 owns the vocabulary — the only
-  §11 change of this section), no path beyond the §15.4
-  `item.model.js` addition, and no package (§13.3 manifest unchanged
-  — nothing to install); it is standalone — it references only
-  specification sections.
+  resolve to `ITEM_STATUSES`/`ITEM_STATUSES_BY_TYPE` (§11.4); **no
+  `rating`**; no `attributionBasis`, `sourceClip`, `visitNo`,
+  `itemId`, or digest vocabulary; no `isArchived`/`archivedAt`/
+  `deletedAt`; the one-comment partial unique index is the only
+  uniqueness on the model (§18.3).
+- Cross-section checks: mirrors §6.10 (vocabulary, defaults, status
+  edits), §17.2/§17.3 (five-entity ERD, Report—Item edge), §17.4
+  (cascades), §17.6 (generated presence), §34 (accept writes items +
+  `generated`), §36 (revert deletes items), §38 (filtering contract).
+  Endpoints and transitions are owned by §31/§36 — this section
+  asserts none.
 
 ---
-
 ## 25. Mock Content & Seeding
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Mock reports follow the
+> consolidated shape: Report rows with embedded `audios[]` +
+> `transcription{raw,latest}` (no status, `generated` per fixture,
+> `isMain` visits); Item fixtures use `ITEM_STATUSES_BY_TYPE`
+> (activities completed/in_progress, issues reported/in_progress/
+> completed, comments no status) with **no `rating`**; mock
+> conversation fixtures carry `acceptedResponseId`. Letter below is
+> reference for the §40 mechanism only.
 
 ### 25.1 Purpose & scope
 
@@ -5985,7 +5590,7 @@ and exists for development only (§12.10).
 
 ### 25.2 Mock-content rules
 
-1. **No seeds in models.** None of the seven models (§17.2) contains
+1. **No seeds in models.** None of the five models (§17.2) contains
    default users, branches, reports, audio, transcriptions, items, or
    conversations (§18.8; each of §19.6/§20.8/§21.10/§22.8/§23.8/
    §24A.7/§24.8
@@ -6983,431 +6588,168 @@ sweeper after `ARCHIVED_TTL_SECONDS` (§62).
 
 ### 31.1 Purpose & scope
 
-§31 is the **largest and most-referenced backend section**: the
-Report endpoints, the status machine with the authoritative
-transition-guard table (BR-06, ADR-003), the creation steps the
-wizard mirrors (§52 references §31.2-1…§31.2-5), the cascade and
-rewind rules (§17.4), and the two-path lifecycle (BR-16). There is
-**no accept flow** — generation is the terminal move to `generated`
-(BR-08, owner-correction set 2026-08-18). Every Part D page
-(§49–§52) and Part C section (§32–§39) hangs on this section.
+> **CONSOLIDATED AMENDMENT (2026-09-01).** §31 owns the **Report API**
+> under the consolidated model. **There is no status machine** — the
+> title's "& Status" is historical; the file/§ name may be retained for
+> stability but the four-state table and its transition-guard table are
+> **removed** (BR-06, §17.6). Creation is the **atomic multipart
+> create** dialog; post-creation is `/edit` (Meta/Audio/Transcription
+> tabs) + `/chat` (agent cards with Copy/Re-try/Like accept-revert,
+> §36). `POST /reports` sends metadata + audio together. Supersedes
+> the R1 meta-only create and the visit-subpath endpoints.
 
-> **R1 AMENDMENT (2026-09-01, owner-approved during Step-1.1).** Under
-> the trust overlay, §31 is no longer a single source of truth until
-> amended. This amendment supersedes the older letter below: creation
-> is a **meta-only dialog** (`POST /reports` with `{ date, visits }` →
-> `draft`), not the §52 wizard; there are **no visit-subpath
-> endpoints** (the whole meta block is edited via
-> `PATCH /reports/:reportId`); `GET /reports/:reportId` is the **meta
-> read** (no `?withContent`); `GET /reports/:reportId/details` is a
-> **distinct route, open/TBD** (separate brainstorm); `GET /reports`
-> filters are `isArchived` (active|archived|all, Branches mirror),
-> `status`, `branch` (Q1 main), `sort` (date|-date); `DELETE`
-> targets an already-archived report and physically deletes + child
-> cascade (Branches mirror). Audio/Transcription endpoints deferred to
-> R3 (§32)/R4 (§33). See findings.md/progress.md/task_plan/AGENTS.md
-> R1 record.
+§31 owns the Report surface: creation (§32-wired atomic create),
+list/meta reads (§31.3), meta edit (§31.5), the item status surface
+(§31.6, mechanism open), lifecycle (§31.7), presence invariants
+(§31.8), and the endpoints matrix (§31.9). Audio endpoints = §32;
+STT = §33; generation/accept = §34; chat/cards = §36.
 
-- **Owned here (normative).** Report meta creation (§31.2);
-  meta-read/list contracts (§31.3); the status machine and the
-  transition-guard table (§31.4); capture/visit updates via PATCH
-  (§31.5); correction & item endpoints (§31.6); the two-path
-  lifecycle (§31.7); cascade/rewind and presence invariants
-  (§31.8); endpoints matrix (§31.9); verification (§31.10).
-- **Owned elsewhere — deliberately not repeated here.** Audio
-  upload = §32; transcription = §33; generation = §34;
-  correction service internals = §35; chat = §36; export = §37;
-  retention timing = §62; the edit-page UI = §53/§54 (open); the details read =
-  §51 (`GET /reports/:reportId/details`, open/TBD); envelope/errors/transactions = §27;
-  the Item rows and their
-  queries = §24A/§38.
-- **Explicitly out of scope §31.** No STT/AI provider calls
-  (§33–§35), no new constant (§11 unchanged — `REPORT_STATUSES`,
-  `ITEM_TYPES`, `ITEM_STATUSES`, `ITEM_STATUSES_BY_TYPE`,
-  `ARCHIVED_TTL_SECONDS`, `SWEEPER_INTERVAL_MS` exist), no path
-  beyond §15.4, no package.
+### 31.2 Creation (atomic multipart — consolidated)
 
-### 31.2 Creation (meta-only dialog — R1 amendment)
+There is **no wizard** and no meta-only create. The create is a
+single dialog: **react-hook-form** (metadata `date` + `visits[]` via
+the branch-visit dialog) + **audio (min 1 clip)** → submit →
+`POST /reports` as **multipart/form-data**: `metadata` (JSON string:
+`{ date?, visits[] }`) + `clips[]` (1..n files) + `createKey`
+(client-generated lazily at first submit; stable across retries in
+the same dialog; discarded on close/refresh; nothing server-side if
+never submitted).
 
-**Amended (R1):** there is **no wizard** and no five step-endpoints.
-Creation is a **single meta-only dialog** from the reports page header
-action: a react-hook-form `{ date, visits }` → `POST /reports` →
-`draft`. No audio in the create dialog; audio/transcription are
-post-creation steps driven from the edit page.
+Backend pipeline (controller, express-async-handler):
+1. §29 validators (metadata) + multer (clips; per-clip MIME/size/
+   duration). A per-clip failure → rollback (unlink written files) →
+   error; the dialog stays open, form state + recorded audio
+   preserved, outside-click does NOT close.
+2. **Attempt-session** keyed by `createKey` (transient, staging under
+   `uploads/audio/staging/`, TTL ~1 h, sweeper-cleaned) with per-clip
+   marks `uploaded|failed` and `transcribed|failed`.
+3. **Incremental retry:** resubmit with the same `createKey` skips
+   clips already marked uploaded+transcribed; only failed/pending
+   clips re-sent.
+4. **STT each clip** (Addis-only Path A, §33) → merged transcription.
+   Any failure → rollback + delete clips (files) → error; dialog
+   preserved. **Merged-empty → REJECT** ("please re-record"); per-clip
+   silence is fine.
+5. **One §27.7 transaction** creates the Report (`visits[]` +
+   embedded `audios[]` + embedded `transcription{raw,latest}`) when
+   every clip is heard → status-less committed report. Any final
+   failure → rollback + delete clips; dialog preserved.
+6. No Report/Audio docs exist until the final commit ⇒ rollback is
+   filesystem-only. `createKey` gives idempotency (no duplicate).
 
-**`POST /reports` (access):** request `{ date?, visits }`:
-
-```json
-{
-  "date": "2018-03-15T00:00:00.000Z",
-  "visits": [
-    { "branch": "...", "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
-    { "branch": "...", "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
-  ]
-}
-```
-
-- `date` — the workday's Ethiopian date, presented/selected Ethiopian
-  at the boundary (MuiDatePicker); wire = Gregorian UTC Date;
-  normalized to UTC-midnight server-side (§29, §18.2).
-- `visits` — required, ≥ 1; each entry `{ branch, clockIn, clockOut,
-  isMain }`; every `branch` resolves to an **active** branch of this
-  user (**422** with `details[].field` on invalid/foreign/archived — not
-  404); `clockIn`/`clockOut` `HH:mm`; invariants re-validated §21.2
-  (≥1, exactly-one-main when >1, per-visit `in<out`, day-span `in<out`,
-  chronological).
-- The report row is created at `draft`; no audio, no transcription.
-  The `ስም` header is never sent and `supervisorName` is never accepted:
-  the report carries no name — the header renders the user's live
-  `fullName` at read time (§19.4, §6.3 field 3).
-- **201** returns the list ReportDto (populated `user` with
-  `_id`/`firstName`/`lastName`/`fullName`; populated `visits[].branch`
-  with `_id`/`name`/`location`; status `draft`; `isArchived`/`archivedAt`;
-  timestamps) so the reports page inserts the item with no refetch.
-
-**Post-creation steps (not part of create; driven from the edit page):**
-- edit page → **Meta tab**: `PATCH /reports/:reportId` edits `date` + `visits`.
-- edit page → **Audio tab**: audio attach (§32/R3) — first clip → `audio_attached`.
-- edit page → **Audio/Transcription tabs**: transcription (§33/R4) → `transcribed`.
-- generation (§34/R5) → `generated`.
-
-**Dropped (R1):** `PUT /reports/:reportId/visits` and
-`PUT/DELETE /reports/:reportId/visits/:visitIndex` — the whole meta block
-(`date` + `visits[]`) is edited through `PATCH /reports/:reportId`.
+`201` returns the **list-row DTO** (populated `user` +
+`visits[].branch`, `audios[]` metadata, `generated: ""`).
 
 ### 31.3 Detail (meta read) & list
 
-**Amended (R1):** `GET /reports/:reportId` is the **meta read** that
-seeds the edit page's Meta tab — **not** the details read. There is no
-`?withContent`. The complex read is a separate route,
-`GET /reports/:reportId/details`, which is **open/TBD** (own exhaustive
-brainstorm). `/reports/:reportId/edit` is a **distinct route** from
-`/reports/:reportId/details`.
-
-- `GET /reports/:reportId` (access): 404 on not-found-for-user (BR-13).
-  Returns the **list ReportDto** (populated `user` with
-  `_id`/`firstName`/`lastName`/`fullName`; populated `visits[].branch`
-  with `_id`/`name`/`location`; `date`; `status`; `isArchived`;
-  `archivedAt`; `createdAt`/`updatedAt`). No transcription ref (Option
-  X), no content, no items, no audio — the Meta tab's data.
-- `GET /reports` (access): paginated; filter dimensions (R1-approved):
+- `GET /reports/:reportId` — the **meta read** that seeds the edit
+  page's Meta tab (populated `user` + `visits.branch`; light). **No
+  `?withContent`.** The complex read is a separate route,
+  `GET /reports/:reportId/details` — **open/TBD** (own brainstorm).
+  `/reports/:reportId/edit` is a distinct route (3 tabs §53/§54/§32).
+- `GET /reports` — paginated; filter dimensions (consolidated):
   - `isArchived` — `active|archived|all`, default `all` (Branches mirror)
-  - `status` — enum from `REPORT_STATUSES`
-  - `branch` — **Q1 main-branch only**: `{ visits: { $elemMatch:
-    { branch, isMain: true } } }` (uses the `{ user, "visits.branch" }`
-    multikey index)
-  - `sort` — `date`/`-date` allowlist (default `-date`, `createdAt`
-    tiebreak); `page`/`limit` like Branches (`PAGINATION_*`, clamp 1–100).
-  - `date`-range filter **held** (defer to details/analytics brainstorm).
-  Data: list DTOs, heavy fields absent.
+  - `branch` — Q1 main-branch only: `$elemMatch { branch, isMain: true }`
+    (uses the `{user,"visits.branch"}` multikey index)
+  - `generated` — `true|false` → `generated: { $ne: '' }` (indexed)
+  - `sort` — `date/-date` allowlist (default `-date`, createdAt tiebreak)
+  - `page`/`limit` like Branches (`PAGINATION_*`, clamp 1–100)
+  - `date`-range filter held (defer to details/analytics brainstorm)
+  - **No `status` filter** (field removed)
+  List DTO projects out `transcription` + `audios[].filePath`.
 
-### 31.4 Status machine & the transition-guard table (normative)
+### 31.4 (removed — no status machine)
 
-States = `REPORT_STATUSES` order. The table below **is the only
-transition authority** — edit-page tab actions reuse it identically
-(BR-06 note); services and validators never hold their own copy.
-
-| From             | To               | Guard / trigger                                                                                                                                                                                                      | Owner   |
-| ---------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `draft`          | `audio_attached` | first clip uploaded (§32)                                                                                                                                                                                            | §32     |
-| `audio_attached` | `transcribed`    | the report's Transcription row exists with `raw` set (§33)                                                                                                                                                           | §33     |
-| `transcribed`    | `generated`      | generation completed: transcription `latest` written, Item rows persisted (§34.6) — **terminal**; regeneration keeps the status                                                                                      | §34     |
-| `generated`      | _(none)_         | forward-locked; content stays editable via §35/§31.6 (BR-10); re-transcription, audio add/remove, and capture edits are frozen at `generated` (BR-12 end, §21.7, §31.8) — corrections are the §35/§54 Modes 1–3 path | §31/§35 |
-| `audio_attached` | `draft`          | **last audio deleted** (single explicit backward transition, ADR-003)                                                                                                                                                | §32/§31 |
-| `transcribed`    | `audio_attached` | **any audio deleted** — the merged transcription row cascades (Option X: the row is removed; no report field to clear, §22.4/§23.4); draft if it was the last audio | §32/§31 |
-
-**Guard principles:** never skip states forward except the listed
-steps; no implicit rewind on edits (BR-10 — edits never rewind);
-the only rewind path is the audio-removal rewind (the last-audio
-and transcribed-cascade rewinds above); archive/restore (BR-16) is
-orthogonal to status
-(guards apply within archived reports for
-content-changing actions; read-only views still open).
+There is **no transition-guard table**. Derived state rules live in
+§17.6/§21.4 (materialized / generated / not-yet-generated) and the
+freeze gate = generated. §34/§36 own accept/revert.
 
 ### 31.5 Capture & visit updates (Meta tab)
 
-**Amended (R1):** the visit-subpath endpoints
-(`PUT /reports/:reportId/visits/:visitIndex`,
-`DELETE /reports/:reportId/visits/:visitIndex`) are **dropped**.
-The report has only `date` + `visits[]`, so the **whole meta block is
-edited in one `PATCH /reports/:reportId`** (the Meta tab's save):
-
-- `PATCH /reports/:reportId` — body `{ date?, visits }`: replaces the
-  meta block. Re-runs the §31.2 create validation (visits ≥ 1,
-  exactly-one-main when >1, per-visit `in<out`, day-span `in<out`,
-  chronological, every `branch` resolves to an active branch, `HH:mm`).
-  **Capture edits are allowed only at status < `generated`** — at
-  `generated` the whole metadata block (`date`, `visits`, main branch)
-  is frozen → **403** (metadata + items = report). Ethiopian boundary
-  for `date`. Returns the updated list DTO.
-- No separate visit-add/remove endpoints: adding, removing, or
-  reordering visits is done by editing the `visits` array in this
-  PATCH. Audio rows bind to the report, never to a specific visit
-  (§22), so visit edits never affect audio.
+- `PATCH /reports/:reportId` — body `{ date?, visits[] }` (the whole
+  meta block; **no visit-subpath endpoints** — the block is edited
+  whole). Re-runs the §31.2 create validation (visits ≥ 1, one main
+  when >1, per-visit in<out, day-span in<out, chronological, active
+  branch resolution 422). **403 when generated** (freeze gate = items/
+  `generated` non-empty). Ethiopian boundary for `date`. Returns the
+  updated list DTO.
 
 ### 31.6 Corrections, content & item endpoints
 
-- **Correction endpoints** (wired to §35 service); every content
-  write in this list touches only the transcription's `latest`
-  (never `raw` — BR-11; no digest exists to clear):
-  - `PATCH /reports/:reportId/content` — the transcription step's
-    Save (round-6 amendment — Mode-1 and the correction candidate
-    both persist here): replaces the transcription's `latest` with
-    the client's corrected content (sanitized §61); allowed at
-    every status including `generated` (BR-10); never touches
-    `raw` (BR-11); no
-    model call (§35.8).
-  - `POST /reports/:reportId/corrections` — Mode-2/3: typed
-    instruction OR voice-correction clip (multipart) → the §35
-    service rewrites only the relevant part (BR-09) and RETURNS
-    the corrected content snapshot (the candidate — round-6
-    amendment: nothing is staged, there is no accept step; the
-    client fills the live editor with the candidate and the user
-    saves it through the content PATCH above). The correction
-    request resource is ephemeral — the candidate is returned,
-    never stored (ADR-033). Provider id rides
-    the request (unknown provider → 422).
-  - `POST /reports/:reportId/corrections/transcripts` — the
-    round-7 **STT-only** endpoint of the correction dialog: a
-    multipart `clip` (+ `durationSec`) is transcribed (§33
-    pipeline) and the endpoint returns the transcribed instruction
-    TEXT (`200 { text }`) — it never runs the correction engine,
-    never mutates the report, and stores nothing (the dialog fills
-    its field with the text; **Apply** then sends it as the typed
-    instruction through the `/corrections` endpoint above). Guards:
-    404 on an unknown/foreign report, 403 on an archived report,
-    422 on a missing clip ("Record a voice instruction first"),
-    on a disallowed MIME type ("Only audio files are accepted"),
-    and on the §32 size cap.
-  - `PUT /reports/:reportId/content` — single undo (REST form of
-    revert): replaces the transcription's `latest` with `raw` while
-    they differ (BR-11); **available pre-generation only**
-    (transcription-stage undo; after generation, corrections are
-    the editing path, §23.5); before
-    generation (no `raw`) restores `latest → null` so the
-    client-joined transcription returns; 200 con
-    `data: { content: latest }`. Idempotent — a second call with
-    `latest` already equal to `raw` is a no-op 200.
-- **Item endpoints** (Item rows, §24A; status/rating changes are
-  single-row atomic writes — never an AI call, never a
-  re-derivation):
-  - `GET /reports/:reportId/items` — the report's items (flat
-    rows, ordered: activities, issues, comment; §24A.5) — served
-    by the `{ user, report }` index. Bounded per report (max ~8
-    activities + ~8 issues + 1 comment) — **no pagination**;
-    response `data: { items: [ItemDto, …] }` (C7 — distinct from
-    §38.2's paginated `docs` shape).
-  - `PATCH /reports/:reportId/items/:itemId` — `{ status?,
-rating? }`: per-type validation via `ITEM_STATUSES_BY_TYPE`
-    (§29 — fetch row, validate manually: `status` must be a
-    member of the type's set, any direction; `rating` only for
-    `comment`, integer 0–5 or `null`); 200 ItemDto; 404 unknown/
-    foreign item; 422 on a set violation.
-- **Generation:** `POST /reports/:reportId/generations` (ai tier
-  §27.3) — from `transcribed` only (regen gate: regeneration is
-  allowed only from `transcribed` — content regenerates against
-  the reviewed story; §34.3); §34 writes the transcription's
-  content + the Item rows in one session; status → `generated`;
-  regeneration at `generated` is refused (403) — the report is
-  terminal (BR-06/BR-08); corrections are the editing path.
-  **Single round-trip response (C8):** returns the full
-  ReportDetailDto (§31.3) with the generated `latest` and the
-  persisted `items` in one 200 body — the client never refetches.
+- Transcription content writes: `PATCH /reports/:reportId/transcription`
+  (`{ latest }` — review edit / correction result, §35) and
+  `PUT .../transcription/revert` (`latest ← raw`, single undo,
+  pre-generated). `raw` immutable (BR-11).
+- Item surface: `GET /reports/:reportId/items`; **status-update
+  mechanism OPEN** (candidate `PATCH /reports/:reportId/items/:itemId
+  { status }` with `ITEM_STATUSES_BY_TYPE` validation; direct,
+  any-direction, per-type; never an AI call; mechanism + endpoint
+  pending owner verdict); no rating; text never edited per-row.
+- `GET /items?branch=&dateFrom=&dateTo=&status=&type=` — cross-report
+  boss/export/agent query (pagination open in R2).
 
 ### 31.7 Two-path lifecycle (BR-16, mirrors §30.5)
 
 - `POST /reports/:reportId/archive` / `POST /reports/:reportId/restore`
   — set/clear `isArchived`/`archivedAt`; 409 on state mismatch;
-  archive allowed at any status (including `generated`).
-- `DELETE /reports/:reportId` — targets an **already-archived**
-  report (Branches mirror; look up `{ _id, user, isArchived: true }`
-  → 404 if absent). On an archived report, the controller performs a
-  **physical session delete + child cascade** (audio docs +
-  `fs.unlink` after commit, the transcription row, the item rows,
-  the conversation row), `{ success, message: "Report deleted",
-  data: null }`, 200. `DELETE` does not first archive — Archive is the
-  separate action that sets `isArchived`. No `deletedAt`. The §62
-  sweeper + TTL remain the safety net for anything the controller
-  misses (BR-15: no other path hard-deletes user data once archived).
+  archive allowed at any time (including generated).
+- `DELETE /reports/:reportId` — targets an **already-archived** report
+  (Branches mirror; look up `{ _id, user, isArchived: true }` → 404
+  if absent). On an archived report, the controller performs a
+  **physical session delete + child cascade** (embedded audio subdocs
+  + `fs.unlink` after commit, embedded transcription, item rows, the
+  conversation row), `{ success, message: "Report deleted", data:
+  null }`, 200. No `deletedAt`. The §62 sweeper + TTL remain the
+  safety net (BR-15).
 
-### 31.8 Cascade / rewind / presence invariants
+### 31.8 Cascade / presence invariants
 
-- **Audio-removal rewind** (ADR-003): deleting the last audio of
-  an `audio_attached` report rewinds to `draft`; deleting any
-  audio of a `transcribed` report rewinds to `audio_attached`
-  (or `draft` if it was the last) and cascades the merged
-  Transcription row (the row no longer exists — under Option X there
-  is no `transcription` ref to clear; transcribed = `Transcription.exists({report})`,
-  §23/R4); a `generated` report never rewinds — audio
-  removal is frozen (BR-12) — the §51.4 confirm copy
-  states the consequence (§32 owns the audio endpoint; §31 owns
-  the transition).
-- **Presence map** (§17.6): `draft` = row only; `audio_attached`
-  = +≥1 Audio row; `transcribed` = + the 1:1 Transcription row
-  with `raw` (= `latest` at transcription); `generated` =
-  transcription `latest` holds the generated content + the
-  report's Item rows exist. No other data may
-  change status.
-- **No dangling references:** branch removal is refused while any
-  report, visit, or item row references the branch (§20/§30/§62);
-  there is no tombstone path (§17.4).
-- **Concurrency:** every write in §31.5/§31.6 runs in the §27.7
-  session template; version/reject conflicts surface via §27.5
-  as a toast on the client (§60) — never a silent overwrite.
+- **Direct clip delete = DB subdoc + physical file** (§21.6/§22.4),
+  frozen at generated (403).
+- **Add clip** at generated frozen; on a transcription-bearing
+  not-yet-generated report drops readiness (deferred pending-clip
+  mechanism, R4/R7).
+- **Presence** (§17.6): `generated` = `report.generated !== ""` +
+  Items exist; revert clears both (accept/revert in §34/§36).
+- **BR-14 ref-check** dominates: branch removal refused while any
+  report visit or item references the branch.
 
-### 31.9 Endpoints matrix (Report domain)
+### 31.9 Endpoints matrix (Report domain, consolidated)
 
-| Method+Path                                    | Auth                   | Request                                                                         | Success                                               | Errors                                     |
-| ---------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------ |
-| `POST /reports`                                | access                 | `{ date?, visits }` (visits ≥ 1, exactly-one-main when >1)                      | 201 ReportDto (list DTO)                             | 401, 422                                   |
-| `GET /reports`                                 | access                 | query filters (`isArchived` active\|archived\|all default all, `status`, `branch` Q1, `sort` date\|-date) + pagination | 200 list | 401, 422 |
-| `GET /reports/:reportId`                       | access                 | — (meta read, no `?withContent`)                                                | 200 ReportDto (list DTO)                             | 401, 404                                   |
-| `PATCH /reports/:reportId`                     | access                 | `{ date?, visits }` (whole meta block, < generated)                             | 200 ReportDto                                        | 404, 422, 403 (generated)                  |
-| ~~`PUT /reports/:reportId/visits`~~            | —                      | — (dropped — PATCH edits visits)                                               | —                                                    | —                                          |
-| ~~`PUT /reports/:reportId/visits/:visitIndex`~~| —                      | — (dropped)                                                                     | —                                                    | —                                          |
-| ~~`DELETE /reports/:reportId/visits/:visitIndex`~~ | —                  | — (dropped)                                                                     | —                                                    | —                                          |
-| `GET /reports/:reportId/items`                 | access                 | —                                                                               | 200 `{ items: [...] }`                                | 401, 404                                   |
-| `PATCH /reports/:reportId/items/:itemId`       | access                 | `{ status?, rating? }`                                                          | 200 ItemDto                                           | 404, 422                                   |
-| `POST /reports/:reportId/generations`          | access (ai tier §27.3) | —                                                                               | 200 ReportDetailDto with generated `latest` + `items` | 404, 403 (regen gate), 502 (providers)     |
-| `PATCH /reports/:reportId/content`             | access                 | content replaced                                                                | 200 `{ content }`                                     | 404, 422                                   |
-| `PUT /reports/:reportId/content`               | access                 | — (revert: replace `latest` with `raw`)                                         | 200 `{ content }`                                     | 404                                        |
-| `POST /reports/:reportId/corrections`          | access                 | instruction or multipart clip (optional provider, §35.2)                        | 200 corrected snapshot (ephemeral candidate)          | 404, 502 (providers)                       |
-| `POST /reports/:reportId/archive` / `restore`  | access                 | —                                                                               | 200                                                   | 404, 409                                   |
-| `DELETE /reports/:reportId`                    | access                 | — (already-archived target)                                                     | 200 (physical session delete + cascade)               | 404                                        |
+| Method+Path | Request | Success | Errors |
+|---|---|---|---|
+| `POST /reports` | multipart `metadata` + `clips[]` + `createKey` | 201 list DTO (generated:"") | 401, 422, 403, 413→422, 402, 429, 502 |
+| `GET /reports` | filters (isArchived/branch Q1/generated/sort) + pagination | 200 list | 401, 422 |
+| `GET /reports/:reportId` | — (meta read; no `?withContent`) | 200 list DTO | 401, 404 |
+| `PATCH /reports/:reportId` | `{ date?, visits[] }` (whole block; 403 while generated) | 200 | 404, 422, 403 |
+| `POST /reports/:reportId/archive` / `restore` | — | 200 | 404, 409 |
+| `DELETE /reports/:reportId` | archived-only target | 200 (physical delete + cascade) | 404 |
+| `GET /reports/:reportId/transcription` | — | `{raw, latest, readiness}` | 401, 404 |
+| `PUT /reports/:reportId/transcription` | transcribe pending/re-transcribe | updated transcription | 401, 404, 403 (pc), 422, 502 |
+| `PATCH /reports/:reportId/transcription` | `{ latest }` | `{ latest }` | 404, 422 |
+| `PUT /reports/:reportId/transcription/revert` | — (latest←raw) | `{ latest }` | 404 |
+| `GET /reports/:reportId/items` | — | `{ items: [ItemDto] }` | 401, 404 |
+| `PATCH /reports/:reportId/items/:itemId` | `{ status }` (mechanism open) | 200 ItemDto | 404, 422 |
+| `GET /items` | `branch/dateFrom/dateTo/status/type` | `{ items: [...] }` | 401, 422 |
+| `POST /reports/:reportId/clips` | multipart clip (+ duration) | 201 AudioDto | 401, 404, 403, 422 |
+| `GET /reports/:reportId/clips` | — | `{ clips: [AudioDto] }` | 401, 404 |
+| `GET /reports/:reportId/clips/:clipId` | — | AudioDto (+ byte source) | 401, 404 |
+| `DELETE /reports/:reportId/clips/:clipId` | — (direct delete DB+file) | 200 `{data:null}` | 401, 404, 403 |
+| `POST /reports/:reportId/conversation` | `{ content, presetId }` | card response | 401, 404, 403, 422 |
+| `GET /reports/:reportId/conversation` | paged | thread | 401, 404 |
+| `POST /reports/:reportId/conversation/re-try` | `{ responseId }` | new card | 401, 404, 403 |
+| `POST /reports/:reportId/conversation/accept` | `{ responseId }` | creates +generated +items | 401, 404, 409, 422 |
+| `POST /reports/:reportId/conversation/revert` | — | deletes items + clears generated | 401, 404, 409 |
+| `GET/POST /presets`, `GET/PATCH/DELETE /presets/:presetId` | GenerationPreset CRUD (no default) | 200/201/204/200 | 401, 404, 422 |
 
-**Dropped (R1):** `GET /reports/:reportId` no `?withContent`;
-`PUT .../visits` + `PUT/DELETE .../visits/:visitIndex` removed.
-**Open/TBD:** `GET /reports/:reportId/details` (separate brainstorm).
-
-**Contract JSON** (folded from the route-contract review,
-2026-08-19; ReportDto is §31.3's serialized surface; report
-statuses are the four `REPORT_STATUSES` members).
-
-`POST /reports` — request (amended, R1):
-
-```json
-{
-  "date": "2026-08-19T00:00:00.000Z",
-  "visits": [
-    { "branch": "64f1a2b3c4d5e6f7a8b9c0d3", "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
-    { "branch": "64f1a2b3c4d5e6f7a8b9c0d4", "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
-  ]
-}
-```
-
-201 (list DTO — populated `user` + `visits[].branch`; no `transcription` ref):
-
-```json
-{
-  "success": true,
-  "message": "Report created",
-  "data": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "user": { "_id": "64f1a2b3c4d5e6f7a8b9c0d1", "firstName": "ዳዊት", "lastName": "በየነ", "fullName": "ዳዊት በየነ" },
-    "date": "2026-08-19T00:00:00.000Z",
-    "visits": [
-      { "branch": { "_id": "64f1a2b3c4d5e6f7a8b9c0d3", "name": "ሳሪስ ኮፌ", "location": "ቦሌ መንገድ" }, "clockIn": "08:30", "clockOut": "17:30", "isMain": true },
-      { "branch": { "_id": "64f1a2b3c4d5e6f7a8b9c0d4", "name": "ቢኤስ ኮፌ", "location": "ጊዮርጊስ" }, "clockIn": "10:00", "clockOut": "12:00", "isMain": false }
-    ],
-    "status": "draft",
-    "isArchived": false,
-    "archivedAt": null,
-    "createdAt": "2026-08-19T08:00:00.000Z",
-    "updatedAt": "2026-08-19T08:00:00.000Z"
-  }
-}
-```
-
-422 validation (e.g., no main when visits.length > 1, or per-visit in>out):
-
-```json
-{
-  "success": false,
-  "message": "Check the highlighted fields",
-  "data": null,
-  "details": [
-    { "field": "visits", "message": "Exactly one visit must be marked as the main branch" }
-  ]
-}
-```
-
-`PATCH /reports/:reportId` — request (amended; whole meta block, < generated):
-
-```json
-{
-  "date": "2026-08-20T00:00:00.000Z",
-  "visits": [
-    { "branch": "64f1a2b3c4d5e6f7a8b9c0d5", "clockIn": "09:00", "clockOut": "18:00", "isMain": true }
-  ]
-}
-```
-
-200 returns the updated list DTO; 403 at `generated` (metadata frozen).
-
-`GET /reports/:reportId/items` — 200:
-
-```json
-{
-  "success": true,
-  "message": "Report items",
-  "data": { "items": [{ "…": "ItemDto" }] }
-}
-```
-
-`PATCH /reports/:reportId/content` — request `{ "content":
-"<html>…corrected full content…</html>" }`; 200: `{ "success":
-true, "message": "Content saved", "data": { "content": "<html>…
-
-</html>" } }` (allowed at every status incl. `generated`, §31.6
-BR-10); 422 empty/over cap.
-
-`PUT /reports/:reportId/content` — no body; 200: `{ "success":
-true, "message": "Content reverted", "data": { "content":
-"<html>…raw transcript content…</html>" } }` (pre-generation
-only, §31.6).
-
-`POST /reports/:reportId/corrections` — request `{ "instruction":
-"Fix the branch name in the first paragraph" }` or multipart
-(instruction + optional audio clip); 200: `{ "success": true,
-"message": "Correction ready", "data": { "content": "<html>…
-corrected snapshot…</html>" } }` — the ephemeral candidate, never
-stored (ADR-033); 422 unknown provider / empty instruction; 502
-provider failure.
-
-`POST /reports/:reportId/generations` — no body; 200: ReportDetailDto
-with `status: "generated"`, `latest` = generated content, `items`
-= persisted rows, `transcription` ref set; 403 already-generated
-(not archived): `{ "success": false, "message": "This report is
-already generated", "data": null }`.
-
-`POST /reports/:reportId/archive` — 200 ReportDto with
-`isArchived: true`, `archivedAt` set; 409 already archived.
-`POST /reports/:reportId/restore` — 200 ReportDto with
-`isArchived: false`, `archivedAt: null`; 409 not archived.
-`DELETE /reports/:reportId` — 200 `{ "success": true, "message":
-"Report archived — it will be permanently removed after the
-retention period", "data": { "archived": true } }`; 409 not
-archived; hard delete by the §62 sweeper only.
-
-### 31.10 Verification usage
-
-- Grep gates: exactly one transition-guard table in the
-  codebase (this section); no `..accept()` method anywhere
-  (corrections persist through the content PATCH, never an
-  accept step); no
-  status writes outside the §31 tables; no `lng`/`lat` anywhere
-  (§21.2 — no coordinate field, no endpoint).
-- Cross-section checks: mirrors §11 (`REPORT_STATUSES`,
-  `ARCHIVED_TTL_SECONDS`), §17.4 (§17.6 presence), §20 (active
-  branch check), §21 (fields/reference), §27 (envelope/tiers),
-  §29 (validators), §32–§35 (pipeline wiring), §51/§52 (UI
-  actions reuse the table), §62 (sweeper).
-- §31 introduces no constant (§11 unchanged), no path beyond
-  §15.4, and no package; it references only specification
-  sections.
+**Dropped (consolidated):** visit-subpath endpoints
+(`PUT .../visits/:visitIndex`, `DELETE .../visits/:visitIndex`),
+`?withContent`, the status machine + transition table, flat
+`/audios/*`. **Open:** `GET /reports/:reportId/details` (separate
+brainstorm); item status-update mechanism (§31.6); zero-preset chat
+behavior; chat streaming; preset binding; content/total caps.
 
 ---
-
 ## 32. Audio Upload & Storage
 
 ### 32.1 Purpose & scope
@@ -7624,22 +6966,22 @@ rewind applies; deleting the final clip → `draft`).
 Amharic transcription step (ADR-001, ADR-007, SC-1): ffmpeg
 preparation, PCM-level WAV chunking via
 `utils/wavSplitter.js`, Addis AI STT (exclusively — ADR-001,
-§12.11-5), and the persistence of `raw`/`latest` on the report's
-**1:1 merged** Transcription row (§23, BR-11). It also owns
-re-transcription
-(ADR-030) and the status entry into `transcribed` (§31.4).
+§12.11-5), and the write of the merged `raw`/`latest` into the
+report's **embedded** `transcription` member (§21/§23, BR-11). It also
+owns re-transcription (ADR-030). **There is no status entry**
+(`transcribed` as a status is removed, §17.6/§21.4).
 
 - **Owned here (normative).** Pipeline contract & stages (§33.2);
   chunking (ADR-007) (§33.3); the Addis STT call (§33.4);
-  persistence & the `transcribed` gateway (§33.5);
+  persistence & presence (§33.5);
   re-transcription (ADR-030) (§33.6); failure handling &
   retries (§33.7); endpoints (§33.8); verification (§33.9).
 - **Owned elsewhere — deliberately not repeated here.** Upload
-  and storage = §32; the Transcription model = §23; status
-  transitions = §31.4; provider call envelope (transport, retry
-  semantics, logging labels) = §16; constants = §11.3
-  (`ADDIS_AI_STT_MAX_DURATION_SEC`, `AI_PROVIDER_RETRIES` etc.);
-  mock STT = §25/§40; corrections = §35.
+  and storage = §32; the embedded Transcription member = §21/§23;
+  derived-state rules = §17.6/§21.4; provider call envelope
+  (transport, retry semantics, logging labels) = §16; constants =
+  §11.3 (`ADDIS_AI_STT_MAX_DURATION_SEC`, `AI_PROVIDER_RETRIES`
+  etc.); mock STT = §25/§40; corrections = §35.
 - **Explicitly out of scope §33.** No Gemini/NVIDIA involvement
   (ADR-001), no new constant (§11 unchanged), no new path beyond
   §15.4 (`transcription.routes.js`), no package.
@@ -7647,7 +6989,8 @@ re-transcription
 ### 33.2 Pipeline contract
 
 `PUT /reports/:reportId/transcription` (access, **ai tier**
-§27.3) creates-or-replaces the report's 1:1 Transcription row —
+§27.3) creates-or-replaces the report's **embedded** `transcription`
+member (`raw`/`latest`) —
 the idempotent REST form that supersedes the former
 `transcribe`/`re-transcribe` actions (ADR-030): the service
 (`services/stt.service.js`, the only layer calling `addis`) walks
@@ -7836,190 +7179,85 @@ the first paragraph" } }` — ephemeral, nothing persisted (§31.6).
 
 ### 34.1 Purpose & scope
 
-§34 owns the report-generation engine (G2, F5): the prompt
-construction per §8, the structured-output schema, the provider
-chain (ADR-014 with the fixed fallback `addis → gemini →
-nvidia`), and the write of the transcription content plus the
-**Item rows**, moving the report `transcribed → generated`
-(§31.4 — the terminal state, BR-08). §34 is where §6 (format),
-§7 (language), and §8 (AI rules) become behavior.
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Generation is
+> **acceptance-driven from the report chat**: `AI (metadata +
+> transcription.latest + GenerationPreset + history-digest) → report
+> body + items`. Clicking **accept** on a chat card writes
+> `Report.generated` (the §6-format body) + the Item rows (with their
+> per-type default statuses) in one session; **revert** deletes the
+> items and clears `generated`. There is no `POST .../generations`
+> auto-run — nothing generates until accept (§36). Supersedes the
+> earlier auto-generation letter.
 
-- **Owned here (normative).** Trigger & preconditions (§34.2);
-  prompt construction (§34.3); structured-output schema & parsing
-  (§34.4); provider call & fallback (§34.5); persistence &
-  status advance (§34.6); regeneration rules (§34.7); failure
-  handling (§34.8); verification (§34.9).
-- **Owned elsewhere — deliberately not repeated here.** Provider
-  transport/retry/timing/logging = §16.5; the reviewed
-  transcription (BR-07 source) = §23/§33; format, language,
-  tone = §6–§8; validation = §31/§29; the Item rows and their
-  vocabulary = §24A/§6.10; correction = §35; the
-  conversation turns = §36; constants = §11.3 (`AI_*`).
-- **Explicitly out of scope §34.** No STT (ADR-001, §33), no
-  translation (D5), no new constant, no path beyond §15.4, no
-  package.
+§34 owns the generation service (input assembly, the per-user
+grounded-history digest, and the accept-side persistence of
+`generated` + items). It does **not** own: the chat card protocol and
+accept/revert routes (§36); the predefined 16 generation rules (§8);
+Item schema (§24A); presets (this section owns the GenerationPreset
+**usage**, the CRUD surface is §31.9).
 
-### 34.2 Trigger & preconditions
+### 34.2 Generation input
 
-`POST /reports/:reportId/generations` (access, **ai tier** §27.3).
-Preconditions enforced server-side (403/422 semantics):
+- **Base input:** `metadata (date + visits[] with isMain) +
+  transcription.latest + preset`.
+- **Grounded-history digest (per-user, owner 2026-09-01):** before a
+  generation response, the service runs a tool over the user's
+  **previously generated (accepted) reports** (their Item rows + light
+  transcription.latest + metadata) → a condensed context digest:
+  `{ userProfile (terminology, style, issue categories, format
+  precedents), branches: [ { branch, recurringIssues, statuses,
+  timeline } ] }`. **Ephemeral per generation** — never cached, never
+  a stored field. First-ever (no accepted reports) → `{ found: 0,
+  digest: null }` → normal generation. The current report excludes
+  itself until accepted. **Role boundary:** the digest informs HOW to
+  write (style/vocabulary/formats); **item content comes only from the
+  current report's transcription** (SC-8 no-hallucination; items
+  belong to the main branch only).
+- **GenerationPreset:** `{ provider, model, language, reasoning,
+  systemPrompt, personaPrompt }` — user CRUD, **no default**; one
+  preset selected per message (`presetId`). Invalid configs are
+  rejected at preset create/update (422), never at generation time.
+- Digest sub-decisions openly noted: data-source weight (items + light
+  transcription; correction-habits optional R6/R7); freshness
+  (recompute per generation); size cap (`DIGEST_MAX_TOKENS`).
 
-- status must be `transcribed` (a `generated` report does not
-  regenerate — §34.7);
-- the report's Transcription row exists with a non-null `raw`
-  (presence map, §17.6);
-- report not archived (403).
+### 34.3 The generation call
 
-The response is synchronous: 200 with the generated content and
-the report's fresh DTO only after persistence (§34.6).
+The §8 16 rules scaffold the prompt; system prompt is product-
+controlled, persona is user-owned, **system wins** (precedence, open
+confirm). The transcript is treated as untrusted data
+(instruction-injection guard). Output must be valid report structure:
+body (the §6.2 skeleton) + the item set (activities/issues/comment).
+Malformed/structurally-invalid output → one regenerate attempt, then
+an error card (never partial items — accept is transactional).
 
-### 34.3 Prompt construction (per §8)
+### 34.4 Accept-side persistence (the write)
 
-The production prompt is assembled from registry data — never
-free-text literals:
+On **accept** (from §36), in one §27.7 session:
+- write `Report.generated` = the §6-format body string (cap
+  `CONTENT_MAX_SIZE_BYTES`);
+- create the **Item rows** (activities/issues/comment — separate
+  collection §24A) with the report's `branch` + `date` captured and
+  their **per-type default statuses** (`completed` for activities,
+  `reported` for issues; **no status, no rating on comments**);
+- set `ChatConversation.acceptedResponseId`.
 
-1. **System/context:** the §6.2 skeleton (each slot named), the
-   §6.3 field list with types, Type-1 vs Type-2 handling per
-   §6.4, tone sample per §6.6 and §8.4, and the strict
-   no-invention clause (BR-19: missing values stay blank/"not
-   specified").
-2. **Content blocks:** the capture data — the user's `fullName`
-   (§19.4), `date` (Ethiopian date per §6.3 display; stored
-   UTC-midnight), `branch` (name from the live Branch document),
-   `clockIn`/`clockOut`, `visits[]` (branch names + clock pairs),
-   `language`, and the **reviewed transcription**
-   text (the §23 `latest` — BR-07 source of truth).
-3. **Conversation history:** when regeneration needs it, the
-   §36 conversation entries projected (`role` `user`/`assistant`
-   only, content) bounded per §12.8; absent on first generation.
-4. **Output contract:** structured JSON per §34.4.
+On **revert** (from §36), in one session: delete the report's Item
+rows, clear `Report.generated`, clear `acceptedResponseId`.
 
-### 34.4 Structured-output schema & parsing
+Freeze gate: once generated (`generated !== ""` + Items), metadata and
+clip add/delete are 403 (§21.6/§29/§31).
 
-Every provider call demands structured JSON (Gemini
-`responseMimeType`/`responseSchema`; NVIDIA `response_format:
-{ type: 'json_object' }`; Addis via explicit prompt instruction
-— §16.4). Schema (owned here):
+### 34.5 34.6 ... 34.10 (compressed)
 
-```json
-{
-  "report": {
-    "header": "string",
-    "branchSections": [
-      {
-        "branchName": "string",
-        "activities": ["string"],
-        "unresolvedIssues": ["string"],
-        "generalOpinion": "string"
-      }
-    ],
-    "daySummary": "string",
-    "exitTime": "string",
-    "overallAssessment": "string"
-  },
-  "items": {
-    "activities": [{ "text": "string" }],
-    "issues": [{ "text": "string" }],
-    "comment": { "text": "string|null", "rating": 0 }
-  }
-}
-```
-
-All keys render in the §6 vocabulary; the field semantics follow
-§6.3 exactly; `items` carries the report's content rows —
-activities, issues, and at most one comment (`rating` integer 0–5
-or `null`, §6.10) — every item belongs to the report's branch
-(§24A); nothing is ever silently invented (BR-19). The service
-parses the provider response;
-schema-invalid/parse-failed → provider failure per §16.5
-(retry, then fallback — never silent acceptance, SC-1 gate).
-`finish_reason` must be `stop`; anything else is treated as
-failure (§16.4). Temperature `AI_TEMPERATURE`, max output
-`AI_MAX_OUTPUT_TOKENS` — all from §11.3; `AI_TOP_P`/`AI_TOP_K`
-apply to the gemini/nvidia contracts only (the addisai SDK exposes
-no such knobs, §16.4).
-
-### 34.5 Provider call & fallback (ADR-014)
-
-`services/generation.service.js` uses the fixed chain
-`addis → gemini → nvidia` (§11.4 `AI_PROVIDERS` order): try a
-provider per §16.5 (transport/5xx retries × `AI_PROVIDER_RETRIES`,
-backoff `AI_PROVIDER_BACKOFF_BASE_MS`, timeout `AI_TIMEOUT_MS`),
-on exhaustion fall to the next; all exhausted → 502 via the §27
-handler ("Report generation failed — please try again"). The
-reasoning parameter is sent only when the chosen model's
-`reasoning` capability flag is on (§16.4); the reasoning value is
-the conversation's standing default or its override (§24.2/§36.4);
-addis calls send `language: 'am'` through the SDK and never carry a
-reasoning parameter (§16.4). The selected
-`(provider, model, reasoning)` triple is recorded on the §36
-conversation message for this generation turn (ADR-014); the
-conversation row is created lazily at its first saved turn so
-the audit trail lands with the content (§24, §36).
-
-### 34.6 Persistence & status advance
-
-In one §27.7 session: write the transcription's `latest` (the
-generated content, BR-11 — `raw` stays the STT original,
-forever untouched by generation) **and** persist the report's
-**Item rows** (`activities`, `issues`, `comment` — §24A: each row
-carries the report's `branch` + `date` captured at generation,
-per-type `status` defaults `completed`/`reported`, comment rating),
-then set the report status
-`transcribed → generated` (§31.4 gateway). The session is atomic:
-a failure to persist either the content or the items rolls back
-everything (§24A.4). Response: 200 with the report-detail
-aggregate (`{ report: ReportDto, transcription: { latest,
-items } }` — the §31.6 single round-trip; the generated content
-reaches the client as `transcription.latest`, never as a
-separate `data.content` key). Neither `acceptedAt` nor
-`exportedAt` is ever
-stored (§21.2).
-
-### 34.7 Regeneration rules
-
-Regeneration (`POST /reports/:reportId/generations` again) is
-allowed only from `transcribed`; from `generated` it is
-refused 403 — `generated` is terminal (BR-06/BR-08): generation
-never runs again, corrections are the §35 path (BR-10 keeps the
-report editable via correction, not regeneration). Regeneration
-(when reachable from a re-transcribed report) **overwrites
-`latest`** and rewrites the Item rows in the same session,
-leaving `raw` alone (BR-11), and records the new turn on the §36
-conversation.
-
-### 34.8 Failure handling
-
-- Provider exhaustion → 502 (never a partial write; nothing is
-  persisted on failure — the transcription's `latest` stays as
-  the story, no item rows, status stays put).
-- Timeout mid-attempt → treated per §16.5 (retried, then
-  fallback); the single provider attempt is bounded by
-  `AI_TIMEOUT_MS`.
-- Content that fails the §6/§7 validation gates after a
-  successful provider call → the service posts an
-  **assistant note** to the §36 conversation ("content rejected
-  by validation") and surfaces a 422 with the reason; the
-  generation is not persisted (no false `generated`).
-
-### 34.9 Verification usage
-
-- Grep gates: the generation service is the only caller of the
-  provider chain for text output; prompts assembled from the
-  §34.3 blocks (no prompt literal outside the service file and
-  §8's fixtures); the schema JSON keys = this section's keys;
-  no Gemini/NVIDIA path in STT (§33); `AI_*` constants, never
-  literals; the item rows are written only here (§24A) — the
-  only other writer is the mock/seed mechanism (§25/§40).
-- Cross-section checks: mirrors §16 (ADR-008/014/019), §6–§8
-  (format/language/tone), §21 (status gateway), §23 (content
-  slot on the transcription), §24A (item rows), §33 (transcribed
-  input), §35 (corrections),
-  §36 (conversation turns), §27 (envelope/tiers), §11.3
-  (constants).
-- §34 introduces no constant (§11 unchanged), no path beyond
-  §15.4, and no package; it references only specification
-  sections.
+- **Hooks/session:** no business-logic hooks; all writes are
+  session-aware (§18.5/§27.7).
+- **Seeds/mocks:** mock generation never calls providers (§25/§40);
+  mock items use valid per-type statuses and no rating.
+- **Evolution/verification:** additive-only; grep gates: accept
+  writes `generated` + items in one session; revert deletes items +
+  clears `generated`; no stored digest; no provider/model/reasoning on
+  the Report.
 
 ---
 
@@ -8027,146 +7265,33 @@ conversation.
 
 ### 35.1 Purpose & scope
 
-§35 owns the correction engine (G3, BR-09, BR-10, BR-11): the
-three modes (Mode-1 typed Save, Mode-2 typed instruction +
-generated candidate, Mode-3 voice-transcribed instruction)
-exposed by §31.6's endpoints, and the **surgical partial-edit
-contract** — only the relevant part changes, unrelated correct
-sections stay identical (§2.2 G3, §2.4 SC-3). It is the machine
-behind the §54 components and the §51.5 actions.
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Correction modes are the
+> three review paths of the **Transcription tab** (and, after
+> generation, of the report body): **Mode 1** direct edit,
+> **Mode 2** typed instruction, **Mode 3** voice instruction
+> (record → STT → text fills the field). Corrections **write
+> `transcription.latest`** (pre-generated story) and, via the chat's
+> **re-try/accept** flow, reshape the accepted output (re-accept after
+> revert). **Item text is never edited per-row**; item status changes
+> are single-row writes (mechanism open, §24A/§31.6).
 
-- **Owned here (normative).** Mode contracts (§35.2); the
-  partial-edit rule (BR-09) and the `±`-token protocol (§35.3);
-  provider call & temperature (§35.4); candidate → save flow
-  (BR-11) (§35.5); voice-correction instructions (Mode 3)
-  (§35.6); failure handling (§35.7); verification (§35.8).
-- **Owned elsewhere — deliberately not repeated here.** Endpoints
-  and their guards = §31.6; the transcription raw material for
-  Mode 3 = §33; conversation history = §36; rendering/sanitizing
-  = §61; providers/transport = §16.5; constants = §11.3
-  (`AI_CORRECTION_*`).
-- **Explicitly out of scope §35.** No generation (first-pass
-  text = §34), no new constant, no path beyond §15.4, no
-  package.
+### 35.2 The three modes
 
-### 35.2 Mode contracts
+- Mode 1 (direct edit): edits `latest` via the editor (§53); writes
+  through `PATCH /reports/:reportId/transcription`.
+- Mode 2 (typed instruction): instruction → AI updates `latest` →
+  candidate → user saves (existing §54 correction dialogue pattern).
+- Mode 3 (voice instruction): record → single-clip STT
+  (`POST .../corrections/transcripts`, ephemeral, no persistence) →
+  text fills the instruction field → Mode-2 path.
+- After generation, correction of the report body is done by
+  re-trying in the chat + re-accepting (§34/§36); "Revert to
+  original" restores `latest ← raw` (single undo, pre-generated).
 
-| Mode   | Endpoint (§31.6)                                                                                                                                                                                                                                                                                                                                                                                         | Input                                                                                                                                                                                                         | Engine behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mode-1 | `PATCH /reports/:reportId/content`                                                                                                                                                                                                                                                                                                                                                                       | edited full content                                                                                                                                                                                           | no AI — the client's corrected text replaces the transcription's `latest` directly (sanitized §61), allowed at every status incl. `generated` (BR-10)                                                                                                                                                                                                                                                                                                           |
-| Mode-2 | `POST /reports/:reportId/corrections`                                                                                                                                                                                                                                                                                                                                                                    | typed instruction (registry-guided; may name the exact §6.3 field/§6.7 content class) + **optional `provider`** (one of `AI_PROVIDERS`, §11.4 — the chosen §16 provider drives the call; defaults to `addis`) | **target-split contract (S12, 2026-08-18 — "no correction schema"):** against a `transcribed` report (`latest` is plain Amharic prose) the engine returns the **full corrected prose** — no schema, no diff structure (§16.4 carve-out); against a `generated` report it prompts for a **partial edit**: returns only the changed `branchSections[]` slots with the reason (server vocabulary), merged into the candidate the client fills as an editable draft |
-| Mode-3 | the correction dialog records the instruction (round-7: the dialog owns the recorder; the clip rides the STT-only endpoint `POST /reports/:reportId/corrections/transcripts` (§31.6), the transcribed TEXT fills the dialog's instruction field for review, then Apply sends it as a typed instruction — `POST /reports/:reportId/corrections` may still carry a `mode` field for the direct-voice path) | voice-correction clip → §33 STT → instruction text; the multipart may carry the same optional `provider` field                                                                                                | same engine as Mode-2 fed from the transcription; the STT step is shared code with §33 (no second pipeline)                                                                                                                                                                                                                                                                                                                                                     |
+### 35.3 Sessional & rules
 
-### 35.3 Partial-edit rule (BR-09) & `±`-token protocol
-
-- The prompt states the surgical contract verbatim: the
-  instruction touches only the addressed section/value; every
-  other §34.4 key is returned **byte-identical** to `latest`
-  (the service diff-verifies: parts not in scope must be
-  unchanged or the correction is rejected as provider failure
-  and retried — SC-3 gate). **Scope (S12):** the surgical
-  contract binds **report corrections of a `generated` report**
-  (the `latest` is the §34.4 report shape); a **transcription-stage
-  correction** of a `transcribed` report targets plain Amharic
-  prose — the engine returns the full corrected prose, and the
-  byte-identical diff-verify does not apply (§35.2, §16.4
-  carve-out).
-- **`±`-token protocol (normative):** official/entitled text the
-  user must not freely alias is marked with the `±` prefix (the
-  ±-token vocabulary of the official format, §64). The
-  correction engine never resolves, strips, or translates `±`
-  tokens (resolution is §37/§64's — the official-format
-  decision), never lets a correction delete a `±` block
-  silently (a `±` block deletion is only accepted when the
-  instruction explicitly names it and the diff verification
-  confirms it), and returns tokens verbatim in output. The
-  §54/§53 surfaces render the tokens as-is with the "leave this
-  token untouched" guidance (§53.4).
-
-### 35.4 Provider call & temperature
-
-Mode-2/3 run the §34.5 provider chain mechanics (ADR-014
-fallback, ai tier, §16.5 retries) with the **correction
-parameters**: `AI_CORRECTION_TEMPERATURE` (0.15) and
-`AI_CORRECTION_MAX_OUTPUT_TOKENS` (2048) (§11.3) — for addis they
-ride the SDK call (`temperature`/`max_tokens`, §16.4) — and the
-correction-specific structured schema = a partial of the §34.4
-schema: `{ changed: [{ section, field, content, reason }] }`
-(binds report corrections of a `generated` report only — the
-transcription-stage path is plain prose, §35.2/§16.4 carve-out).
-Reason vocab: the server-returned `reason` sentences of the
-§35.4 schema ("removed duplicate verb", "moved case FE
-paragraph") — never invented client-side (§54.3). `reasoning`
-params follow the model's capability flag (§16.4); the value is
-the conversation's standing default (§24.2), never sent to addis.
-
-### 35.5 Candidate → save flow (BR-11)
-
-The corrected partial is **not written on generation**: the
-service RETURNS the corrected content snapshot — the candidate
-(round-6 amendment — nothing is staged, no accept step; the
-client fills the live transcription editor with the candidate as
-an editable draft) — and `latest` is persisted **only when the
-user Saves** — the Save action of §31.6 writes the content
-(`PATCH /reports/:reportId/content`) and completes the
-correction turn. **Revert** (`PUT /reports/:reportId/content`)
-restores `raw` → `latest` (single undo, BR-11, allowed
-pre-`generated` only — §21.7/§23.5) or
-discards the unpersisted draft/candidate. `raw` is never
-rewritten via correction. `generated` reports accept corrections
-the same way (BR-10). The endpoints accept the full target
-content to write (the server never keeps an unaccepted edit
-beyond the request — no server-side pending-edit store,
-ADR-033). **Corrections never touch the report's Item rows**
-(§24A): content edits live on the transcription `latest` only;
-item `status`/`rating` updates are the single-row PATCH of
-§31.6.
-
-### 35.6 Voice-correction instructions (Mode 3)
-
-The mode-3 voice clip is transcribed through the STT-only endpoint
-`POST /reports/:reportId/corrections/transcripts` (§31.6, round-7
-amendment — the endpoint returns the instruction text so the
-correction dialog fills its field and the user reviews it before
-Apply; the older direct-voice multipart path — `POST
-/reports/:reportId/corrections` with a `clip` part when a `mode`
-field
-equals `voice` — remains the §31.6 fallback). The clip is
-transcribed (chunked per §33.3), the instruction text is the
-transcription result, and Mode-2's engine runs against it. The
-mode-3 clip is ephemeral — never stored as an Audio row, never
-added to the clip list (§32 DTO gate); the resulting
-instruction may be quoted into the §36 conversation as the
-user's correction turn for the audit trail.
-
-### 35.7 Failure handling
-
-- Provider exhaustion → 502 with "Correction failed — please
-  try again"; the unpersisted candidate draft survives
-  (client-side) and retry re-runs from the same instruction.
-- Schema-invalid correction output → provider failure per §16.5
-  (retry → fallback); SC-3 diff failure retries once, then
-  422 with the diff reason.
-- Mode-3 clip corrupt/unreadable → 422 (STT failure map §33.7);
-  the instruction never reaches the provider.
-
-### 35.8 Verification usage
-
-- Grep gates: no AI call in Mode-1 (pure write path); content
-  writes never create, delete, or update Item rows (§24A — the
-  items' only writer is §34); the
-  correction service shares the §33 STT entry (no second
-  pipeline); `±` unchanged across every service output; no
-  server-side pending-edit store; `AI_CORRECTION_*` constants used;
-  the mode-3 clip never creates an Audio doc.
-- Cross-section checks: mirrors §31.6 (endpoints/guards), §33
-  (STT), §34.5 (chain), §54 (UI modes), §22 (copy vocabulary),
-  §24A (items untouched), §61 (sanitize on write), §27
-  (envelope/tiers), §11.3
-  (constants).
-- §35 introduces no constant (§11 unchanged), no path beyond
-  §15.4, and no package; it references only specification
-  sections.
+Never touches Item rows (BR-09/BR-10; item status via §31.6 open
+mechanism). No version chain (ADR-005 retired); `raw` immutable.
 
 ---
 
@@ -8174,206 +7299,73 @@ user's correction turn for the audit trail.
 
 ### 36.1 Purpose & scope
 
-§36 owns the conversation endpoints behind the correction chat
-UI (F7): the lazy conversation row (§24 — one per report, unique
-`report` ref), the message-append contract with the
-`(provider, model, reasoning)` triple per message (ADR-014), the
-message list DTO, and the `conversation_history` projection §34/
-§35 consume. All §36 writes append inside the §27.7 session and
-validate against the §11.4 registers before insert (triple
-validated, §24).
+> **CONSOLIDATED AMENDMENT (2026-09-01).** §36 owns the **post-
+> creation agent chat** (`/reports/:reportId/chat`): one conversation
+> per report (§24) with **cards** — each AI response is a card with
+> **Copy**, **Re-try**, and **Like (accept/revert)**. **At most one
+> accepted response per report** (persisted via
+> `ChatConversation.acceptedResponseId`); when one is accepted every
+> other like-icon is hidden/disabled; switching = **revert-first,
+> then accept**. Accept → creates items + writes `Report.generated`
+> (§34.4); revert → deletes items + clears `generated`. Creates the
+> generation input from `metadata + transcription.latest + preset +
+> history-digest` (§34.2). MUI X Chat is the candidate UI (adapter +
+> normalized store; R7 — licensing/streaming/package decisions
+> pending).
 
-- **Owned here (normative).** Conversation row creation
-  (§36.2); the message endpoints (§36.3); the append contract
-  and validation (§36.4); the history projection (§36.5);
-  envelope/edge cases (§36.6); endpoints matrix (§36.7);
-  verification (§36.8).
-- **Owned elsewhere — deliberately not repeated here.** The
-  ChatConversation model and indexes = §24; the provider
-  transport = §16.5/§16.4; generation & correction feeding the
-  history = §34/§35; the UI = §55; `MESSAGE_ROLES` = §11.4.
-- **Explicitly out of scope §36.** No provider call (the chat
-  is a correction interface; the AI call happens in §35 — the
-  chat persists both sides of it), no new constant (§11
-  unchanged — `MESSAGE_ROLES`, `AI_PROVIDERS`, `AI_MODELS`,
-  `AI_REASONING_EFFORTS` exist), no package.
+### 36.2 Conversation (per report)
 
-### 36.2 Conversation row creation
+- `GET /reports/:reportId/conversation` — thread read (MUI
+  `listMessages` protocol; cursor pagination). Turn entries:
+  `{ id, role, content, createdAt }` + the accepted pointer.
+- `POST /reports/:reportId/conversation` — `{ content, presetId }` →
+  server assembles the §34.2 input (metadata + latest + preset +
+  per-user digest), calls the provider, **returns the AI response
+  card**. Streaming: buffered response → the frontend adapter
+  fake-streams it through MUI's chunk protocol (keeps the no-stream
+  exclusion; real SSE requires lifting the exclusion — R7 decision).
+- **Card actions**
+  - **Copy** — copies the card text (client clipboard; no state).
+  - **Re-try** — `POST .../conversation/re-try { responseId }`:
+    server truncates all turns below that card and regenerates a new
+    response. **Disabled at/above the accepted card** (client
+    enforces; server validates).
+  - **Like (accept/revert)** — `POST .../conversation/accept
+    { responseId }` (reject 409 if another is already accepted —
+    revert first) creates items + writes `generated` (one session);
+    `POST .../conversation/revert` deletes the report's items +
+    clears `generated` + clears `acceptedResponseId` (one session).
+- **Zero-preset behavior OPEN** (lean: the chat requires selecting an
+  existing preset; the UI nudges create-first).
 
-The conversation document is created **lazily at its first
-saved turn** (§24): `POST /reports/:reportId/chat/messages`
-creates the row (`{ user, report }`) when none exists, in the
-same session as the first message append — never a separate
-step, never created empty (grep gate: no preemptive
-conversation creation in §31/§34). `GET /reports/:reportId/chat`
-returns the conversation DTO; a report with no conversation yet
-responds 200 with `data: { messages: [] }` (empty, not 404).
+### 36.3 Errors & envelope
 
-### 36.3 Message endpoints
-
-- `GET /reports/:reportId/chat` (access, global tier): the
-  conversation DTO — `{ _id, user, report, messages }`;
-  messages surface exactly `role, content, provider, model,
-reasoning, createdAt` (§24.2 serialized surface), ordered by
-  `messages.createdAt` (index §24), never by array index. `user`
-  and `report` may be included; `content` is rendered sanitized
-  client-side (§61).
-- `POST /reports/:reportId/chat/messages` (access, **ai
-  tier** §27.3): the **user** turn (text content, ≤
-  `CHAT_MESSAGE_MAX_LENGTH` — 4 000 chars, §11.3)
-  — validated against `MESSAGE_ROLES` (`user` only for this
-  endpoint), `provider`/`model`/`reasoning` from the §11.4
-  registers (non-member → 422, never stored (§24)). The row is
-  created if needed and the message `$push`ed inside the §27.7
-  session; the response is 201 with the fresh conversation DTO.
-  The AI answer is generated by the §35 correction engine (or
-  the §34 generation note) as a second message appended by the
-  service, not by this endpoint (the endpoint never calls a
-  provider itself — SC-7 is about the browser; the server
-  always calls providers only in §33–§35 services).
-- There is **no delete/update endpoint**: conversations are
-  never individually archivable or deletable (§24) — their
-  lifetime is the owning report's (cascade on hard-delete,
-  §62).
-
-### 36.4 Append contract & validation
-
-Every append validates the message tuple (`role ∈ MESSAGE_ROLES`,
-`provider ∈ AI_PROVIDERS` with `model ∈ AI_MODELS[provider]`,
-`reasoning ∈ AI_REASONING_EFFORTS`) via the §29 chat validator
-then §24.2's registry checks at save; `content` length ≤
-`CHAT_MESSAGE_MAX_LENGTH` (§11.3); the validator references the constant — no literal. $push is the only message
-write; no in-place updates, no array reordering (§24.2 caveats).
-
-- **Standing reasoning (S12, 2026-08-18).** `reasoning` on the
-  append is **optional**: absent → the conversation's standing
-  default is used (`conversation.reasoning`, initialized
-  `AI_REASONING_DEFAULT` `'off'` when the row is created, §24.2);
-  present → validated as a member of `AI_REASONING_EFFORTS`, used
-  for this turn **and persisted as the new conversation default**
-  (a selection is a selection — one standing value governing every
-  TTT request of the conversation, §16.2/§16.6). The appended
-  message records the effort actually used (`messages[].reasoning`
-  — the audit record, ADR-014); every message — user and assistant
-  — carries that recorded string, never `null` (§24.2 registry:
-  String required; the user turn's record is the effort governing
-  it, i.e. the standing default or the accepted override).
-- The AI answer is generated by the §35 correction engine (or
-  the §34 generation note) with the same standing reasoning; a
-  second message is appended by the service, never by this
-  endpoint (the endpoint never calls a provider itself — SC-7 is
-  about the browser; the server always calls providers only in
-  §33–§35 services).
-
-### 36.5 History projection
-
-The `conversation_history` consumed by §34.3/§35.2 is a
-projection of this collection: entries with `role` `user`/
-`assistant` only (`system` notes are excluded from prompts),
-content + createdAt, bounded to the recent
-`AI_CONVERSATION_HISTORY_MAX_ENTRIES` entries (§11.3; §12.8
-window) — for the addisai SDK the projection feeds its `messages`
-argument (role/content only; the SDK maps the last entry to
-`prompt` and the rest to `conversation_history`, §16.4). The projection is computed server-side in
-the generation/correction service; the chat DTO is never sent
-to the client in prompt form.
-
-### 36.6 Envelope & edge cases
-
-- Empty conversation read → `{ messages: [] }` (200).
-- Message-length violations → 422 with field error.
-- Concurrent appends to the same report (two tabs): each append
-  is transactional; the unique `report` index + session make
-  row creation race-safe — the second creator receives a raw
-  409 `CONFLICT` (§29 never remaps it; the client re-reads and
-  retries naturally, per the matrix's 409 row).
-- A deleted report's conversation: cascade removes it (§62);
-  the client's §51 would already be gone.
-
-### 36.7 Endpoints matrix
-
-| Method+Path                             | Auth   | Tier   | Request                                                                                                            | Success                                                         | Errors                        |
-| --------------------------------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ----------------------------- |
-| `GET /reports/:reportId/chat`           | access | global | —                                                                                                                  | 200 `{ data: { _id, user, report, messages } }` (empty allowed) | 401, 404                      |
-| `POST /reports/:reportId/chat/messages` | access | ai     | `{ content, provider, model, reasoning? }` — `reasoning` optional; absent → the conversation default (§24.2/§36.4) | 201 conversation DTO with appended message                      | 401, 404, 422, 409 (row race) |
-
-**Contract JSON** (folded from the route-contract review,
-2026-08-19): the message surface is exactly `role, content,
-provider, model, reasoning, createdAt` (§24.2); empty
-conversation → `messages: []`, no 404 (§36.2). Example values
-are §11.4 register members only (`gemini` /
-`gemini-3.1-flash-lite` with the effort actually used);
-`reasoning` is always a recorded `AI_REASONING_EFFORTS` string —
-never `null`, never a boolean (§24.2; the user turn records the
-effort governing it, §36.4).
-
-`GET /reports/:reportId/chat` — 200:
-
-```json
-{
-  "success": true,
-  "message": "Conversation",
-  "data": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d8",
-    "user": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "report": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Summarize the issues found today",
-        "provider": "gemini",
-        "model": "gemini-3.1-flash-lite",
-        "reasoning": "medium",
-        "createdAt": "2026-08-19T14:30:00.000Z"
-      },
-      {
-        "role": "assistant",
-        "content": "The branch reported one open issue: the water pump on floor 2…",
-        "provider": "gemini",
-        "model": "gemini-3.1-flash-lite",
-        "reasoning": "medium",
-        "createdAt": "2026-08-19T14:30:05.000Z"
-      }
-    ],
-    "createdAt": "2026-08-19T14:30:00.000Z",
-    "updatedAt": "2026-08-19T14:30:05.000Z"
-  }
-}
-```
-
-`POST /reports/:reportId/chat/messages` — request:
-
-```json
-{
-  "content": "Summarize the issues found today",
-  "provider": "gemini",
-  "model": "gemini-3.1-flash-lite",
-  "reasoning": "medium"
-}
-```
-
-201 — the fresh conversation DTO (with the user turn appended
-and the service-appended assistant answer); the endpoint never
-calls a provider itself (§36.3).
-
-### 36.8 Verification usage
-
-- Grep gates: no message update/delete endpoint; no conversation
-  creation outside §36.2 (no preemptive rows in other services);
-  the chat route never imports a provider client (only §33–§35
-  services do); `MESSAGE_ROLES`/register validation references
-  constants; no `reasoning_content` anywhere (§24).
-- Cross-section checks: mirrors §24 (model), §34.3/§35.2
-  (history consumers), §55 (UI), §61 (sanitize), §27 (tiers/
-  sessions), §11.4 (registers), §62 (cascade).
-- §36 introduces no constant (§11 unchanged — the 4 000-cap
-  note points at §11's amendment channel), no path beyond
-  §15.4, and no package; it references only specification
-  sections.
+`SEND_ERROR`/`STREAM_ERROR`/`HISTORY_ERROR` map to the §60 toast
+model; provider failures surface on the card with retry-safe
+semantics (no items created until accept). BR-13 (user from
+`req.user`); ai-tier rate limit (§27.3).
 
 ---
-
 ## 37. Export API
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Exports consume the
+> **Item rows** (activities/issues/comment with per-type status; no
+> rating) via the `GET /items` query surface (§31.9) — branch/date-
+> range/status filters feed CSV/sheet/PDF (§58); the printable report
+> body renders `Report.generated` (the §6-format body, §21), never
+> `latest`. Export is a deliverable, never a persisted artifact on any
+> row.
+
+## 38. Analytics API
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Analytics roll under the
+> derived model: **report status distribution is removed** (`REPORT_STATUSES`
+> no longer exists, §11.4) — the dashboard metrics use **Item status
+> distribution** (activity completed/in_progress; issue
+> reported/in_progress/completed) by type/branch/date (§24A), and the
+> report generated/material split uses the `generated` field
+> (`{$ne:''}`). The letter below that still references
+> `REPORT_STATUSES` is superseded as noted at its lines.
 
 ### 37.1 Purpose & scope
 
@@ -8707,6 +7699,13 @@ fold, owner directive 2026-08-19.)
 
 ## 39. Global Search API
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Search indexes report meta
+> (`date`, `visits[].branch` names) and the **Item** text/type/status
+> surface; it never returns `filePath`, never returns transcription
+> text on light results, and respects the derived generated/material
+> split (`generated` field). Scope and text-index strategy are
+> otherwise unchanged (§18.3 proof rule).
+
 ### 39.1 Purpose & scope
 
 §39 owns the global search endpoint — the backend of the §59
@@ -9020,6 +8019,14 @@ BR-01–BR-19 catalogue require.
 ## Part D — Frontend (HLD/LLD)
 
 ## 41. Frontend Foundation
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Route map updates: remove
+> `/reports/new` and `/reports/:reportId/wizard` (wizard retired, §52);
+> the create action opens the **atomic create dialog** (§31.2);
+> `/reports/:reportId/edit` (Meta/Audio/Transcription tabs) and
+> `/reports/:reportId/chat` (agent cards, §36) are the post-creation
+> routes; `/reports/:reportId/details` is OPEN. The letter below is the
+> foundation reference.
 
 ### 41.1 Purpose & scope
 
@@ -9930,6 +8937,15 @@ hidden` (single-line) or `-webkit-line-clamp` (multi-line, cap 2)
 ---
 
 ## 46. MUI Reusable Component Library
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Additional reusable-input
+> note: **MUI X Chat `ChatBox`** is evaluated as the R7 candidate for
+> the `/chat` agent surface (adapter + normalized store + paginated
+> history + custom per-card actions). Adoption requires the
+> community-license verification, the streaming decision (fake-stream
+> vs real SSE), and a package-add approval (§13). `MuiRecorder`/
+> `MuiAudioPlayer`/`MuiFileInput`/`MuiTimePicker` serve the `/edit`
+> Audio and Meta tabs (Audio-tab one-card layout, §53/§54/§32).
 
 ### 46.1 Purpose & scope
 
@@ -11047,6 +10063,15 @@ OAuth loading; inline errors; disabled submit while submitting
 
 ## 49. Page — Dashboard & Analytics UI
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The dashboard KPIs and
+> charts reflect the derived model: **no report status machine** — the
+> status distribution uses the **Item statuses** (activities
+> completed/in_progress; issues reported/in_progress/completed; no
+> rating) and the report "generated vs material" filter = the `generated`
+> field (§17.6/§24A). Latest-reports band consumes the light list DTO
+> (projected; §31.3). This section's letter below remains the UI
+> reference; data sources per §38/§31.
+
 ### 49.1 Purpose & scope
 
 §49 owns the authenticated home page (`/dashboard`, §41.3) — the
@@ -11183,6 +10208,19 @@ keep fixed minimum heights to avoid reflow (§45.5).
 ---
 
 ## 50. Page — Reports List
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The Reports List is driven
+> by the consolidated `GET /reports` (§31.3): filters `isArchived`
+> (active|archived|all, Branches mirror), `branch` (Q1 main via
+> `isMain` $elemMatch), `generated` (`{$ne:''}`), sort `date/-date`,
+> paginated; **no `status` filter**. There is no wizard — the header
+> action opens the **atomic create dialog** (§31.2: react-hook-form
+> metadata + audio ≥1 clip → multipart POST with `createKey`); the
+> dialog never closes on failure and its state + recorded audio are
+> preserved until an explicit close or refresh. Edit action →
+> `/reports/:reportId/edit` (Meta/Audio/Transcription tabs, §53/§54/
+> §32); a separate Chat action → `/reports/:reportId/chat` (§36).
+> The letter below is the UI reference (cards/grid, pagination).
 
 ### 50.1 Purpose & scope
 
@@ -11385,6 +10423,14 @@ lg; cards are not selectable (selection is a grid-mode feature,
 
 ## 51. Page — Report Details
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** `/reports/:reportId/details`
+> is the **complex read — OPEN/TBD** (own exhaustive brainstorm, not
+> drafted). There is **no `?withContent`**. `/reports/:reportId/edit`
+> (the Meta/Audio/Transcription tabs) and `/reports/:reportId/chat`
+> (agent cards) are **separate routes**, not the details read. The
+> letter below is retained as the details-page UI reference pending
+> the separate brainstorm.
+
 ### 51.1 Purpose & scope
 
 §51 owns `/reports/:reportId` (§41.3, §50.4 View action) — the
@@ -11548,6 +10594,17 @@ table), and the report stays editable until archived.
 ---
 
 ## 52. Page — Report Wizard (New / Edit)
+
+> **RETIRED (2026-09-01).** The wizard is **inert** — superseded by the
+> **atomic create dialog** (§31.2: metadata + audio submitted together
+> in one multipart POST) and the **`/edit` three-tab page**
+> (Meta · Audio · Transcription, §50/§53/§54/§32). The wizard sections
+> below are **dropped/inert**: no `wizardValidation.js`, no
+> StepBasicInfo/StepAudio/StepTranscription steppers, no
+> `/reports/new` / `/reports/:reportId/wizard` routes
+> (`/reports/:reportId/edit` replaces them). Any revival is a **new
+> owner amendment** (KNOWN OR AMENDED ONLY). The letter below is
+> historical reference only.
 
 ### 52.1 Purpose & scope
 
@@ -11851,6 +10908,14 @@ has issues, review them below" — the error summary rule).
 
 ## 53. Component — Editor Components
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** `MuiEditor` serves the
+> **`/edit` Transcription tab** — editing `transcription.latest`
+> (the story; `raw` immutable, single undo via revert). Audit-clip/
+> recorder components (`MuiRecorder`, `MuiAudioPlayer`, `MuiFileInput`)
+> map to the **Audio tab** (big-orb record + drag-drop upload +
+> per-clip play/seek/duration/size/delete; Blob/object-URL playback,
+> no `/play` stream; Transcribe/Re-transcribe actions via §33).
+
 ### 53.1 Purpose & scope
 
 §53 owns the **editor-component set** used by §54's correction
@@ -12076,6 +11141,14 @@ is session-scoped memory (ADR-034, §12.2-10) — never persisted
 ---
 
 ## 54. Component — Correction Modes (Correction Modes 1–3)
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The three modes
+> (Mode 1 direct edit, Mode 2 typed instruction, Mode 3 voice
+> instruction) write `transcription.latest` (§35); Mode 3's ephemeral
+> clip STT = `POST .../corrections/transcripts` (no persistence).
+> After generation, body correction flows through the chat
+> (re-try + re-accept, §36). Item text is never edited per-row; item
+> status update mechanism open (§31.6/§24A).
 
 ### 54.1 Purpose & scope
 
@@ -12317,6 +11390,19 @@ persistent footer (round-6 — no accept step). The machine is
 ---
 
 ## 55. Component — Conversation Bubble & Chat UI (UI only)
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The chat surface is the
+> **post-creation agent chat** (`/reports/:reportId/chat`, §36):
+> each AI response is a **card** with **Copy**, **Re-try**, and
+> **Like (accept/revert)** — at most one accepted per report; while one
+> is accepted all other like-icons are hidden/disabled; switching =
+> revert-first-then-accept; re-try is disabled at/above the accepted
+> card. Accept creates items + writes `Report.generated`; revert
+> deletes items + clears `generated`. **MUI X Chat `ChatBox` is the R7
+> candidate** (adapter + normalized store + paginated history); its
+> adoption requires the community-license, streaming (fake-stream vs
+> real SSE), and package-add decisions (§13). The letter below is the
+> pre-consolidation chat UI reference.
 
 ### 55.1 Purpose & scope
 
@@ -12767,6 +11853,13 @@ plain).
 ---
 
 ## 58. Feature — Print-to-PDF & Client-side Exports
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** The printable report body
+> renders **`Report.generated`** (the §6-format body, §21) — never
+> `latest` (transcription) — and the export/print of activities/issues
+> uses the **Item** rows through the `GET /items` filter surface
+> (branch/date-range/status; no rating, §31.9/§37). Print-to-PDF /
+> CSV / sheets as per §37.
 
 ### 58.1 Purpose & scope
 
@@ -13340,6 +12433,14 @@ gates**; no surface may rely on only one:
 ---
 
 ## 62. Sweeper, TTL & Data Retention
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Add the **attempt-session
+> staging** to the sweep surface: transient create-attempt sessions
+> and their staging files under `backend/uploads/audio/staging/` are
+> cleaned after their TTL (~1 h) by the sweeper (§31.2). Report TTL
+> anchor stays `archivedAt` (`ARCHIVED_TTL_SECONDS`); embedded audio
+> files are unlinked on clip delete (orphan-sweep retry) and on report
+> delete; the orphan sweep also cleans any failed-create files.
 
 ### 62.1 Purpose & scope
 
@@ -13994,6 +13095,12 @@ and deployment (§65); delivery follows in Part F (§66–§69).
 
 ## 66. Implementation Phases
 
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Phase planning follows the
+> consolidated model: no wizard phase; the report domain is the atomic
+> create → `/edit` → `/chat` flow (§31/§34/§36). The increment table
+> recorded in `task_plan.md` (Phase 6, `phase-6-trust-overlay-amendments`)
+> supersedes the wizard/status-machine step dependencies below.
+
 ### 66.1 Purpose & scope
 
 §66 is the execution plan of the whole specification (ADR-027:
@@ -14593,6 +13700,18 @@ once and cites it uniformly.
 ---
 
 ## 69. Open Questions & Assumptions (registry)
+
+> **CONSOLIDATED AMENDMENT (2026-09-01).** New open items on the
+> registry: **item status-update mechanism** (how activities/issues
+> statuses get updated — §24A/§31.6); duplicate-day reports (allow vs
+> `{user,date}` unique); direct-delete/misclick data-loss acceptance;
+> system-vs-persona precedence + prompt-injection guard; zero-preset
+> chat behavior + digest sub-decisions; content/total caps; chat
+> streaming (fake-stream vs real SSE, §36/§55); preset binding
+> (per-message); one-commit supersession of the pushed R1/R3 records;
+> §6.4 main-branch coherence (§6.10 locked decision 3, now resolved);
+> comment no-rating confirmation (resolved in §24A). See `task_plan.md`
+> "Open items".
 
 ### 69.1 Purpose, scope & mechanics
 

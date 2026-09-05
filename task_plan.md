@@ -601,6 +601,21 @@ changed the domain). Full detail: findings.md "CONSOLIDATED re-amendment".
 7. Preset binding per-message (lean) vs per-conversation.
 8. Re-amendments supersede the two pushed commits in one §66.6 commit.
 
+### Spec reconciliation sweep (2026-09-01) — COMPLETE
+
+One full top-to-bottom pass over `docs/project-specification.md`
+applying ONLY confirmed/amended decisions (see `progress.md` sweep
+record). Highlights: §5 BR-05/06/08, §6 (isMain, Type-2 main
+attribution, no rating), §11 (REPORT_STATUSES removed, ITEM_STATUSES_
+BY_TYPE with comment: []), §17 five entities + no-status presence,
+§21/§22/§23 rewritten (embedded audios/transcription + generated),
+§24 (acceptedResponseId/cards), §24A rewritten (no rating, per-type
+statuses, comments no status), §31 rewritten (atomic multipart create,
+no status machine, conversation/preset routes), §34/§35/§36 rewritten
+(accept→generated+items, modes→latest, card protocol), frontend
+banners §49–§55/§58, §52 wizard RETIRED, §62 staging, §66/§69 notes.
+findings.md: `payload`→`text`, per-type status record.
+
 ### R1 — Report resource — COMPLETE (design-only amendment, 2026-09-01)
 
 Amended Report model §21 + Report & Status API §31 with the owner (Step-1.1).

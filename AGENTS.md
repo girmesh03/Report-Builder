@@ -57,6 +57,13 @@ sets — see `task_plan.md` Phase 6 section.
   `/chat` card protocol (Copy/Re-try/Like-accept-revert; one accepted per report) with a
   grounded-history digest agent. Full record: `findings.md` "CONSOLIDATED re-amendment";
   `task_plan.md` "Consolidated supersession".
+- **FULL spec reconciliation sweep done (2026-09-01):** `docs/project-specification.md`
+  top-to-bottom reconciled to the consolidated model — §5/§6/§11/§17/§18.7/§21/§22/§23/§24/
+  §24A/§25/§31–§39/§41/§46/§49–§58/§62/§66/§69. Report = embedded audios/transcription +
+  `generated`; no status machine; §52 wizard RETIRED; atoms of the per-type item statuses
+  (activities completed|in_progress default completed; issues reported|in_progress|completed
+  default reported; comments no status/no rating; `text` field; status-update mechanism open).
+  See `progress.md` sweep record.
 
 **Status:** consolidated re-amendment complete (supersedes R1/R3). History-digest scope
 RESOLVED per-user (2026-09-01). Open items recorded in task_plan.md — awaiting owner verdicts

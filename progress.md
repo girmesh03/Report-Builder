@@ -96,6 +96,38 @@
 - **Files updated:** findings.md, progress.md, task_plan.md, AGENTS.md, spec front-matter + affected §.
 - **Gates:** recorded; design-only; push to branch, no merge.
 
+## Session 2026-09-01 — FULL top-to-bottom spec reconciliation sweep — COMPLETE
+
+- **Scope:** one continuous pass over `docs/project-specification.md`,
+  applying ONLY confirmed/amended decisions (owner directive). Region-by-
+  region verified as applied.
+- **What changed (§-level):** §5 BR-05/BR-06/BR-08; §6 visits[0]=main →
+  isMain + Type-2 main-attribution + item vocab (no rating); §8.1
+  generation input; §11 REPORT_STATUSES removed + ITEM_STATUSES_BY_TYPE
+  (comment: []) + CONTENT/DIGEST caps; §15 wizard retired + preset route;
+  §17 five entities + ERD + no-status presence; §18.7 five-entity;
+  §21 Report REWRITTEN (embedded audios/transcription + `generated`);
+  §22 Audio REWRITTEN (embedded AudioClip, direct-delete DB+file);
+  §23 Transcription REWRITTEN (embedded raw/latest); §24 ChatConversation
+  (acceptedResponseId + agent cards); §24A Item REWRITTEN (no rating,
+  per-type statuses, comments no status, text naming, status-update open);
+  §25 mock; §31 Report API REWRITTEN (atomic multipart create, no status
+  machine, generated filter, conversation/preset routes); §32/§33
+  aligned (embedded/nested, Path A); §34/§35/§36 REWRITTEN
+  (accept→generated+items, 3 modes→latest, card protocol);
+  §37/§38/§39/§41/§46/§49/§50/§51/§52(retired)/§53/§54/§55/§58/§62/§66/§69
+  banners.
+- **findings.md:** Item field `payload` → `text`; per-type status record
+  (activities completed|in_progress default completed; issues
+  reported|in_progress|completed default reported; comments no status/
+  no rating; status-update mechanism = open item).
+- **Files updated:** findings.md, progress.md, this task_plan, AGENTS.md,
+  spec (reconcile) — same commit (§66.6).
+- **Gates:** verified (only 5 working-tree files changed, no temp/artifacts);
+  push to branch, no merge.
+- **Next:** resolve open items; then R2 Item (field set usage),
+  R4 transcription-create, R5 Generation+Presets, R7 Chat (MUI decision).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`
