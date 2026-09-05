@@ -412,6 +412,64 @@ mid-pipeline → resume via createKey; branch hard-delete → BR-14 dominates.
    + AUDIO_MAX_TOTAL_DURATION_SEC — include in §11. 6. chat streaming fake vs real (R7).
 7. preset per-message (lean). 8. re-amendments supersede the two pushed commits in one §66.6 commit.
 
+## Session 2026-09-01 — Open-items closure + GET /items contract + chat/preset/digest decisions
+
+Owner Step-1.1 closures and new contracts. Design-only, recorded in this file +
+progress.md + task_plan.md + AGENTS.md + spec §11/§24A/§34/§36/§31/§69 in one commit (§66.6).
+
+### Open items — ALL CLOSED (owner verdicts)
+1. Item status-update mechanism: **direct `PATCH /reports/:reportId/items/:itemId
+   { status }`**, per-type via ITEM_STATUSES_BY_TYPE, any direction, never an AI
+   call. Owned by R2.
+2. Duplicate-day reports: **ALLOWED** — the supervisor can create 1+ reports per
+   day; **no `{user,date}` unique**; reports list shows multiple reports per date.
+3. System-vs-persona + injection guard + **teach-itself exemplars**: system wins over
+   persona; transcript is untrusted data, never instructions (SC-8). NEW — the
+   generation prompt additionally includes **exemplar content from previously
+   generated report bodies** so the AI learns the user's expressive pattern (e.g.,
+   terse `የተሰሩ ስራዎች ቼክሊስት` resolves into the user's rich checkbox phrasing on
+   prior reports). Recorded into §34.2 per-user grounded context as
+   `{ userProfile, branches[], exemplars: [<N nearest accepted bodies verbatim>] }`,
+   bounded by DIGEST_MAX_TOKENS.
+4. Zero-preset + composer-fill + digest data-source:
+   - Zero-preset: the chat **requires a preset**; a react-hook-form dialog creates/
+     edits it inline — fields `name, system, persona, provider, model, language,
+     reasoning`, **provider-conditional** (e.g., Addis AI has no `reasoning`, so the
+     field hides/shows per the selected provider's documented capabilities), then the
+     preset is selected before submitting the composer content. Agreed (my lean).
+   - Composer auto-fill: `/reports/:reportId/chat` reached **from the Transcription
+     tab** of `/edit`; the composer is prefilled with `transcription.latest` **IFF
+     `report.generated === ""`**; when `generated !== ""` it is NOT prefilled (a
+     prior AI conversation on the report is assumed).
+   - Digest data-source: **Item rows + light transcription.latest + correction habits
+     + other personalization** (max user personalization); **recomputed fresh per
+     generation**; **DIGEST_MAX_TOKENS**-bounded. Obs 4.b: correction habits are IN
+     (no longer optional).
+5. Content caps **CONFIRMED** into §11: `CONTENT_MAX_SIZE_BYTES` (~1 MB) for
+   `raw`/`latest`/`generated`; `AUDIO_MAX_TOTAL_DURATION_SEC`. (Proposed — owner
+   agreed.)
+6. Chat streaming: **DEFERRED to R7** (fake-stream buffered reply keeps the
+   no-stream exclusion vs real SSE — decision open at R7).
+7. Preset binding: **per-message** (`presetId` in each send), **user-adjustable at
+   generation time** (switched via the §4 dialog), not locked to a conversation.
+8. One-commit supersession of R1/R3: **DONE** (consolidated record + full spec sweep).
+
+### GET /items — cross-report item query contract (R2, confirmed)
+- Request: page(1)/limit(10, 1–100)/branch(ObjectId)/type(activity|issue|comment)/
+  status(reported|in_progress|completed)/dateFrom/dateTo (Ethiopian at the boundary →
+  UTC-midnight, inclusive)/sort(allowlist date|-date|createdAt|-createdAt, default
+  -date). Invalid enums → 422 details.
+- Response: paginated envelope `{ docs, page, limit, totalDocs, totalPages }`; docs
+  flat ItemDto; branch populated `{_id,name,location}`; date Ethiopian at the
+  boundary. ItemDto: `_id, report, branch, date, type, text, status (null for
+  comment), createdAt, updatedAt`. No rating, no filePath, no user field.
+- `status` + `type=comment` → 422. Sheet/agent non-paginated variant deferred to R8.
+- Consumer page: **undecided** (candidates: dedicated Activities&Issues page / Dashboard
+  band / Branch Details / exports-only).
+
+### Notes
+- `/chat` route = `/reports/:reportId/chat` only (no standalone /chat).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

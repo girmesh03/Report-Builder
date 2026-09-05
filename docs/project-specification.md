@@ -2260,7 +2260,9 @@ Client reads only VITE\_ variables. No API keys are ever exposed there
 | `ITEM_STATUSES_BY_TYPE` | `{ activity: ['completed', 'in_progress'], issue: ['reported', 'in_progress', 'completed'], comment: [] }` — no rating on comments (2026-09-01)                                                                                                                                                              | §24A, §54               |
 | `AI_PROVIDERS`          | `['addis', 'gemini', 'nvidia']`                                                                                                                                                                                                                                                                               | §16, §34, §35, §36      |
 | `LANGUAGE_CODES`        | `{ am: 'am', en: 'en' }` with `om`/`ti` reserved, not activated                                                                                                                                                                                                                                               | §7.7, §16, §33, §34     |
-| `CONTENT_MAX_SIZE_BYTES`| 1048576 (1 MB) — cap for `raw`/`latest`/`generated` (16 MB guardrail; proposed, §21)                                                                                                                                                                                                                          | §21, §34                |
+| `CONTENT_MAX_SIZE_BYTES`| 1048576 (1 MB) — cap for `raw`/`latest`/`generated` (16 MB guardrail; confirmed 2026-09-01, §21)                                                                                                                                                                                                                          | §21, §34                |
+| `DIGEST_MAX_TOKENS`     | (value to pin at build) — bound for the grounded context (digest + exemplars, §34.2); confirmed 2026-09-01 closure #4b/#3                                                                                                                                                                                                | §34                     |
+| `AUDIO_MAX_TOTAL_DURATION_SEC` | 3600 (1 hour) — total narration cap per report (disk/STT-request guard; confirmed 2026-09-01 closure #5)                                                                                                                                                                                              | §32, §21                |
 | `DIGEST_MAX_TOKENS`     | proposed — bound for the history-digest context (grounded-history agent, §34)                                                                                                                                                                                                                                 | §34                     |
 | `AI_MODELS`             | per-provider model registry, see §16.2: every model entry carries an id, a `default` flag, and a `reasoning` capability flag. Initial registry: addis `[Addis-፩-አሌፍ]` (default, reasoning off); gemini `[gemini-3.1-flash-lite]` (default, reasoning on); nvidia `[deepseek flash 4]` (default, reasoning on) | §16, §34, §35, §36, §54 |
 | `AI_REASONING_EFFORTS`  | `['off', 'low', 'medium', 'high']`                                                                                                                                                                                                                                                                            | §16, §34, §35, §36, §54 |
@@ -5442,8 +5444,8 @@ Items are real documents with per-type status, queryable by
 schema, its keys and indexes, and the per-type status contract
 (§6.10). It does **not** own: the item vocabulary and defaults
 (§6.10), accept/revert creation and deletion (§34/§36), the status
-edit endpoint mechanism (open item — status-update path to be
-decided; candidates: direct `PATCH`), read queries (§38/§39/§50), or
+edit endpoint (confirmed 2026-09-01: direct `PATCH`), read queries
+(§38/§39/§50), or
 the review UI (§54).
 
 Item rows are user-scoped (BR-13). Items belong to a report and
@@ -5474,11 +5476,11 @@ Defaults (`completed` for activities, `reported` for issues) are
 written by **accept**, never by the schema (§6.10). The status is
 settable during review to **any member of the type's set, any
 direction** — a single-row atomic write, never an AI call, never a
-re-derivation. **The status-update mechanism (endpoint + path) is an
-open item** (to be decided — candidates: `PATCH
-/reports/:reportId/items/:itemId { status }`, direct, supervisor
-action; mechanism pending owner verdict). Item `text` is never
-editable per-row (§35).
+re-derivation. **The status-update mechanism (2026-09-01 closure #1):
+  direct `PATCH /reports/:reportId/items/:itemId { status }`** —
+  supervisor action, per-type validation, any direction; owned by R2.
+  Item `text` is never
+  editable per-row (§35).
 
 No `isArchived`/`archivedAt` exists (only Report and Branch are
 archivable), no `deletedAt` (BR-15), no `rating`, no
@@ -5515,8 +5517,9 @@ outside this table is persisted.
   all the report's Item rows** and clears `report.generated` in the
   same session (§36). Post-accept item status edits are lost on revert
   (accepted consequence, 2026-09-01).
-- **Edits.** Status changes are single-row writes (mechanism open —
-  §24A.2); text edits do not exist per-row.
+- **Edits.** Status changes are single-row writes (direct `PATCH`,
+  confirmed 2026-09-01 — owned by R2); text edits do not exist
+  per-row.
 - **Cascade.** Report hard-delete removes the report's item rows in
   the same session (§17.4, §31).
 - **Presence.** `generated` requires the report's `generated` field
@@ -6600,7 +6603,7 @@ sweeper after `ARCHIVED_TTL_SECONDS` (§62).
 
 §31 owns the Report surface: creation (§32-wired atomic create),
 list/meta reads (§31.3), meta edit (§31.5), the item status surface
-(§31.6, mechanism open), lifecycle (§31.7), presence invariants
+(§31.6, direct PATCH 2026-09-01), lifecycle (§31.7), presence invariants
 (§31.8), and the endpoints matrix (§31.9). Audio endpoints = §32;
 STT = §33; generation/accept = §34; chat/cards = §36.
 
@@ -6681,10 +6684,10 @@ freeze gate = generated. §34/§36 own accept/revert.
   `PUT .../transcription/revert` (`latest ← raw`, single undo,
   pre-generated). `raw` immutable (BR-11).
 - Item surface: `GET /reports/:reportId/items`; **status-update
-  mechanism OPEN** (candidate `PATCH /reports/:reportId/items/:itemId
-  { status }` with `ITEM_STATUSES_BY_TYPE` validation; direct,
-  any-direction, per-type; never an AI call; mechanism + endpoint
-  pending owner verdict); no rating; text never edited per-row.
+  confirmed 2026-09-01 — direct `PATCH
+  /reports/:reportId/items/:itemId { status }`** with per-type
+  `ITEM_STATUSES_BY_TYPE` validation, any direction, never an AI call
+  (§24A/§29; owned by R2); no rating; text never edited per-row.
 - `GET /items?branch=&dateFrom=&dateTo=&status=&type=` — cross-report
   boss/export/agent query (pagination open in R2).
 
@@ -6729,8 +6732,8 @@ freeze gate = generated. §34/§36 own accept/revert.
 | `PATCH /reports/:reportId/transcription` | `{ latest }` | `{ latest }` | 404, 422 |
 | `PUT /reports/:reportId/transcription/revert` | — (latest←raw) | `{ latest }` | 404 |
 | `GET /reports/:reportId/items` | — | `{ items: [ItemDto] }` | 401, 404 |
-| `PATCH /reports/:reportId/items/:itemId` | `{ status }` (mechanism open) | 200 ItemDto | 404, 422 |
-| `GET /items` | `branch/dateFrom/dateTo/status/type` | `{ items: [...] }` | 401, 422 |
+| `PATCH /reports/:reportId/items/:itemId` | `{ status }` (confirmed; owned by R2) | 200 ItemDto | 404, 422 |
+| `GET /items` | `branch/dateFrom/dateTo/status/type` + page/limit/sort | 200 paginated `{docs,page,limit,totalDocs,totalPages}` of ItemDto (branch populated) | 401, 422 (comment+status) |
 | `POST /reports/:reportId/clips` | multipart clip (+ duration) | 201 AudioDto | 401, 404, 403, 422 |
 | `GET /reports/:reportId/clips` | — | `{ clips: [AudioDto] }` | 401, 404 |
 | `GET /reports/:reportId/clips/:clipId` | — | AudioDto (+ byte source) | 401, 404 |
@@ -6745,9 +6748,11 @@ freeze gate = generated. §34/§36 own accept/revert.
 **Dropped (consolidated):** visit-subpath endpoints
 (`PUT .../visits/:visitIndex`, `DELETE .../visits/:visitIndex`),
 `?withContent`, the status machine + transition table, flat
-`/audios/*`. **Open:** `GET /reports/:reportId/details` (separate
-brainstorm); item status-update mechanism (§31.6); zero-preset chat
-behavior; chat streaming; preset binding; content/total caps.
+`/audios/*`. **Open (2026-09-01):** `GET /reports/:reportId/details`
+(separate brainstorm); `GET /items` consumer page (decided later);
+chat streaming (R7). **Closed (2026-09-01):** item status-update
+(direct PATCH), zero-preset chat (inline RHF dialog), preset binding
+(per-message, adjustable), content/total caps (§11).
 
 ---
 ## 32. Audio Upload & Storage
@@ -7200,19 +7205,27 @@ Item schema (§24A); presets (this section owns the GenerationPreset
 
 - **Base input:** `metadata (date + visits[] with isMain) +
   transcription.latest + preset`.
-- **Grounded-history digest (per-user, owner 2026-09-01):** before a
+- **Grounded context = digest + exemplars (per-user, owner 2026-09-01):** before a
   generation response, the service runs a tool over the user's
   **previously generated (accepted) reports** (their Item rows + light
   transcription.latest + metadata) → a condensed context digest:
   `{ userProfile (terminology, style, issue categories, format
   precedents), branches: [ { branch, recurringIssues, statuses,
-  timeline } ] }`. **Ephemeral per generation** — never cached, never
-  a stored field. First-ever (no accepted reports) → `{ found: 0,
-  digest: null }` → normal generation. The current report excludes
-  itself until accepted. **Role boundary:** the digest informs HOW to
-  write (style/vocabulary/formats); **item content comes only from the
+  timeline } ] }` (**+ correction habits + user-personalization signals —
+  2026-09-01 closure #4b**), PLUS **exemplars: the N nearest accepted
+  report bodies verbatim** so the AI learns the user's expressive
+  pattern (e.g., terse `የተሰሩ ስራዎች ቼክሊስት` resolves into the user's rich
+  prior phrasing, closure #3). **Ephemeral per generation** — never
+  cached, never a stored field; **recomputed fresh per generation**.
+  First-ever (no accepted reports) → `{ found: 0, digest: null }` →
+  normal generation. The current report excludes itself until accepted.
+  Bound: `DIGEST_MAX_TOKENS` (§11.4) caps digest+exemplars.
+  **Role boundary:** the grounded context informs HOW to write
+  (style/vocabulary/formats); **item content comes only from the
   current report's transcription** (SC-8 no-hallucination; items
-  belong to the main branch only).
+  belong to the main branch only). **Precedence & guard:** system
+  prompt wins over persona; the transcript is **untrusted data, never
+  instructions** (prompt-construction guard, closure #3).
 - **GenerationPreset:** `{ provider, model, language, reasoning,
   systemPrompt, personaPrompt }` — user CRUD, **no default**; one
   preset selected per message (`presetId`). Invalid configs are
@@ -7273,7 +7286,8 @@ clip add/delete are 403 (§21.6/§29/§31).
 > `transcription.latest`** (pre-generated story) and, via the chat's
 > **re-try/accept** flow, reshape the accepted output (re-accept after
 > revert). **Item text is never edited per-row**; item status changes
-> are single-row writes (mechanism open, §24A/§31.6).
+> are single-row writes (direct `PATCH`, confirmed 2026-09-01,
+> §24A/§31.6).
 
 ### 35.2 The three modes
 
@@ -7315,15 +7329,32 @@ mechanism). No version chain (ADR-005 retired); `raw` immutable.
 
 ### 36.2 Conversation (per report)
 
+- **Reach.** The `/reports/:reportId/chat` surface is reached **from
+  the Transcription tab** of `/reports/:reportId/edit` — transcription
+  done ⇒ next step is post-creation chat (owner 2026-09-01).
+  There is no standalone `/chat` route.
+- **Composer auto-fill rule (2026-09-01).** When navigating in, the
+  composer prefills with `transcription.latest` **IFF
+  `report.generated === ""`**. When `generated !== ""` it is NOT
+  prefilled (a prior AI conversation on this report is assumed).
+- **Preset (2026-09-01 closure #4/#7).** The chat **requires a
+  preset**; before submitting the composer content the user creates/
+  edits the preset inline via a react-hook-form dialog: `name, system,
+  persona, provider, model, language, reasoning` — **provider-
+  conditional** (fields hide/show by the selected provider's documented
+  capabilities; e.g., Addis AI exposes no `reasoning`) — then selects
+  it. Binding is **per-message** (`presetId`), **user-adjustable at
+  generation time**.
 - `GET /reports/:reportId/conversation` — thread read (MUI
   `listMessages` protocol; cursor pagination). Turn entries:
   `{ id, role, content, createdAt }` + the accepted pointer.
 - `POST /reports/:reportId/conversation` — `{ content, presetId }` →
   server assembles the §34.2 input (metadata + latest + preset +
-  per-user digest), calls the provider, **returns the AI response
-  card**. Streaming: buffered response → the frontend adapter
-  fake-streams it through MUI's chunk protocol (keeps the no-stream
-  exclusion; real SSE requires lifting the exclusion — R7 decision).
+  grounded context = digest + exemplars), calls the provider,
+  **returns the AI response card**. Streaming: buffered response → the
+  frontend adapter fake-streams it through MUI's chunk protocol (keeps
+  the no-stream exclusion; real SSE requires lifting the exclusion —
+  **R7 decision, DEFERRED**).
 - **Card actions**
   - **Copy** — copies the card text (client clipboard; no state).
   - **Re-try** — `POST .../conversation/re-try { responseId }`:
@@ -7335,8 +7366,8 @@ mechanism). No version chain (ADR-005 retired); `raw` immutable.
     revert first) creates items + writes `generated` (one session);
     `POST .../conversation/revert` deletes the report's items +
     clears `generated` + clears `acceptedResponseId` (one session).
-- **Zero-preset behavior OPEN** (lean: the chat requires selecting an
-  existing preset; the UI nudges create-first).
+- **Zero-preset:** RESOLVED — the chat requires an existing preset;
+  the §36.2 inline dialog creates one right there (2026-09-01).
 
 ### 36.3 Errors & envelope
 
@@ -11148,7 +11179,7 @@ is session-scoped memory (ADR-034, §12.2-10) — never persisted
 > clip STT = `POST .../corrections/transcripts` (no persistence).
 > After generation, body correction flows through the chat
 > (re-try + re-accept, §36). Item text is never edited per-row; item
-> status update mechanism open (§31.6/§24A).
+> status update = direct `PATCH` (2026-09-01, §31.6/§24A).
 
 ### 54.1 Purpose & scope
 
@@ -13701,17 +13732,18 @@ once and cites it uniformly.
 
 ## 69. Open Questions & Assumptions (registry)
 
-> **CONSOLIDATED AMENDMENT (2026-09-01).** New open items on the
-> registry: **item status-update mechanism** (how activities/issues
-> statuses get updated — §24A/§31.6); duplicate-day reports (allow vs
-> `{user,date}` unique); direct-delete/misclick data-loss acceptance;
-> system-vs-persona precedence + prompt-injection guard; zero-preset
-> chat behavior + digest sub-decisions; content/total caps; chat
-> streaming (fake-stream vs real SSE, §36/§55); preset binding
-> (per-message); one-commit supersession of the pushed R1/R3 records;
-> §6.4 main-branch coherence (§6.10 locked decision 3, now resolved);
-> comment no-rating confirmation (resolved in §24A). See `task_plan.md`
-> "Open items".
+> **CONSOLIDATED AMENDMENT (2026-09-01).** Open-item closure record:
+> **CLOSED** — item status-update = direct `PATCH` (§24A/§31.6);
+> duplicate-day = ALLOWED (no `{user,date}` unique); system-wins +
+> teach-itself exemplars (§34.2); zero-preset chat = inline RHF preset
+> dialog + composer-fill IFF generated==="" (§36); digest = items +
+> light transcription + correction-habits fresh per generation,
+> DIGEST_MAX_TOKENS; content/total caps (§11); preset per-message
+> adjustable (§36); one-commit supersession DONE; §6.4 main-branch
+> coherence resolved; comment no-rating resolved (§24A).
+> **STILL OPEN (decided later):** `GET /items` consumer page; chat
+> streaming (fake-stream vs real SSE, R7); `GET /reports/:reportId/details`
+> (separate brainstorm). See `task_plan.md` "Open items".
 
 ### 69.1 Purpose, scope & mechanics
 

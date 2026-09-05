@@ -62,15 +62,18 @@ sets — see `task_plan.md` Phase 6 section.
   §24A/§25/§31–§39/§41/§46/§49–§58/§62/§66/§69. Report = embedded audios/transcription +
   `generated`; no status machine; §52 wizard RETIRED; atoms of the per-type item statuses
   (activities completed|in_progress default completed; issues reported|in_progress|completed
-  default reported; comments no status/no rating; `text` field; status-update mechanism open).
+  default reported; comments no status/no rating; `text` field; status-update = direct PATCH, closed 2026-09-01).
   See `progress.md` sweep record.
 
 **Status:** consolidated re-amendment complete (supersedes R1/R3). History-digest scope
-RESOLVED per-user (2026-09-01). Open items recorded in task_plan.md — awaiting owner verdicts
-(dup-day, direct-delete data-loss, system-vs-persona precedence, zero-preset behavior,
-content/total-duration caps, chat streaming, preset binding, one-commit supersession). Next
-increments: R2 Item, R4 transcription-create, R5 Generation+Presets, R6 Correction, R7 Chat,
-R8 Export, R9/R10.
+RESOLVED per-user (2026-09-01). **All 8 open items CLOSED (2026-09-01):** status-update =
+direct PATCH; duplicate-day allowed; system-wins + teach-itself exemplars; zero-preset RHF
+dialog (provider-conditional) + composer-fill IFF generated===""; digest = items + light
+transcription + correction-habits, fresh, DIGEST_MAX_TOKENS; §11 caps confirmed; chat
+streaming deferred to R7; preset per-message user-adjustable. **GET /items contract
+confirmed** (R2 — paginated ItemDto envelope; status+comment → 422). Remaining open only:
+GET /items consumer page (later), chat streaming (R7). Next: R2 Item, R4
+transcription-create, R5 Generation+Presets, R6 Correction, R7 Chat, R8 Export, R9/R10.
 
 ## What this repo is
 

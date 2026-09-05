@@ -128,6 +128,23 @@
 - **Next:** resolve open items; then R2 Item (field set usage),
   R4 transcription-create, R5 Generation+Presets, R7 Chat (MUI decision).
 
+## Session 2026-09-01 — Open-items closure + GET /items contract — COMPLETE
+- **All 8 open items closed (owner verdicts)** — see findings.md "Open-items closure
+  + GET /items contract": status-update direct PATCH; duplicate-day allowed (no
+  {user,date} unique); system-wins + teach-itself exemplars (§34.2); zero-preset RHF
+  dialog (provider-conditional) + composer-fill IFF generated===""; digest = items +
+  light transcription + correction-habits, fresh per generation, DIGEST_MAX_TOKENS;
+  §11 caps confirmed; chat streaming deferred to R7; preset per-message user-adjustable;
+  supersession done.
+- **GET /items** contract confirmed (R2): paginated ItemDto envelope; filters
+  branch/type/status/dateFrom/dateTo (Ethiopian→UTC-midnight)/sort allowlist;
+  ItemDto `_id, report, branch, date, type, text, status, timestamps`; status+comment
+  → 422; sheet variant deferred to R8; consumer page undecided.
+- **Files updated:** findings.md, progress.md, task_plan.md, AGENTS.md, spec
+  §11/§24A/§34/§36/§31/§69 (same commit).
+- **Gates:** recorded; design-only; push to branch, no merge.
+- **Next:** R2 Item Step-1.1 (status PATCH + GET /items + open #1 verify).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

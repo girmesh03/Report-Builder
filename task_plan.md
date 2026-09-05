@@ -591,15 +591,26 @@ changed the domain). Full detail: findings.md "CONSOLIDATED re-amendment".
 - **API table + edge-case verdicts + MUI X Chat + 16MB/storage contract:** in findings.md.
 
 ### Open items (owner verdicts before further work)
-1. Duplicate-day reports: allow (lean) vs hard `{user,date}` unique.
-2. Direct-delete/misclick data-loss on transcription (no clip archive/restore) — confirm accepted.
-3. System-vs-persona precedence + prompt-injection guard ("system wins; transcript untrusted").
-4. History-digest scope — RESOLVED per-user (branch sectors) — see findings.md
-   "Grounded-history agent"; zero-preset behavior still open.
-5. Content caps (~1MB raw/latest) + AUDIO_MAX_TOTAL_DURATION_SEC — include in §11.
-6. Chat streaming: fake-stream (keeps exclusion) vs real SSE (needs lifting) — R7.
-7. Preset binding per-message (lean) vs per-conversation.
-8. Re-amendments supersede the two pushed commits in one §66.6 commit.
+**ALL CLOSED (2026-09-01).** 1. Status-update = direct `PATCH items/:itemId {status}`
+(R2). 2. Duplicate-day allowed (no `{user,date}` — 1+ reports/day possible).
+3. System wins; transcript = data; **+ exemplars from prior generated bodies** (§34.2).
+4. Require a preset (RHF dialog, provider-conditional, Addis has no reasoning);
+composer fills `latest` IFF `generated === ""`; digest = items + light transcription +
+correction-habits, fresh per generation, DIGEST_MAX_TOKENS. 5. §11 caps confirmed
+(CONTENT_MAX_SIZE_BYTES ~1MB; AUDIO_MAX_TOTAL_DURATION_SEC). 6. Chat streaming
+**DEFERRED to R7**. 7. Preset per-message, user-adjustable at generation time.
+8. **DONE** (consolidated record + spec sweep). See findings.md "Open-items closure".
+
+**Remaining open only:** GET /items consumer page (decided later: dedicated
+Activities&Issues page / Dashboard band / Branch Details / exports-only); chat streaming
+(R7).
+
+### Next increments
+- **R2 — Item resource:** status `PATCH` (open #1), `GET /items` contract
+  (confirmed — paginated ItemDto envelope), open #1 verify. Ready now.
+- R4 transcription-create details; R5 Generation+Presets (digest+exemplars);
+  R6 Correction; R7 Chat (streaming + MUI + card protocol); R8 Export.
+- GET /items consumer page decided later.
 
 ### Spec reconciliation sweep (2026-09-01) — COMPLETE
 
