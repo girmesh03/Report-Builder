@@ -159,6 +159,23 @@
 - Files: findings/progress/task_plan/AGENTS + spec §24A/§31.6/§31.9.
 - Gates: verified; no merge. Next: R4 transcription-create details.
 
+## Session 2026-09-01 — R4: Transcription-create & re-transcribe — COMPLETE
+- **Resolved inventory** (findings.md "R4"): post-create re-transcription +
+  readiness (replaces the removed `contributions` ledger); every edge
+  decided by logic (owner: no confirmation prompts).
+- New schema: `transcription.ready` (Boolean, embedded; the deletion-proof
+  readiness flag) + transient `createKey` attempt-session collection
+  (`committedReportId` idempotent replay).
+- Endpoints: `PUT .../transcription` = re-transcribe only (created in the
+  pipeline; ready→200 no-op; all-or-nothing write); `GET` = 200 always
+  `{raw,latest,readiness}` (old 404 retired); accept/regenerate gated 409
+  when ready:false or latest empty (SC-8).
+- Create-failure retention/skip (A1–A15); readiness C1–C6; re-transcribe
+  D1–D12 (wholesale; latest=raw on clip-change); reads E1–E3; editor F1–
+  F4; cross-surface G.
+- Files: findings/progress/task_plan/AGENTS + spec §23/§31.2/§33/§34/§36/
+  §31.9. Gates: verified; no merge. Next: R5 Generation+Presets.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

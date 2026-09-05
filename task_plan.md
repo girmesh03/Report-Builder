@@ -503,7 +503,7 @@ first campaign of that process.
 | R1 | **Report resource ✅ (amended)** | §21 | §31 | §6 skeleton/type; status enums (§21.4/§31.4); visits[]+isMain capture (Option X); §21.3 multikey indexes; §30.6 delete-cascade + ref-check; constants; envelope shapes; Ethiopian date/time boundary | — | §50, §51, §53, §58 |
 | R2 | **Item resource ✅ (amended)** | §24A | §31.6 | per-type vocabulary (activity completed/in_progress default completed; issue reported/in_progress/completed default reported; comment no-status/no-rating, text nullable); ItemDto `{_id,report,branch,date,type,text,status,createdAt,updatedAt}`; `GET /reports/:reportId/items` + `GET /items` (paginated, 403 archived, two-surface split); `PATCH items/:itemId {status}` (same-status→200, not generated-gated); partial-unique comment index; micro-decisions (no per-item delete, text immutable, any-direction, defaults at accept) | R1 | §51 details |
 | R3 | **Audio resource ✅ (amended)** | §22 | §32 | multer config, `uploads/` location, nested `/reports/:reportId/clips` routes, no stream/no archive/direct-delete, final-clip→draft, add-at-transcribed keeps status/drops readiness, temp-chunk-cleanup, Audio-tab one-card layout | R1 | §53/§54 |
-| R4 | Transcription | §23 | §33 | addis provider contract; stored shape (raw/latest, language codes §7.7); session contract | R3 | §54 review |
+| R4 | **Transcription-create ✅ (amended)** | §23 | §33 | readiness = `transcription.ready` (deletion-proof sync flag) + transient createKey attempt-session (committedReportId replay); PUT = re-transcribe-only (ready→200 no-op; all-or-nothing); GET = 200 `{raw,latest,readiness}`; accept gate 409 (not-ready/empty latest); wholesale re-transcribe (latest=raw on clip change); Path-A STT (Addis-only, am, no prompts, 60s chunks) | R1/R2 | §54 review |
 | R5 | Generation service | — | §34 | §8 16-rules applicability; provider selection; generation→Item persist + terminal-status transition | R1, R2, R4 | §53 workspace |
 | R6 | Correction service | — | §35 | 3 modes (typed/voice); re-transcription; raw/latest rewrite + undo | R1, R4 | §53/§54 |
 | R7 | Chat resource | §24 | §36 | messages array; conversation-to-report transformation (§8.4) | R1 | §55, §59 |
@@ -612,8 +612,14 @@ Activities&Issues page / Dashboard band / Branch Details / exports-only); chat s
   not generated-gated); two-surface split (`GET .../reports/:reportId/items`
   report-context + `GET /items` cross-report boss/agent/sheet); 401 = global
   auth gate only.
-- **R4 transcription-create details** (pending-clip/re-transcribe bookkeeping —
-  the deferred contributions replacement) — next.
+- **R4 — Transcription-create: **COMPLETE (2026-09-01).** Resolved inventory
+  (findings.md "R4"): `transcription.ready` + transient createKey attempt-
+  session (committedReportId replay); PUT re-transcribe-only (ready→200 no-op;
+  all-or-nothing; wholesale; latest=raw on clip-change); GET 200
+  `{raw,latest,readiness}`; accept gate 409 (not-ready/empty latest, SC-8);
+  pre-create A1–A15 retention/skip; C1–C6 readiness; F1–F4 editor.
+  **Next: R5 Generation+Presets** (accept→generated+items; digest+exemplars+
+  correction-habits; preset CRUD, per-message adjustable).
 - R5 Generation+Presets (digest+exemplars+correction-habits); R6 Correction;
   R7 Chat (streaming + MUI + card protocol); R8 Export.
 - GET /items consumer page decided later.

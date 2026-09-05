@@ -525,6 +525,93 @@ the cross-report boss/export/agent/sheet query. They share one ItemDto.
 report. 4. GET .../items includes comments (status:null). 5. Any-direction
 transitions (no chain). 6. Defaults written at accept, never by schema.
 
+## Session 2026-09-01 — R4: Transcription-create & re-transcribe (resolved inventory)
+
+Design-only, Stage: the post-create transcription surface — the pending-
+clip/readiness bookkeeping that replaces the removed `contributions`
+ledger — re-derived from the atomic pre-create pipeline (transcription is
+created INSIDE the create pipeline; R4 owns post-create re-transcription +
+readiness only). Every edge resolved by logic (owner: no confirmation
+prompts). Mirrors: progress.md, task_plan.md, AGENTS.md, spec
+§23/§31.2/§33/§34/§36/§31.9 (one commit, §66.6).
+
+### New schema surface (minimal)
+- `transcription.ready: Boolean` — embedded; `true` at create; **false on
+  any clip add/remove** (per-artifact sync flag, not a status); `true`
+  again on successful wholesale re-transcribe. The deletion-proof
+  readiness flag (timestamp arithmetic cannot detect clip removal).
+- Transient `createKey` attempt-session collection: `{ user,
+  clips:[{index,name,uploaded,transcribed,text,error}],
+  status: in_progress|committed, committedReportId?, ttl }` — TTL ~1 h,
+  staging under `uploads/audio/staging/`; `committedReportId` gives
+  idempotent replay.
+
+### Pre-create attempt-session (A#)
+A1 commit-replay: session kept `committed` with `committedReportId`;
+repeat POST same createKey returns the existing report (no duplicate).
+A2 close-without-submit: key never reaches server (lazy). A3 refresh:
+key+dialog discarded; orphan session/staging swept after TTL. A4 TTL
+expiry (>1h): fresh attempt, re-upload. A5 session text bounded by
+CONTENT_MAX_SIZE_BYTES. A6 concurrent tabs: two keys, two reports allowed
+(duplicate-day). A7/A8 replaced take between retries: identity change
+clears stale staged file + marks index fresh. A9 partial multer file:
+index uploaded:false, partial unlinked now. A10 network drop: marks
+reflect truth; retry resumes (skip done). A11 401 mid-pipeline: global
+reauth; retry same key resumes. A12 zero clips: 422. A13 invalid clip:
+fails 422, whole attempt refused, others retained for skip. A14 duplicate
+clip submitted twice: allowed, text twice in merge. A15 all-silent
+merged-empty: reject whole create; per-clip silence fine.
+
+### Commit target (B#)
+B1 final §27.7 transaction abort: retry skips all upload/STT (session
+texts reused), re-runs only the create transaction. B2 same-day distinct
+keys: both commit.
+
+### Readiness (C#)
+C1 clip added on transcription-bearing report → ready:false (latest
+kept). C2 clip deleted (non-last) → ready:false (raw/latest stale). C3
+last clip deleted → CLEAR transcription (raw=latest=null, ready:false; a
+transcription exists only with ≥1 clip). C4 wholesale re-transcribe
+success → ready:true. C5 pending-clip delete leaving a "should-be-ready"
+set → still ready:false (conservative: without the ledger we can't prove
+coverage). C6 generated (items exist) → ready irrelevant (read-only),
+transcribe frozen. **Accept/regenerate gate:** ready:false or `latest`
+empty → 409 (LLM never consumes stale/empty).
+
+### Re-transcription (D#)
+D1 `PUT /reports/:reportId/transcription` = re-transcribe only (creation
+lives in the pipeline). D2 no clips → 422. D3 ready already → 200 no-op
+`{raw,latest,readiness:true}`. D4 partial STT failure → all-or-nothing
+write: nothing persisted; 502 `{failed}`; retry re-runs the WHOLE
+wholesale re-hear (files on server; no cross-request marks post-create).
+D5 long clip one bad chunk → clip fails → whole re-transcribe fails;
+retry re-hears. D6 no forced-rehear for quality when ready (D3 no-op).
+D7 402 vs 429 distinct. D8 `latest` policy: wholesale re-transcribe
+triggered by a CLIP CHANGE → `latest = raw` (story re-emerges from fresh
+merge); no preserve-latest-on-clip-change (stale edits contradict new
+audio). D9 frozen at generated → 403. D10 archived → 403. D11 raw/latest
+> CONTENT_MAX_SIZE_BYTES → 413/422 before persist. D12 double-click →
+client single-flight; server call synchronous/all-or-nothing.
+
+### Reads (E#)
+E1 `GET /reports/:reportId/transcription` → 200 always
+`{raw,latest,readiness}` (null content when cleared; old 404 retired).
+E2 light list DTO projects transcription out. E3 full text never logged.
+
+### Editor / review (F#)
+F1 clear editor + save `latest=""` → ALLOW the save (single-undo).
+generation/accept blocked while latest empty (SC-8; 409). F2 latest edit
+while ready:false → allowed pre-generation; accept 409 until re-
+transcribed. F3 clear then re-transcribe → latest=raw (fresh). F4 Mode-3
+ephemeral STT (`corrections/transcripts`) unchanged (§35) — nothing
+persisted, unaffected by readiness.
+
+### Cross-surface (G#, re-confirmed)
+Create dialog never closes on failure (explicit close/refresh only);
+outside-click won't close; form + audio preserved. Duplicate-day allowed.
+16 MB guardrail (binaries on disk; content caps). createKey = idempotency
+end-to-end.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

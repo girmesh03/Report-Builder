@@ -72,11 +72,18 @@ sets — see `task_plan.md` Phase 6 section.
   items` report-context + `GET /items` cross-report boss/agent/sheet); 401 =
   global auth gate only; 403 archived; status-update direct PATCH
   (same-status→200, not generated-gated).
+- R4 complete (design-only): **transcription-create** — readiness =
+  `transcription.ready` (deletion-proof sync flag) + transient createKey
+  attempt-session (committedReportId replay); PUT = re-transcribe-only
+  (ready→200 no-op; all-or-nothing; wholesale; latest=raw on clip-change);
+  GET = 200 `{raw,latest,readiness}`; accept gate 409 (not-ready/empty latest,
+  SC-8). See `findings.md`/`progress.md`/`task_plan.md` + spec §23/§31.2/§33/
+  §34/§36.
 
-**Status:** consolidated re-amendment complete (supersedes R1/R3). R1/R3/R2
+**Status:** consolidated re-amendment complete (supersedes R1/R3). R1/R3/R2/R4
 amended; open items closed (2026-09-01); GET /items contract confirmed.
-**R2 done. Next = R4 transcription-create details** (pending-clip/re-transcribe
-bookkeeping), then R5 Generation+Presets (digest+exemplars), R6 Correction,
+**Next = R5 Generation+Presets** (accept→generated+items; digest+exemplars+
+correction-habits; preset CRUD per-message adjustable), then R6 Correction,
 R7 Chat (streaming + MUI), R8 Export, R9/R10. Remaining open only: GET /items
 consumer page (later), chat streaming (R7).
 

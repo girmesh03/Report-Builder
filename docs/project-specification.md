@@ -5189,13 +5189,14 @@ report's transcription (§18.7), initialized equal at create.
 
 ### 23.2 Field registry & content contract
 
-| Field    | Type   | Required | Rule                                                                                                                    |
-| -------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `raw`    | String | yes (null until transcription completes) | the **merged STT result** of all the report's clips, written at atomic-create STT completion; rewritten only by STT re-runs (re-transcription); never by content edits (BR-11) |
-| `latest` | String | yes (null until completes) | the single current-transcription slot, initialized equal to `raw` at creation (§18.7); review edits overwrite it (correction Modes 1–3, §35); restore copies `raw` into it — single-undo, no version chain |
+| Field    | Type    | Required | Rule                                                                                                                    |
+| -------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `raw`    | String  | yes (null until transcription completes) | the **merged STT result** of all the report's clips, written at atomic-create STT completion; rewritten only by STT re-runs (re-transcription); never by content edits (BR-11) |
+| `latest` | String  | yes (null until completes) | the single current-transcription slot, initialized equal to `raw` at creation (§18.7); review edits overwrite it (correction Modes 1–3, §35); restore copies `raw` into it — single-undo, no version chain; `latest` may be saved empty (allowed — single-undo recovers) but accept/regenerate is blocked while empty (SC-8, §34) |
+| `ready`  | Boolean | yes (default true) | the **deletion-proof readiness flag** (R4, 2026-09-01): `true` at create; **set `false` by any clip add/remove**; back to `true` on successful wholesale re-transcribe. A per-artifact sync flag — **not a report status**. Timestamp arithmetic cannot detect clip removal, so this single flag carries it |
 
-No further fields. No `status` (transcription presence and readiness
-are derived per §17.6); no `language` (always `am`); no
+No further fields. No `status` (report state is derived per §17.6); no
+`language` (always `am`); no
 `stt.requestId`/`stt.model` (provider traceability via the Winston log
 line at the §33 call, never persisted); no `contributions` ledger;
 no `isArchived`/`archivedAt`/`deletedAt`; no version/history fields
@@ -5218,16 +5219,24 @@ lifecycle and cascades, §17.4).
   slot; `raw` stays untouched (BR-11). Direct edit (Mode 1), typed
   instruction (Mode 2), voice instruction (Mode 3), and re-transcription
   all persist through the same review write path (§35).
-- **Re-transcription (ADR-030).** Rewrites the embedded `raw`/`latest`
-  in place; allowed at every non-generated state; frozen at generated
-  (403, §31/§34). A new clip attached to a transcription-bearing report
-  drops readiness until re-transcribed (deferred pending-clip
-  mechanism, R4/R7).
+- **Re-transcription (ADR-030)** — **wholesale** (R4, 2026-09-01):
+  re-hears **all active clips**, rebuilds the merged `raw` in place;
+  allowed at every non-generated state; frozen at generated (403,
+  §31/§34). **`latest = raw` on a clip-change-triggered re-transcribe**
+  (the story re-emerges from the fresh merge; stale review edits would
+  contradict the new audio); a no-op/ready call changes nothing (200
+  no-op, §33). Any clip add/remove on a transcription-bearing report
+  sets `ready:false` until a successful wholesale re-transcribe.
 - **Cascade.** Clip removal on a transcription-bearing
-  not-yet-generated report leaves the transcription but drops
-  readiness (deferred re-sync). Generated reports never lose content
-  via clip edits (frozen). Report hard-delete removes the embedded
-  transcription with the report (single doc).
+  not-yet-generated report sets `ready:false` (the transcription stays,
+  stale); **deleting the last clip CLEARS the transcription**
+  (`raw=latest=null, ready:false` — a transcription exists only with
+  ≥ 1 clip). Generated reports never lose content via clip edits
+  (frozen). Report hard-delete removes the embedded transcription with
+  the report (single doc).
+- **Accept/regenerate gate.** `accept` (§36) is refused (409) while
+  `ready:false` or `latest` empty/whitespace — the LLM never consumes a
+  stale or empty story (SC-8, §34).
 - **Presence.** `generated` requires the report's `generated` field
   (the §6 body) + Items, not the transcription. The transcription is
   the LLM input (`metadata + transcription.latest + preset + digest`,
@@ -6620,25 +6629,38 @@ never submitted).
 
 Backend pipeline (controller, express-async-handler):
 1. §29 validators (metadata) + multer (clips; per-clip MIME/size/
-   duration). A per-clip failure → rollback (unlink written files) →
-   error; the dialog stays open, form state + recorded audio
-   preserved, outside-click does NOT close.
-2. **Attempt-session** keyed by `createKey` (transient, staging under
-   `uploads/audio/staging/`, TTL ~1 h, sweeper-cleaned) with per-clip
-   marks `uploaded|failed` and `transcribed|failed`.
+   duration). A per-clip failure → rollback (unlink the failed clip's
+   partial/written file only — earlier clips' artifacts are retained
+   for the retry) → error; the dialog stays open, form state +
+   recorded audio preserved, outside-click does NOT close.
+2. **Attempt-session** (R4): a transient Mongo record keyed by
+   `createKey`, `{ user, clips:[{index,name,uploaded,transcribed,text,
+   error}], status: in_progress|committed, committedReportId?, ttl }`
+   with a TTL (~1 h) + sweeper; staging under `uploads/audio/staging/`.
+   Scoped by `user` (BR-13).
 3. **Incremental retry:** resubmit with the same `createKey` skips
-   clips already marked uploaded+transcribed; only failed/pending
-   clips re-sent.
+   clips already marked uploaded+transcribed (reuses their stored
+   text); only failed/pending clips re-sent. **Commit replay:** after a
+   successful commit the session stays `committed` with
+   `committedReportId` until TTL — a repeat of the same key returns the
+   existing report (no duplicate). **Replaced take between retries:**
+   a clip whose identity (name/size/lastModified) changed clears its
+   stale staged file (orphan → sweeper) and resets the index to
+   fresh — never reuse a stale uploaded file/text.
 4. **STT each clip** (Addis-only Path A, §33) → merged transcription.
-   Any failure → rollback + delete clips (files) → error; dialog
-   preserved. **Merged-empty → REJECT** ("please re-record"); per-clip
-   silence is fine.
+   Any failure → error (the failed clip's text is not recorded; already
+   transcribed clips' text is retained) → dialog preserved.
+   **Merged-empty → REJECT** ("please re-record"); per-clip silence is
+   fine.
 5. **One §27.7 transaction** creates the Report (`visits[]` +
-   embedded `audios[]` + embedded `transcription{raw,latest}`) when
-   every clip is heard → status-less committed report. Any final
-   failure → rollback + delete clips; dialog preserved.
+   embedded `audios[]` + embedded `transcription{raw,latest,ready:true}`)
+   when every clip is heard → status-less committed report. Any final
+   failure → mark committed is not set; retry (same key) skips all
+   upload/STT (session texts reused) and re-runs only this transaction;
+   dialog preserved.
 6. No Report/Audio docs exist until the final commit ⇒ rollback is
-   filesystem-only. `createKey` gives idempotency (no duplicate).
+   filesystem-only (failed clip's artifact) + transient-session state.
+   `createKey` gives idempotency end-to-end (A1 commit replay).
 
 `201` returns the **list-row DTO** (populated `user` +
 `visits[].branch`, `audios[]` metadata, `generated: ""`).
@@ -6733,8 +6755,8 @@ freeze gate = generated. §34/§36 own accept/revert.
 | `PATCH /reports/:reportId` | `{ date?, visits[] }` (whole block; 403 while generated) | 200 | 404, 422, 403 |
 | `POST /reports/:reportId/archive` / `restore` | — | 200 | 404, 409 |
 | `DELETE /reports/:reportId` | archived-only target | 200 (physical delete + cascade) | 404 |
-| `GET /reports/:reportId/transcription` | — | `{raw, latest, readiness}` | 401, 404 |
-| `PUT /reports/:reportId/transcription` | transcribe pending/re-transcribe | updated transcription | 401, 404, 403 (pc), 422, 502 |
+| `GET /reports/:reportId/transcription` | — | 200 always `{raw, latest, readiness}` (null content when cleared) | 401, 404 |
+| `PUT /reports/:reportId/transcription` | re-transcribe only (wholesale; ready→200 no-op) | updated `{raw, latest, readiness}` | 401, 404, 403 (archived/generated), 422 (no clips), 502, 429, 402 |
 | `PATCH /reports/:reportId/transcription` | `{ latest }` | `{ latest }` | 404, 422 |
 | `PUT /reports/:reportId/transcription/revert` | — (latest←raw) | `{ latest }` | 404 |
 | `GET /reports/:reportId/items` | `type`/`status` (opt) + page/limit/sort | 200 paginated `{docs,page,limit,totalDocs,totalPages}` of ItemDto (branch populated) | 401, 403 (archived), 404, 422 |
@@ -7044,131 +7066,100 @@ Gemini/NVIDIA; per-chunk failures do not abort the whole clip;
 transcription completes with the chunks that succeeded and the
 §33.7 failure record.
 
-### 33.5 Persistence & the `transcribed` gateway
+### 33.5 Persistence
 
-On success the service writes the report's Transcription row in
-the §27.7 session: `{ user, report, raw, latest, language, stt:
-{ requestId, model, audios } }` — `raw` = the **merged** STT result
-of all the report's clips (single-space-joined per-audio texts),
-`latest` initialized equal (BR-11), the
-`stt` subdoc from `usage_metadata.requestId` + the provider's
-model echo when the response carries one (`stt.model`, else
-`null` — §16.4/§23.2); `stt.audios` = the D8 merge ledger (the
-audios whose clips this `raw` covers — the cross-call skip source
-of §33.6); ADR-019-permitted audit fields only;
-confidence not persisted (§16.4/§23.7). The report's `transcription` ref is
-set in the same session (§21.8/§23 — the circular pair is
-created atomically); the report moves
-`audio_attached → transcribed` (§31.4). There is no per-clip
-stage strip and no per-clip accept gesture.
+- **Create-time persistence lives in the pipeline** (§31.2): the merged
+  `raw`/`latest`/`ready:true` are written **inside the atomic create
+  transaction** — the report appears only when all clips are heard.
+  There is **no standalone create endpoint** for the transcription.
+- Shape: embedded `transcription{ raw, latest, ready }` (§23.2).
+  **No** `user`/`report` refs, **no** `language` (always `am`), **no**
+  `stt.*` (provider traceability via the §33.4 Winston log line only),
+  **no** `contributions` ledger (R4 removed; readiness = `ready`).
+  `latest` initialized equal to `raw` (BR-11).
 
-### 33.6 Re-transcription (ADR-030)
+### 33.6 Re-transcription (ADR-030) — wholesale
 
-**Re-transcription is the same resource write** (ADR-030). A
-repeated `PUT /reports/:reportId/transcription` is idempotent:
-already-contributed audios are skipped, only failed/pending
-audios re-run, and a new take attached at `transcribed` is
-transcribed and merged — the step becomes not-ready until heard
-(§52.7, BR-10). **The skip source is the D8 merge ledger
-(`stt.audios` — the `_id`s of the Audio rows the current `raw`
-merge covers, §23.2): an audio in the ledger is already-succeeded
-and never re-heard; the ledger grows on every successful re-run.
-The row exists only after a fully successful merge (no partial
-rows — §33.7), so a re-run with a newly attached audio merges
-`join([current raw, ...newTexts])` with ascending `createdAt`/`_id`
-order and empty segments contributing nothing (all-empty → `''` is
-a valid result).** When the merged result changes, the service
-**rewrites the row in place** — `raw` = `latest` = the merged STT
-result, `stt` metadata refreshed — atomically in one session
-(§23.4); the `report` ref never moves. The ledger is a
-server-internal audit field — excluded from the TranscriptionDto
-(§23.7, D21).
-Availability per §31.4: at every status **except**
-`generated` (BR-12 window — re-transcription is frozen at
-`generated`; corrections are the editing path, §35). Response:
-fresh TranscriptionDto.
+`PUT /reports/:reportId/transcription` is **re-transcribe only** (R4,
+2026-09-01):
+
+- **Wholesale:** re-hears **all active clips**, rebuilds merged `raw`,
+  overwrites in place. Without per-clip text (the removed
+  `contributions`) selective merge is impossible — wholesale is forced.
+  Already-heard clips are re-heard (the accepted cost).
+- **Ready already (D3):** if no clip change (`ready:true`) → **200
+  no-op**, `{ raw, latest, readiness:true }` unchanged. No forced-
+  rehear path exists for quality.
+- **`latest = raw` on a clip-change re-transcribe (D8):** the story
+  re-emerges from the fresh merge; stale review edits would contradict
+  the new audio. (A no-op/ready call changes nothing.)
+- **All-or-nothing (D4):** a partial STT failure writes nothing — 502
+  `{ failed:[...] }`; the retry re-runs the whole wholesale re-hear
+  (files are already on the server; no cross-request marks post-create).
+  Existing `raw`/`latest`/`ready` stay untouched until success.
+- Availability: at every non-generated state; frozen at generated (403,
+  §31/§34); archived → 403.
+- **Endpoints matrix** (§33.8) carries the wire shapes.
 
 ### 33.7 Failure handling & retries
 
-- Chunk-level failure: report still moves to `transcribed` only
-  when all chunks succeeded; otherwise the report stays pending
-  and the response returns `data: { completed, failed:
-[{ audioId, reason }] }`; the client's §51.4/§54 surface
-  shows the retry affordance (the endpoint can be re-called —
-  only failed/pending audios re-run; spans are idempotent).
-- **Granularity is per-audio:** `completed` counts the audios
-  whose chunks all succeeded in this call; `failed` lists the
-  audios with at least one failed or pending chunk — a re-call
-  re-runs only those audios (their already-succeeded chunks are
-  skipped; per-chunk spans are idempotent, §33.5).
-- Provider-level exhaustion: 502 `BAD_GATEWAY` via the §27
-  handler with user-facing message ("Transcription failed —
-  please retry"); logs = provider, model, status, timing only
-  (ADR-019).
-- An empty transcription result (all-silence) is persisted as an
-  empty-string `raw` (a valid result, not an error) and counts
-  toward `transcribed`.
+- **Create pipeline (A#/B#, §31.2):** per-clip `uploaded|failed`,
+  `transcribed|failed` marks; skipped finished clips on retry; commit
+  replay via `committedReportId`; replaced takes (identity change)
+  reset their index. All-silent merged → reject whole create.
+- **Re-transcription (D#):** wholesale, all-or-nothing — a partial
+  failure writes nothing and the retry re-runs the whole re-hear.
+- **Provider errors:** 502 `BAD_GATEWAY` via the §27 handler with
+  user-facing "Transcription failed — please retry"; logs =
+  provider, model, status, timing only (ADR-019); **402 (insufficient
+  credits) surfaced distinctly from 429 (rate)** (§16.5).
+- **Empty result:** a fully-silent re-transcribe still fails the
+  all-or-nothing write if it lowers content below the minimum (SC-8);
+  per-clip silence is fine.
 
 ### 33.8 Endpoints matrix
 
-| Method+Path                                       | Auth   | Tier   | Request                                                                     | Success                                                                                                                                                             | Errors                                                                                     |
-| ------------------------------------------------- | ------ | ------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `PUT /reports/:reportId/transcription`            | access | ai     | — (create-or-replace; idempotent)                                           | 200 TranscriptionDto — on partial chunk failure the response carries `completed`/`failed` progress and the status advances per §31.4 only when all chunks succeeded | 401, 404, 403 (archived/`generated`), 422 (no audios or all already transcribed), 502, 429 |
-| `GET /reports/:reportId/transcription`            | access | global | —                                                                           | 200 TranscriptionDto (`report` ref, `language`, `raw`, `latest`, `stt.*`)                                                                                           | 401, 404                                                                                   |
-| `POST /reports/:reportId/corrections/transcripts` | access | ai     | multipart `clip` + `durationSec` (the round-7 correction-dialog STT, §31.6) | 200 `{ text }` — the transcribed instruction text; the clip is ephemeral, nothing persisted                                                                         | 401, 404, 403 (archived), 422 (missing clip / MIME / size cap), 502, 429                   |
+| Method+Path | Auth | Tier | Request | Success | Errors |
+|---|---|---|---|---|---|
+| `PUT /reports/:reportId/transcription` | access | ai | — (re-transcribe only) | 200 `{ raw, latest, readiness }`; ready→200 no-op unchanged | 401, 404, 403 (archived/generated), 422 (no clips / all-transcribed-ready handled as no-op), 502, 429, 402 |
+| `GET /reports/:reportId/transcription` | access | global | — | 200 always `{ raw, latest, readiness }` (`raw`/`latest` null when cleared) | 401, 404 |
+| `POST /reports/:reportId/corrections/transcripts` | access | ai | multipart `clip` + `durationSec` (Mode-3 STT, §35/§31.6) | 200 `{ text }` — ephemeral, nothing persisted | 401, 404, 403 (archived), 422 (missing clip / MIME / size cap), 502, 429 |
 
-**Contract JSON** (folded from the route-contract review,
-2026-08-19): TranscriptionDto is `{ _id, user, report, raw,
-latest, language, stt: { requestId, model }, createdAt,
-updatedAt }` — `stt.model` null-if-unknown (§16.4); `stt.*`
-persisted only on the transcription, never elsewhere (§23.2).
+- **No separate create endpoint** — creation is the pipeline (§31.2).
+- **Errone-ownership:** 401 = global auth gate only (middleware +
+  reauth chain); 404 report not-found-for-user (indistinguishable);
+  403 archived/generated guards.
 
-`PUT /reports/:reportId/transcription` — no body; 200:
+**Contract JSON** (consolidated, R4): the embedded transcription is
+returned as `{ raw, latest, readiness }` — **no** `_id`/`user`/
+`report`/`language`/`stt.*`.
+
+`GET /reports/:reportId/transcription` — 200:
 
 ```json
 {
   "success": true,
-  "message": "Transcription ready",
+  "message": "Transcription",
   "data": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d6",
-    "user": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "report": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "raw": "ዛሬ ጠዋት … (verbatim transcript)",
+    "raw": "ዛሬ ጠዋት … (verbatim merged transcript)",
     "latest": "<html>…transcript as content…</html>",
-    "language": "am",
-    "stt": { "requestId": "req_9f8e7d6c", "model": "whisper-1" },
-    "createdAt": "2026-08-19T09:10:00.000Z",
-    "updatedAt": "2026-08-19T09:10:00.000Z"
+    "readiness": true
   }
 }
 ```
 
-Partial chunk failure (§33.7) — 200 with progress and no status
-advance:
+`PUT /reports/:reportId/transcription` — ready no-op (same body,
+`readiness: true`); pending → wholesale re-hear → rebuilt `raw`,
+`latest = raw`, `readiness: true`; partial failure → 502 with
+`{ "failed": [{ "audioId": "…", "reason": "provider timeout" }] }`
+(nothing written).
+
+`POST .../corrections/transcripts` — 200:
 
 ```json
-{
-  "success": true,
-  "message": "Partial transcription",
-  "data": {
-    "completed": 2,
-    "failed": [{ "audioId": "64f1…", "reason": "provider timeout" }]
-  }
-}
+{ "success": true, "message": "Transcript ready",
+  "data": { "text": "Fix the branch name in the first paragraph" } }
 ```
-
-422 (no audios): `{ "success": false, "message": "Record at
-least one clip first", "data": null }`; 502 provider failure.
-
-`GET /reports/:reportId/transcription` — 200 TranscriptionDto;
-404 when the report has none: `{ "success": false, "message":
-"No transcription yet", "data": null }`.
-
-`POST /reports/:reportId/corrections/transcripts` — multipart
-`clip` + `durationSec`; 200: `{ "success": true, "message":
-"Transcript ready", "data": { "text": "Fix the branch name in
-the first paragraph" } }` — ephemeral, nothing persisted (§31.6).
-
 ### 33.9 Verification usage
 
 - Grep gates: Addis only in STT (no Gemini/NVIDIA client in
@@ -7251,6 +7242,11 @@ Malformed/structurally-invalid output → one regenerate attempt, then
 an error card (never partial items — accept is transactional).
 
 ### 34.4 Accept-side persistence (the write)
+
+**Accept gate (R4, 2026-09-01).** accept/regenerate is refused (409)
+while `transcription.ready === false` (a clip is pending so `latest` is
+stale) **or** `latest` is empty/whitespace (SC-8 — never generate from
+nothing). Chat Q&A stays open; only item-generation is gated.
 
 On **accept** (from §36), in one §27.7 session:
 - write `Report.generated` = the §6-format body string (cap
@@ -7369,7 +7365,9 @@ mechanism). No version chain (ADR-005 retired); `raw` immutable.
     enforces; server validates).
   - **Like (accept/revert)** — `POST .../conversation/accept
     { responseId }` (reject 409 if another is already accepted —
-    revert first) creates items + writes `generated` (one session);
+    revert first; **also 409 while `transcription.ready === false`
+    or `latest` empty — SC-8, §34.4**) creates items + writes
+    `generated` (one session);
     `POST .../conversation/revert` deletes the report's items +
     clears `generated` + clears `acceptedResponseId` (one session).
 - **Zero-preset:** RESOLVED — the chat requires an existing preset;
