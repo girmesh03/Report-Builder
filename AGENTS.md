@@ -48,8 +48,22 @@ sets — see `task_plan.md` Phase 6 section.
   final-clip→draft, add-at-transcribed keeps status/drops readiness,
   temp-chunk-cleanup, Audio-tab one-card layout). See
   `findings.md`/`progress.md`/`task_plan.md` + spec §22/§32.
+- **CONSOLIDATED user-first re-amendment done (2026-09-01):** SUPERSEDES R1 and R3.
+  Report = single collection with embedded `audios[]` + `transcription{raw,latest}`;
+  NO `status`/`generatedAt`/`contributions`/`items`-embedded. Item = separate collection;
+  GenerationPreset = user CRUD (no default); ChatConversation = per report. Create =
+  atomic multipart `POST /reports` (`metadata`+`clips[]`+lazy `createKey`) with attempt-session
+  incremental retry; Addis-only STT (Path A, no prompts). Post-creation = `/edit` 3 tabs +
+  `/chat` card protocol (Copy/Re-try/Like-accept-revert; one accepted per report) with a
+  grounded-history digest agent. Full record: `findings.md` "CONSOLIDATED re-amendment";
+  `task_plan.md` "Consolidated supersession".
 
-**Status:** R1, R3 done. Next = R4 Transcription resource (§23 model + §33 STT pipeline).
+**Status:** consolidated re-amendment complete (supersedes R1/R3). History-digest scope
+RESOLVED per-user (2026-09-01). Open items recorded in task_plan.md — awaiting owner verdicts
+(dup-day, direct-delete data-loss, system-vs-persona precedence, zero-preset behavior,
+content/total-duration caps, chat streaming, preset binding, one-commit supersession). Next
+increments: R2 Item, R4 transcription-create, R5 Generation+Presets, R6 Correction, R7 Chat,
+R8 Export, R9/R10.
 
 ## What this repo is
 

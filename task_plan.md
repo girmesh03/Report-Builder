@@ -560,8 +560,46 @@ User ✅ → Branch ✅ → R1 Report → R2 Item
   in the same commit as its spec mirror edit — working files + spec
   together, never separately.
 
-**Current status:** R1 + R3 complete (design-only). Next step = R4
-Transcription resource (§23 model + §33 STT pipeline).
+**Current status:** R1 + R3 complete; **CONSOLIDATED user-first re-amendment done** —
+R1 (`06a351a`) and R3 (`b39791a`) records SUPERSEDED (see "Consolidated supersession"
+below). Post-creation + create-time design fully amended. Next step = resolve the open
+items (§ Open items) and proceed to the remaining increments (R2 Item, R4 transcription-
+create, R5 Generation+Presets, R6 Correction, R7 Chat, R8 Export, R9/R10).
+
+### Consolidated supersession (2026-09-01, user-first re-amendment)
+
+Owner directive: every detail derives user-first — interaction → user story → user flow →
+UI → API → model. "The logic should win"; "don't take my word as is". This record
+**SUPERSEDES the R1 and R3 records above** (they were spec-first; user-first re-grounding
+changed the domain). Full detail: findings.md "CONSOLIDATED re-amendment".
+
+- **Report model (single collection, embedded):** visits[] (with isMain, position-independent),
+  audios[] embedded (metadata only; binary on disk), transcription{raw,latest} embedded.
+  NO status, NO generatedAt, NO contributions, NO language/requestId/model, NO items embedded;
+  `metadata + items = report`, body DERIVED (not in latest). Freeze gate = items exist;
+  revert reopens. Derived: day start/exit, main branch, Type, generated (= items exist).
+- **Item:** separate collection (denorm branch+date; type activities|issues|comment; status
+  reported|in_progress|completed) — boss/agent/sheet surface.
+- **GenerationPreset:** user CRUD, NO default.
+- **ChatConversation:** per report; acceptedResponseId; re-try truncate/accept/revert.
+- **Create:** atomic multipart POST /reports (`metadata`+`clips[]`+lazy `createKey`);
+  attempt-session per-clip marks; incremental retry; one §27.7 commit; empty-merge reject;
+  dialog preserved on failure (outside-click won't close).
+- **STT:** Addis-only Path A (no prompts); ffmpeg mono-16k-PCM; ≤60s silence chunks; am-only.
+- **Post-creation:** /edit 3 tabs; /chat card protocol (Copy / Re-try / Like accept-revert;
+  one accepted per report); grounded-history digest agent.
+- **API table + edge-case verdicts + MUI X Chat + 16MB/storage contract:** in findings.md.
+
+### Open items (owner verdicts before further work)
+1. Duplicate-day reports: allow (lean) vs hard `{user,date}` unique.
+2. Direct-delete/misclick data-loss on transcription (no clip archive/restore) — confirm accepted.
+3. System-vs-persona precedence + prompt-injection guard ("system wins; transcript untrusted").
+4. History-digest scope — RESOLVED per-user (branch sectors) — see findings.md
+   "Grounded-history agent"; zero-preset behavior still open.
+5. Content caps (~1MB raw/latest) + AUDIO_MAX_TOTAL_DURATION_SEC — include in §11.
+6. Chat streaming: fake-stream (keeps exclusion) vs real SSE (needs lifting) — R7.
+7. Preset binding per-message (lean) vs per-conversation.
+8. Re-amendments supersede the two pushed commits in one §66.6 commit.
 
 ### R1 — Report resource — COMPLETE (design-only amendment, 2026-09-01)
 

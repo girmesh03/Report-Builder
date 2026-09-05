@@ -15,6 +15,77 @@
 > sections remain behavioral reference only, pending owner amendment;
 > the "Single source of truth" statement below is overridden for them.
 
+> **PHASE 6 — CONSOLIDATED REPORT-DOMAIN AMENDMENT (owner-approved, 2026-09-01):**
+> This amendment is the authoritative user-first re-amendment of the
+> reports domain (Report §21, Item §24A, Chat §24, GenerationPreset,
+> Audio/Transcription as embedded members, and the creation/STT/chat
+> contracts of §31–§33). It **SUPERSEDES the R1 (`06a351a`) and R3
+> (`b39791a`) amendment banners** in §21/§22/§31/§32. Binding summary
+> (full record: `findings.md` "CONSOLIDATED re-amendment";
+> `task_plan.md` "Consolidated supersession"; both on branch
+> `phase-6-trust-overlay-amendments`):
+>
+> - **Report = single collection, embedded.** `visits[]` (with `isMain`,
+>   position-independent, exactly one when >1, chronological),
+>   `audios[]` (embedded metadata only; binary on local disk;
+>   `filePath` server-internal, never exposed), `transcription {raw,
+>   latest}` (1:1, embedded; `raw` immutable; `latest` is the
+>   transcription slot — NOT the report body). NO `status`, NO
+>   `generatedAt`, NO `transcription.contributions`, NO `language`,
+>   NO `stt.requestId`/`model`, NO embedded `items`, NO root
+>   branch/clock pair. `metadata + items = report`; the report body is
+>   DERIVED (rendered), never stored. Freeze gate = items exist
+>   (meta + clip add/delete 403; chat revert reopens). Derived:
+>   day start = visits[0].clockIn, day exit = visits[n-1].clockOut,
+>   main = isMain visit, Type = visits.length, generated = items exist
+>   (read-side batch query).
+> - **Item = separate collection.** `_id,user,report,branch(denorm),
+>   date(denorm),type(activities|issues|comment),payload,
+>   status(reported|in_progress|completed),timestamps`; indexes
+>   `{user,branch,date,status}`, `{user,report}` — the boss/agent/sheet
+>   query surface. Created on chat accept, deleted on revert.
+> - **GenerationPreset = user CRUD, NO default.**
+>   `name,provider(addis|gemini|nvidia),model,language,reasoning
+>   (off|low|medium|high),systemPrompt,personaPrompt`.
+> - **ChatConversation = per report, separate.** Ordered turns +
+>   `acceptedResponseId` (single-accept); ops: re-try truncate,
+>   accept → create items, revert → delete items.
+> - **Create = atomic multipart `POST /reports`.** `metadata` (JSON:
+>   date+visits) + `clips[]` (≥1) + lazy `createKey`. Attempt-session
+>   (staging `uploads/audio/staging/`, TTL, sweeper) with per-clip
+>   marks `uploaded|failed` and `transcribed|failed`; incremental
+>   retry skips finished clips; one §27.7 transaction creates the
+>   Report doc only when all clips heard; merged-empty → reject;
+>   dialog stays open + state preserved on every failure (outside-click
+>   won't close).
+> - **STT = Addis-only, Path A.** `addis.speech.transcribe({audio,
+>   language:"am"})`, NO system/persona prompts; ffmpeg → mono 16-bit
+>   16 kHz PCM; ≤60 s silence-boundary chunks; per-clip all-or-nothing;
+>   402 surfaced distinct from 429; synchronous, no streaming.
+> - **Post-creation.** `/edit` = Meta · Audio · Transcription tabs
+>   (strict MUI Tabs stack). `/chat` = card protocol per AI response:
+>   **Copy** (copies text), **Re-try** (removes all turns below +
+>   regenerate; disabled at/above accepted card), **Like
+>   (accept/revert)** (accept creates items; revert on the accepted
+>   card deletes them; at most ONE accepted per report; other like-icons
+>   hidden/disabled; switching = revert-first). Grounded-history agent:
+>   before generation, tool scans the user's previously generated
+>   (accepted) reports → PER-USER digest (`userProfile` + branch
+>   sectors) → injected with metadata+latest+preset; first-ever
+>   report = empty digest (normal generation). Playback = Blob/object-URL
+>   from read endpoint bytes (never a /play stream).
+> - **Ethiopian everywhere** at the boundary (display/select/filter);
+>   backend stores UTC-midnight Date; converts ETh↔UTC; never stores the
+>   Ethiopian string; no native Date arithmetic on domain dates.
+> - **16 MB safety:** binaries on disk; doc ≈ metadata+text only
+>   (≈0.3–1 MB); caps recommended (§11, open); chat/history never embed.
+> - **Open items (owner verdicts pending):** duplicate-day uniqueness;
+>   direct-delete data-loss acceptance; system-vs-persona precedence +
+>   injection guard; zero-preset behavior + digest sub-decisions; content/
+>   total-duration caps; chat streaming (fake vs real); preset binding;
+>   one-commit supersession. History-digest scope RESOLVED per-user
+>   (branch sectors). See task_plan.md "Open items".
+
 > **Document type:** Complete PRD + PDS + SAD + HLD + LLD + SDD in a single document.
 > Every section of this specification passes its applicable content rules and
 > checklists before being considered complete.

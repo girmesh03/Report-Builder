@@ -67,6 +67,35 @@
 - **Gates:** recorded; no implementation; push to branch, no merge.
 - **Next:** R4 Transcription resource (§23 + §33).
 
+## Session 2026-09-01 — CONSOLIDATED report-domain re-amendment (user-first) — COMPLETE
+
+- **Branch:** phase-6-trust-overlay-amendments
+- **Supersedes:** R1 (`06a351a`) and R3 (`b39791a`) amendment records — see `findings.md`
+  "CONSOLIDATED re-amendment" for the full record.
+- **Method (owner):** every detail user-first (interaction → story → flow → UI → API → model);
+  "the logic should win". Note-down that prior spec-first work caused the revisions.
+- **Report model:** single collection; audios[] + transcription{raw,latest} EMBEDDED; NO status,
+  NO generatedAt, NO contributions, NO language/requestId/model, NO items embedded; visits[]
+  with isMain (position-independent); meta frozen while items exist; report body DERIVED
+  (metadata + items = report), never stored in latest.
+- **Item:** separate collection (denorm branch+date; type activities|issues|comment; status
+  reported|in_progress|completed) — boss/agent/sheet surface.
+- **GenerationPreset:** user CRUD, NO default (provider/model/language/reasoning/system+persona).
+- **ChatConversation:** per report; acceptedResponseId; re-try truncate + accept→items +
+  revert→delete.
+- **Create:** atomic multipart POST /reports (`metadata` + `clips[]` + lazy `createKey`);
+  attempt-session w/ per-clip uploaded/failed + transcribed/failed; incremental retry;
+  one §27.7 commit; empty-merge reject; dialog preserved on every failure.
+- **STT:** Addis-only Path A (no prompts); ffmpeg mono-16k-PCM; ≤60s silence chunks; am-only.
+- **Post-creation:** /edit 3 tabs; /chat card protocol (Copy / Re-try / Like-accept-revert;
+  one accepted per report); grounded-history digest agent; freeze gate = items exist.
+- **API table, edge-case verdicts, MUI X Chat, 16MB + storage contract:** recorded in findings.md.
+- **Open items:** 8 urgent decisions pending (dup-day; direct-delete data-loss; system-vs-persona
+  precedence; history-digest scope + zero-preset; content caps + total-duration cap; chat
+  streaming; preset binding; one-commit supersession).
+- **Files updated:** findings.md, progress.md, task_plan.md, AGENTS.md, spec front-matter + affected §.
+- **Gates:** recorded; design-only; push to branch, no merge.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

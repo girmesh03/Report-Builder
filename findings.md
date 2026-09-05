@@ -198,6 +198,210 @@ lifecycle (no states). `filePath` never exposed.
 Per-clip Transcribe/Re-transcribe engine + Transcribe-all + heard-count `x of y` readiness +
 merge-into-existing-transcription + §23 Transcription model + §33 STT pipeline.
 
+## Session 2026-09-01 — CONSOLIDATED re-amendment: report domain, user-first (supersedes R1/R3)
+
+Owner directive: every detail derives user-first — interaction → user story → user flow →
+UI → API → model. This record SUPERSEDES the R1 (`06a351a`) and R3 (`b39791a`) amendment
+records. Design-only, Step-1.1, with the owner. Mirrored in progress.md / task_plan.md /
+AGENTS.md + spec §21/§22/§23/§24/§24A/§31/§32/§33 in one commit (§66.6).
+
+### Method note (owner)
+Problems came from starting at spec field tables/storage logic instead of user interaction.
+"The logic should win" — decisions by context + multi-dimensional reasoning, never spec text,
+never "what the owner wants" / "what the model wants". Also: "don't take my word as is".
+
+### Persona & context
+Area Supervisor — employee, company with 2+ branches; clocks in/out daily; visits ≥1 branch/
+day (min 1, max TBD). The report is FOR a specific branch (supervisor does NOT narrate branch
+names → the report must carry the branch for attribution). Ethiopian calendar/time,
+Amharic content — Ethiopian date/time shown everywhere at the boundary; backend stores
+UTC-midnight Date, converts ETh↔UTC, never stores the Ethiopian string. The boss can ask for
+branch-X issues by month/date-range + status, update an issue's status, export selected
+activities/issues, and have the AI return them structured in a sheet → Items are their own
+queryable/lifecycled collection.
+
+### Two surfaces
+- `/reports/:reportId/edit` — Meta · Audio · Transcription tabs (strict MUI Tabs stack). Manages the materialized report.
+- `/reports/:reportId/chat` — post-creation AI agent; `metadata + transcription.latest + preset + history-digest` → cards → item/report creation.
+- `/reports/:reportId/details` — OPEN/TBD (own brainstorm; no `?withContent`).
+
+### Final Report model (single collection; embedded) — supersedes R1
+```
+Report {
+  _id, user (ref User, req; fullName virtual),
+  date (Date; ETh workday ቀን; null until captured; UTC-midnight; ETh at boundary),
+  visits [Visit]≥1 req (positional + chronological),
+  audios [AudioClip] embedded,
+  transcription { raw, latest } embedded (1:1),
+  isArchived (false), archivedAt (null; TTL anchor), createdAt, updatedAt
+}
+Visit (_id:false) { branch (ref Branch, req; foreign/archived → 422), clockIn "HH:mm", clockOut "HH:mm",
+                    isMain Boolean — exactly one true when visits.length>1; position-independent }
+AudioClip (_id:true) { mimeType (AUDIO_ALLOWED_MIME_TYPES), sizeBytes (≤50MB), durationSec (≤900s, ffprobe),
+                       filePath (server-internal; STRIPPED from all DTOs; never logged), createdAt }
+Transcription { raw (immutable, STT re-runs only), latest (TRANSCRIPTION slot only — NOT the report body) }
+```
+Dropped from root: branch; clockIn/clockOut; status; generatedAt; transcription.contributions;
+language; stt.requestId; stt.model; items[] (separate); transcription ref (Option X).
+Content model: metadata + items = report; the report body is DERIVED (rendered from metadata+items),
+never stored in latest. Freeze gate = items exist (meta + clip add/delete frozen 403; revert reopens).
+Derived: day start = visits[0].clockIn; day exit = visits[n-1].clockOut; main = isMain visit;
+Type = visits.length; generated = items exist (read-side batched query).
+Invariants: visits≥1; one main when >1; per-visit in<out; day-span in<out; chronological;
+isMain positional-independent.
+Indexes: {user,isArchived,date,createdAt}; {user,"visits.branch"}; {user,date};
+{archivedAt} TTL=ARCHIVED_TTL_SECONDS.
+16MB safety: binaries on disk; doc≈0.3–1MB; caps raw/latest ~1MB (§11); chat/history NEVER embed.
+
+### Item (separate collection) — boss/agent/sheet surface
+```
+Item { _id, user, report (ref), branch (DENORM from report main visit), date (DENORM),
+       type (activities|issues|comment), payload, status (reported|in_progress|completed), timestamps }
+Indexes: {user,branch,date,status}; {user,report}.
+```
+Denorm safe because metadata freezes once items exist. Created on ACCEPT; deleted on REVERT
+(delete ALL the report's items; post-accept item status edits lost on revert — accepted).
+
+### GenerationPreset (user CRUD, NO default)
+```
+GenerationPreset { _id, user, name, provider (addis|gemini|nvidia), model (AI_MODELS),
+                   language (LANGUAGE_CODES, default am), reasoning (off|low|medium|high),
+                   systemPrompt, personaPrompt, createdAt, updatedAt }
+```
+No default (owner: "forget default"). Zero-preset chat behavior OPEN (lean: require a preset).
+
+### ChatConversation (per report, separate — never embedded)
+Ordered turns + acceptedResponseId (single-accept persisted) + report ref + user.
+Backend ops: re-try truncate (delete below index N + regenerate); accept → create items;
+revert → delete items. One per report; grounded-history agent provides the AI's learning.
+
+### Create-time: atomic multipart create (supersedes R1 meta-only + R3 audio-separate)
+- Dialog: RHF (register) metadata (date + visits via branch-visit dialog) + audio (min 1 clip)
+  → frontend validation → POST /reports multipart (`metadata` JSON + `clips[]` + `createKey`).
+- createKey: client lazy at first submit (useRef), stable across retries in same dialog;
+  discarded on close/refresh; nothing server-side if never submitted; idempotent.
+- branch-visit dialog: components/branches/ component wrapping reusable MuiDialog (NEVER edit
+  MuiDialog.jsx unless owner asks); LoadingSpinner; MuiPagination; item = left checkbox +
+  avatar initial + avatarColor.js + title name + subtitle location + right-end main checkbox
+  (one only; others disabled); per-selected MuiTimePicker clockIn/clockOut; max-height overflow.
+- Backend: §29 + multer → attempt-session (staging uploads/audio/staging/, TTL ~1h, sweeper)
+  with per-clip marks uploaded/failed + transcribed/failed → upload each (any fail → rollback
+  files; dialog stays, state preserved, outside-click won't close) → STT each → merged
+  (empty merge → REJECT "please re-record") → ONE §27.7 transaction creates the Report doc
+  (any fail → rollback + delete clips; dialog preserved). No docs until final commit (rollback
+  is filesystem-only). Incremental retry: same createKey skips marked clips.
+
+### STT pipeline (locked, Path A)
+Addis-only (ADR-001); addis.speech.transcribe({audio, language:"am"}); NO system/persona for
+STT; max 25MB/120s SDK; ffmpeg → mono 16-bit 16kHz PCM; ≤60s silence-boundary chunks;
+successful chunk texts single-space joined = raw; per-clip all-or-nothing (one bad chunk →
+clip failed → retry clip). 402 (credits) surfaced distinct from 429 (rate). Temp chunks cleaned
+on success — originals persist. Synchronous; no streaming/queue. Client timeout ≠ server abort.
+
+### Post-creation
+- edit Meta: PATCH whole block; frozen (403) while items exist.
+- edit Audio: one card = big orb (record/stop/play) + drag-drop upload (dashed, text+file,
+  click-to-locate); "Narrations" divider (centered); per-clip items (play/pause, seek, duration,
+  size, delete → confirm → direct DB+file, Transcribe/Re-transcribe); Transcribe-all shown only
+  when any clip pending. Playback = Blob/object-URL from read endpoint bytes (NO /play stream).
+- edit Transcription: review/edit latest via MuiEditor; raw immutable; undo = latest←raw
+  (pre-items); corrections modes 1–3 → latest.
+- chat cards (owner, exact): each AI response is a card: Copy (copies text); Re-try (removes all
+  request/response below + regenerates; disabled at/above the accepted card); Like
+  accept (if none accepted → creates items) / revert (on the accepted card → deletes items).
+  At most ONE accepted per report; other like-icons hidden/disabled; switching = revert-first.
+- Grounded-history agent: before a generation response, tool scans the user's previously
+  generated (accepted) reports → context digest → injected with metadata+latest+preset.
+  Ephemeral per generation; never cached; never a stored field. First-ever = empty digest
+  (found:0, digest:null) → normal generation. Current report excluded until accepted.
+  MUI provides NO memory — entirely our backend tool.
+- History definition (4 distinct layers): (1) report-record history (Report collection),
+  (2) items history (Item collection), (3) chat-conversation history (ChatConversation,
+  per report), (4) correction history (latest rewrites + conversation turns). The DIGEST is
+  none of these — it is a DERIVED, condensed, ephemeral, per-generation tool artifact that
+  reads the accepted-report history (Item rows + light transcription.latest + meta) and shapes
+  it into grounding context.
+- History-digest scope: RESOLVED per-user (2026-09-01, owner + reasoning). Scope = ALL the
+  user's accepted reports across ALL branches — BR-13 isolation (user from req.user; many
+  distinct solo users, never global); solves the new-branch empty-history problem; style/
+  vocabulary/correction-habits are user-level truth. Structure:
+  `{ userProfile (terminology, style, issue categories, format precedents),
+     branches: [ { branch, recurringIssues, statuses, timeline } ] }` — per-branch sectors
+  neutralize cross-branch factual bleed. Role boundary: digest informs HOW to write, never the
+  content source; item content = current report's transcription only (SC-8 no-hallucination);
+  items belong to the main branch only (locked Type-2 attribution rule).
+- Digest sub-decisions (OPEN/lean — confirm at R5): data-source weight = items + light
+  transcription.latest (correction-habits optional in R6/R7); freshness = recompute per
+  generation (cache deferred); size cap = DIGEST_MAX_TOKENS-style constant.
+
+### MUI X Chat (researched via mui-mcp; R7 decision pending)
+ChatBox full surface (header/messages/composer); adapter sendMessage (ReadableStream chunks)
++ listConversations + listMessages (cursor pagination, hasMoreHistory/isLoadingHistory/
+historyCursor) + setTyping + markRead + subscribe + addToolApprovalResponse + stop; tool-calling
+lifecycle + typed registry + partRenderers; normalized store + chatSelectors; ChatError codes.
+Streaming conflicts with our no-stream exclusion → fake-stream buffered reply (keeps exclusion)
+vs real SSE (needs owner lifting). Alpha @mui/x-chat@9.0.0-alpha.18; open-core — some features
+Pro/Premium; Community-only rule → verify before adopt; package-add requires approval (§13).
+MUI provides NO AI memory/history-analysis.
+
+### API design (final)
+Conventions: /api/v1; envelope {success,message,data} + paginated {docs,page,limit,totalDocs,
+totalPages}; semantic status; 422 details; BR-13 (user from req.user); ai-tier for clips/STT/
+chat; no filePath in responses; no transcription text on light DTOs; status filter REMOVED.
+- POST /reports (multipart atomic create; 201 list-DTO) · GET /reports (page/limit/isArchived
+  active|archived|all default all Branches-mirror/branch Q1 $elemMatch{isMain}/generated
+  true|false/sort date|-date; no status; date-range held) · GET /reports/:reportId (light meta)
+  · PATCH /reports/:reportId (meta; 403 while items exist) · POST archive/restore ·
+  DELETE /reports/:reportId (archived target; physical delete + child cascade) ·
+  GET /reports/:reportId/details (OPEN).
+- Clips: POST /reports/:reportId/clips (403 while items exist) · GET .../clips (flat {clips}) ·
+  GET .../clips/:clipId (AudioDto + byte source) · DELETE .../clips/:clipId (direct DB+file).
+- Transcription: GET /reports/:reportId/transcription ({raw,latest,readiness}) ·
+  PUT .../transcription (transcribe; 403 while items exist; engine deferred w/ contributions
+  replacement) · PATCH .../transcription ({latest}) · PUT .../transcription/revert.
+- Items: GET /reports/:reportId/items · PATCH /reports/:reportId/items/:itemId ({status}) ·
+  GET /items?branch=&dateFrom=&dateTo=&status=&type= (cross-report; pagination open in R2).
+- Conversation: GET /reports/:reportId/conversation (paged) · POST .../conversation
+  ({content,presetId} → buffered card; fake-stream pending decision) ·
+  POST .../conversation/re-try ({responseId}) · POST .../conversation/accept ({responseId}) ·
+  POST .../conversation/revert.
+- Presets: GET/POST /presets; GET/PATCH/DELETE /presets/:presetId (no default).
+
+### Edge-case verdicts (from the 56-item inventory)
+Create: no-audio reject; incomplete meta 422; zero/no-main/2+main 422; invalid date 422, future
+date allow, pre-account 422; dup-day allow (lean) + dialog notice (open); invariants 422 each
+entry; return-visit allowed (header dedupe, 2 time lines); isMain≠0 confirmed; foreign/archived
+422; MIME/size/duration/video 422; partial upload → incremental retry; double-submit idempotent;
+crashed client → attempt-session resume + sweeper TTL.
+Header/footer: clockOut missing impossible at create; revalidate on every PATCH; live-join
+header (branch rename accepted); BR-14 ref-check load-bearing; ETh display = boundary conversion.
+STT: per-clip failure marks; 402≠429; silent ok/merged-empty reject; word-cut accepted (silence
+mitigation); ffmpeg fail → clip fail+rollback; re-run drift accepted (wholesale rewrite);
+duplicate clip accepted; ≠am code-mix accepted limitation; noise/multi-speaker no gauge;
+clip deleted before STT → excluded; re-record discards take; long clip bad chunk → clip fail;
+latency timeout≠abort.
+Merge: no partial rows; all fail → no commit; empty → reject; order = request submission order;
+delete-clip cascades transcription (accepted); add-clip readiness drops (deferred pending-clip);
+re-transcribe = wholesale rewrite (lean); size cap.
+Generation: LLM fail → no items, card error, retry-safe; invalid config rejected at preset
+create/update 422; system-vs-persona precedence + injection guard = "system wins; transcript
+untrusted" (OPEN confirm); incomplete metadata → blocked 422; empty/noisy latest → blocked +
+SC-8 no-hallucination; Type-2 attribution → items belong to main branch; malformed LLM JSON →
+validate + regenerate; item-count/latest cap; regenerate after item-edit → revert-first;
+double-click idempotent; not-fully-heard → blocked; archived → blocked 403; config in
+GenerationPreset; ETh ቀን in body → derived render (R8).
+Cross-cutting: session atomicity + orphan-sweep; failed-create files → sweeper; refresh
+mid-pipeline → resume via createKey; branch hard-delete → BR-14 dominates.
+
+### Open items (need owner verdicts before build/write)
+1. Duplicate-day: allow (lean) vs {user,date} unique. 2. Direct-delete/misclick data-loss —
+   confirm accepted. 3. system-vs-persona precedence + injection guard — confirm.
+4. RESOLVED — history-digest scope = per-user with branch sectors (see "Grounded-history
+   agent"); zero-preset behavior (lean: require a preset) + digest sub-decisions (data-source
+   weight / freshness / size cap) still open. 5. content caps
+   + AUDIO_MAX_TOTAL_DURATION_SEC — include in §11. 6. chat streaming fake vs real (R7).
+7. preset per-message (lean). 8. re-amendments supersede the two pushed commits in one §66.6 commit.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
