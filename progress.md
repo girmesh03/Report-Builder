@@ -252,6 +252,29 @@
   controller (+7 handlers + toListDto/populate), routes (+6). Gates:
   node --check + grep clean + smoke passed. Next: B6 items.
 
+## Session 2026-09-01 — Phase 8 opened: reports frontend (design-only note-down)
+
+- **Branch:** `phase-8-reports-frontend` (created from `phase-7-reports-backend`
+  per owner approval, so B1–B5 backend is inherited; B6 items backend + R5 stay
+  open on their branches).
+- **Constraints:** one thing at a time (incremental protocol, mirror Phase-5);
+  **no commit/merge unless the owner explicitly requests any sub-step**.
+- **Plan recorded here:** two pages — `/reports` (the `/branches` twin:
+  reportsSlice + apiSlice "Report" tagTypes fix → fetch skeleton → filter →
+  header/shell → grid → card/list → create dialog → lifecycle) then
+  `/reports/:reportId/edit` (Meta · Audio · Transcription tabs). Full
+  increment map in task_plan.md "Phase 8" + AGENTS.md.
+- **Note-down only this step** — no code yet, no commit (owner directs all
+  commits).
+
+## Session 2026-09-01 — Phase 8 Stage A: reports domain plumbing — DONE (uncommitted)
+- **Implemented:** `reportsSlice.js` (all report/clip/transcription endpoints,
+  Report tags), `apiSlice.js` `tagTypes → ["User","Branch","Report"]` (debt fix
+  incl. Branch), `store.js` side-effect import, `constants.js` (REPORT_GENERATED,
+  REPORTS_COPY, reports toasts).
+- **Gates:** `vite build` 0 errors → `dist/` deleted; grep clean.
+- **No commit** (owner-directs rule). Next: Stage B-B1 `/reports` fetch skeleton.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

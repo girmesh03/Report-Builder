@@ -853,6 +853,57 @@ node --check (validator, controller, routes); grep battery clean (no
 console.log, no `?withContent`, no visit-subpaths, no `deletedAt`, no
 `401` in CustomError); live-DB smoke passed; no residue. Next: B6 items.
 
+## Session 2026-09-01 — Phase 8 campaign opened: reports frontend (design-only note-down)
+
+Owner approved opening the frontend campaign now (B6 backend stays open on
+`phase-7-reports-backend`; R5 stays open). Branch **`phase-8-reports-frontend`**
+created from `phase-7-reports-backend` (owner-approved base) so the B1–B5
+backend the frontend consumes is inherited. Current branch:
+`phase-8-reports-frontend`.
+
+- **Owner constraints:** one thing at a time (incremental protocol; mirror
+  Phase-5 branches frontend); **no commit and no merge unless the owner
+  explicitly requests any sub-step** — work stays in the working tree for
+  incremental review.
+- **Scope:** `/reports` (the `/branches` twin: reportsSlice + apiSlice
+  `tagTypes` "Report" fix → fetch skeleton → filter menu → header/shell →
+  grid → card/list → create dialog → lifecycle) then `/reports/:reportId/edit`
+  (Meta · Audio · Transcription tabs, strict MUI Tabs stack).
+- **Out of scope:** `/chat` (R5), `/items` surfaces (B6), dashboard/
+  analytics, details read, exports.
+- **Increment map:** Stage A (slice + tagTypes + store + constants); Stage B
+  (/reports page B1–B7); Stage C (/edit tabs C1–C4) — full detail in
+  task_plan.md "Phase 8".
+- **Route/tag/slice notes:** consumers read `result.docs` (never
+  `result.data.*`, C22); `apiSlice.js` `tagTypes` → `["User","Report"]`;
+  `validate()` invoked (backend already); 401 = global auth gate only.
+- Note-down recorded in this file + progress.md + task_plan.md + AGENTS.md
+  **without a commit** (owner directs all commits).
+
+## Session 2026-09-01 — Phase 8 Stage A: reports domain plumbing — done (uncommitted)
+
+Owner-approved after deep analysis. Files changed (working tree, NO commit):
+- `client/src/redux/features/apiSlice.js` — `tagTypes` → `["User","Branch","Report"]`
+  (the unregistered-tag debt fix; Branch was also unregistered — verified).
+- `client/src/redux/features/reportsSlice.js` — NEW, all report/clip/transcription
+  endpoints (getReports, getReport, createReport[multipart FormData], updateReport,
+  archive/restore/delete, getReportClips, addClip, deleteClip, getTranscription,
+  reTranscribe, patchTranscription, revertTranscription) with `{type:"Report",id}`
+  + `"LIST"` tags; clips/transcription tag by reportId. Consumers read
+  `result.docs` (never `result.data.*`, C22).
+- `client/src/redux/app/store.js` — side-effect import `reportsSlice` (after branches).
+- `client/src/utils/constants.js` — `REPORT_GENERATED` (true/false), `REPORTS_COPY`
+  (page copy), `TOAST_CATALOGUE.reports`; isArchived reuses `BRANCH_ISARCHIVED`.
+
+Notes:
+- createReport invalidates Report `"LIST"` (like createBranch) — no dependency on the
+  backend's create DTO shape (the §31.2 spec says 201 list DTO; backend returns full
+  doc — residual B-cleanup noted, not this campaign).
+- Gates: `vite build` 0 errors → `dist/` deleted; grep clean (no result.data.*
+  outside the docstring, no MUI-root/barrel imports in the slice).
+- Next: Stage B-B1 `/reports` fetch skeleton (loading/error/empty primaries).
+- NO COMMIT (owner-directs rule).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

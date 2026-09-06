@@ -643,6 +643,42 @@ conversation surface ENTIRELY (ChatConversation stays design-only); accept-gate
 enforcement; R6 Correction; R7 Chat; R8–R10; /details; GET /items consumer page;
 frontend work.
 
+## Phase 8 — Reports frontend (branch `phase-8-reports-frontend`, in progress)
+
+**Base:** created from `phase-7-reports-backend` (owner-approved) so the
+B1–B5 backend the frontend consumes is inherited. B6 items backend and R5
+(generation) stay OPEN — `/chat`, `/items`, dashboard, details, exports are
+OUT of this campaign.
+
+**Owner constraints (2026-09-01):**
+1. One thing at a time (incremental protocol; never forgotten — mirror Phase 5).
+2. **No commit and no merge unless the owner explicitly requests** any sub-step.
+3. Mirror how the branches frontend was developed (page plumbing →
+   fetch skeleton → filter → header/shell → grid → card/list → create → lifecycle).
+
+**Increment map (each = one thing + involved; mirrored per increment):**
+- Stage A — domain plumbing: `reportsSlice.js` (all report/clip/transcription
+  endpoints, Report tags), `apiSlice.js` `tagTypes` → `["User","Report"]`
+  (unregistered-tag debt), `store.js` side-effect import, `constants.js`
+  REPORTS_COPY/REPORT_ISARCHIVED/toast entries — ✅ DONE (uncommitted; tagTypes
+  actually `["User","Branch","Report"]`).
+- Stage B — `/reports` page (the `/branches` twin): B1 fetch skeleton
+  (loading/error/empty, C21/C30) → B2 ReportsFilterMenu (isArchived/generated/
+  branch-Q1 + badge) → B3 header + view toggle → B4 MuiDataGrid
+  (columns/reports.jsx, flex C31, server pagination/sort) → B5 card/list +
+  MuiPagination (C32/C33) → B6 create dialog (atomic multipart `createReport`
+  + `createKey`; RHF date+visits via BranchVisitDialog; min-1-clip orb+drag-drop;
+  dialog stays open on failure, state+audio preserved; outside-click won't close)
+  → B7 lifecycle (archive/restore/delete via MuiConfirmDialog) + Edit navigate.
+- Stage C — `/reports/:reportId/edit` 3-tab page (strict MUI Tabs):
+  C1 route + shell → C2 Meta tab (Ethiopian date + visits via BranchVisitDialog,
+  `patchReport`) → C3 Audio tab (one-card orb+drag-drop, per-clip
+  play/seek/duration/size/delete, Transcribe/Re-transcribe/All via
+  `reTranscribe`) → C4 Transcription tab (edit latest/revert/re-transcribe).
+
+**Route/tag/slice:** consumers read `result.docs` (never `result.data.*`, C22);
+`validate()` invoked (backend already); 401 = global auth gate only.
+
 ### Spec reconciliation sweep (2026-09-01) — COMPLETE
 
 One full top-to-bottom pass over `docs/project-specification.md`

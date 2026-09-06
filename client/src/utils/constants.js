@@ -55,6 +55,18 @@ export const TOAST_CATALOGUE = Object.freeze({
     restored: "Branch restored",
     deleted: "Branch deleted",
   }),
+  reports: Object.freeze({
+    created: "Report created",
+    updated: "Report updated",
+    archived: "Report archived",
+    restored: "Report restored",
+    deleted: "Report deleted",
+    clipAdded: "Clip added",
+    clipDeleted: "Clip deleted",
+    transcriptionUpdated: "Transcription updated",
+    transcriptionReverted: "Transcription reverted",
+    reTranscribed: "Transcription completed",
+  }),
 });
 
 /** Post-login landing route when no `state.from` exists (§41.5). */
@@ -111,6 +123,16 @@ export const BRANCH_ISARCHIVED = Object.freeze({
   ACTIVE: "active",
   ARCHIVED: "archived",
   ALL: "all",
+});
+
+/**
+ * Reports list `generated` filter values — mirror the backend
+ * `GET /reports` query (§31.3). `true` → `{$ne:""}`; `false` → `""`.
+ * @type {{TRUE: string, FALSE: string}}
+ */
+export const REPORT_GENERATED = Object.freeze({
+  TRUE: "true",
+  FALSE: "false",
 });
 
 /**
@@ -179,6 +201,49 @@ export const BRANCHES_COPY = Object.freeze({
     restoreMessage: (name) => `Are you sure you want to restore “${name}”?`,
     restoreLabel: "Restore",
     deleteTitle: "Delete branch",
+    deleteMessage: (name) => `Are you sure you want to permanently delete “${name}”? This cannot be undone.`,
+    deleteLabel: "Delete",
+  }),
+});
+
+/**
+ * Reports page state copy (§50/§60). Single-sourced strings for the page
+ * surfaces; the create-dialog + edit-tab copy lands in their own
+ * increments (Stage B6 / Stage C). Consumed on first use by Reports.jsx.
+ * @type {Object<string, Object<string, string>>}
+ */
+export const REPORTS_COPY = Object.freeze({
+  header: Object.freeze({
+    title: "Reports",
+    subtitle: "Your daily supervision reports",
+  }),
+  loading: Object.freeze({
+    message: "Loading reports…",
+  }),
+  error: Object.freeze({
+    title: "Could not load reports",
+    retryLabel: "Try again",
+  }),
+  empty: Object.freeze({
+    title: "No reports yet — create your first report",
+    createLabel: "New report",
+  }),
+  filter: Object.freeze({
+    activeLabel: "Active",
+    archivedLabel: "Archived",
+    generatedLabel: "Generated",
+    notGeneratedLabel: "Not generated",
+    allLabel: "All",
+    branchLabel: "Branch",
+  }),
+  confirm: Object.freeze({
+    archiveTitle: "Archive report",
+    archiveMessage: (name) => `Are you sure you want to archive “${name}”? You can restore it later.`,
+    archiveLabel: "Archive",
+    restoreTitle: "Restore report",
+    restoreMessage: (name) => `Are you sure you want to restore “${name}”?`,
+    restoreLabel: "Restore",
+    deleteTitle: "Delete report",
     deleteMessage: (name) => `Are you sure you want to permanently delete “${name}”? This cannot be undone.`,
     deleteLabel: "Delete",
   }),

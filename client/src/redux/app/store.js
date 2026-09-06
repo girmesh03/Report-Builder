@@ -33,6 +33,10 @@ import "../features/userSlice.js";
 // archive/restore/delete + detail) into apiSlice (§56).
 import "../features/branchesSlice.js";
 
+// Side-effect: injects the reports domain endpoints (list/meta/create/
+// meta-edit/lifecycle + clips + transcription) into apiSlice (§31/§32/§33).
+import "../features/reportsSlice.js";
+
 /**
  * Minimal sessionStorage adapter meeting redux-persist's async
  * storage contract — every method returns a Promise (getStoredState

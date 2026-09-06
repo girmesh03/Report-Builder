@@ -114,6 +114,54 @@ accept-gate enforcement, R6–R10, frontend
 (→ `phase-8-reports-frontend` later). Remaining supersede of this phase's close:
 merge + branch delete after owner approval.
 
+## Phase 8 — Reports frontend (branch `phase-8-reports-frontend`, in progress)
+
+**Base:** created from `phase-7-reports-backend` (owner-approved) so the
+B1–B5 backend the frontend consumes is inherited; B6 items backend is OPEN
+(design locked in findings R2; implementation later). **R5 (generation) and
+B6 stay open** — `/chat`, `/items`, dashboard, details, exports are OUT of
+this campaign.
+
+**Owner constraints (2026-09-01):**
+1. Work is **one thing at a time** (incremental protocol — never forgotten).
+2. **No commit and no merge unless the owner explicitly requests** any
+   sub-step — work stays in the working tree for review at every increment.
+3. Mirror how the branches frontend (Phase 5) was developed: page
+   plumbing/domain-slice first, then fetch skeleton → filter → header/shell →
+   grid → card/list → create → lifecycle, then the richer surfaces.
+
+**Scope — two pages, in order:**
+- `/reports` — Reports List, built as the `/branches` twin: reportsSlice +
+  apiSlice `tagTypes` `"Report"` fix (the unregistered-tag debt) + constants
+  → page fetch skeleton (`!data && !error`, loading/error/empty primaries) →
+  ReportsFilterMenu (isArchived/generated/branch-Q1 + badge) → header + view
+  toggle → MuiDataGrid (columns/reports.jsx, flex, server pagination/sort) →
+  card/list view + MuiPagination -> create dialog (atomic multipart
+  `createReport` + `createKey`; dialog stays open on failure, state +
+  recorded audio preserved, outside-click won't close) → lifecycle
+  (archive/restore/delete via MuiConfirmDialog) + **Edit → navigate
+  `/reports/:reportId/edit`**.
+- `/reports/:reportId/edit` — the 3-tab page (Meta · Audio · Transcription),
+  strict MUI Tabs stack; Meta = date (Ethiopian)/visits via BranchVisitDialog
+  + `patchReport`; Audio = one-card orb+drag-drop, per-clip play/seek/duration/
+  size/delete, ready-flag Transcribe/Re-transcribe/All via `reTranscribe`;
+  Transcription = edit `latest` / revert / re-transcribe. No generation (R5
+  open), no items (B6 open).
+
+**Route/tag/slice:** `redux/features/reportsSlice.js` injects all report,
+clip, and transcription endpoints; `apiSlice.js` `tagTypes` grows to
+`["User","Report"]`; `store.js` side-effect imports the slice. Consumers read
+`result.docs` (never `result.data.*`, C22). `validate()` invoked (backend
+already); 401 = global auth gate only (never a per-page error).
+
+**Progress:** Stage A (domain plumbing: reportsSlice + tagTypes
+`["User","Branch","Report"]` debt fix + store import + constants) — DONE,
+uncommitted (owner-directs rule). Next = Stage B-B1 `/reports` fetch skeleton
+(`!data && !error`, loading/error/empty primaries), mirroring Branches Phase 5.
+
+**Mirrors:** findings/progress/task_plan + this AGENTS block are updated per
+increment (same discipline as Phase 5), committed only on owner request.
+
 ## What this repo is
 
 MERN-style **Report Builder** — Amharic speech-to-report web app for restaurant supervision. Two npm packages, both ESM (`"type": "module"`), npm only, lockfiles committed:
