@@ -540,11 +540,14 @@ prompts). Mirrors: progress.md, task_plan.md, AGENTS.md, spec
   any clip add/remove** (per-artifact sync flag, not a status); `true`
   again on successful wholesale re-transcribe. The deletion-proof
   readiness flag (timestamp arithmetic cannot detect clip removal).
-- Transient `createKey` attempt-session collection: `{ user,
-  clips:[{index,name,uploaded,transcribed,text,error}],
-  status: in_progress|committed, committedReportId?, ttl }` — TTL ~1 h,
-  staging under `uploads/audio/staging/`; `committedReportId` gives
-  idempotent replay.
+- Transient `createKey` attempt-session — **filesystem staging state**
+  (option A, owner 2026-09-01; **no Mongo collection, no model file** —
+  §17.2 stays at five entities): `uploads/audio/staging/<userId>/<createKey>/
+  state.json` carrying `{ status: in_progress|committed,
+  committedReportId?, clips:[{index,name,uploaded,transcribed,text,error}] }`
+  next to the staged clip files; TTL/sweeper owns the dir (§62);
+  `committedReportId` gives idempotent replay; the state file is removed
+  on clean commit.
 
 ### Pre-create attempt-session (A#)
 A1 commit-replay: session kept `committed` with `committedReportId`;
@@ -661,6 +664,60 @@ node --check every file; backend grep battery (no console.log, no numeric
 statuses, no rating/stt/legacy status, no literals); validate() invoked;
 express-async-handler; secrets only in backend/.env; increment protocol
 respected at every step.
+
+## Session 2026-09-01 — Phase 7 B2: create pipeline implemented
+
+Design/implementation of the atomic create (`POST /reports`), with the
+G-STT real provider test. Mirrors: progress.md, spec §17.2/§31.2/§62,
+this file; the rest of the working files updated in the Phase-7 record.
+
+### Delivered files
+- `services/stt.service.js` — Addis-only Path A: ffmpeg → mono 16-bit
+  16 kHz PCM → `wavSplitter` silence-chunks → `addis.speech.transcribe`
+  per chunk → single-space merge; maps `InsufficientCreditsError`→402,
+  `RateLimitError`→429, transport/API→502.
+- `utils/wavSplitter.js` — silence-boundary chunker (≤60 s; verified
+  370 s→7, 530 s→9 chunks; each a valid RIFF/WAV).
+- `utils/ffprobe.js` — duration probe (clip cap gate).
+- `middleware/clipUpload.js` — multer → `uploads/audio/staging/`,
+  MIME allowlist, `AUDIO_MAX_SIZE_BYTES`, ≤`MAX_CLIPS_PER_REPORT`.
+- `validators/report.validator.js` — `metadata` JSON→object + visits
+  invariants, `createKey`, `clipIndexes` (sanitizers run into
+  `req.validated`).
+- `controllers/report.controller.js` — createRequest: attempt-session
+  load/replay (A1), active-branch resolution, ffprobe duration gate,
+  per-index skip/STT (A2–A15), merge/empty-reject, ONE §27.7
+  transaction (visits + embedded audios + transcription{raw,latest,ready}),
+  move-staged-after-commit, session cleanup.
+- `routes/report.routes.js` — `POST /reports` (multer → validator →
+  validate() → controller); mounted in routes/index.
+- `services/attemptSession.js` — **option A (owner 2026-09-01):**
+  filesystem staging state (`uploads/audio/staging/<userId>/<createKey>/
+  state.json`), NO Mongo model file (`models/create-attempt.model.js`
+  deleted) — the system of record stays at five entities (§17.2).
+
+### Constants / status additions
+`MAX_CLIPS_PER_REPORT`, `ADDIS_AI_STT_MAX_DURATION_SEC` (+ PCM rate/
+channels/bits), `ATTEMPT_SESSION_TTL_MS`, `UPLOADS_AUDIO_DIR`/`_STAGING`,
+multipart field names; `PAYMENT_REQUIRED: 402` in httpStatus; env exposes
+`ADDIS_AI_BASE_URL` + `ADDIS_AI_STT_LANGUAGE_CODE` (default `am`).
+
+### G-STT real provider test (B2 gate) — PASSED
+- Source: `backend/uploads/audio/audio-ccf3cf68-a37a-4de8-82c4-6e888f007286.webm`
+  → PCM 16,963,579 bytes ≈ **530.11 s** → **9 silence chunks**
+  (60×8 + 50.11).
+- Real `addis.speech.transcribe` over the live provider, full merge:
+  **2084 chars Amharic**, elapsed ≈ **259 s** (9 chunks).
+- Preview: `አንድ ቀን በአውሮፓ በኩል … 11 17 ብራንች ጎላ … ስራ የገባሁበት ሰዓት …`
+  tail: `…ከስራ የወጣሁበት ሰዓት አስራን ሰዓት ከምስት … እንደዛ ነው ያልኩት`
+  (report-like narration: branch, work-start/exit, activities, comment).
+- Prior earlier test on `audio-8c1b3670…webm` (370 s) first-chunk:
+  `አዎ አዎ አዎ…` (confidence 0.99). Temp dirs cleaned after both runs.
+
+### Gates
+node --check on all B2 files; grep battery clean (no console.log, semantic
+statuses, no prompts, language = SDK param only); G-STT passed; no orphan
+temp dirs; step-5 owner review before commit. Next: B3 clips.
 
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 

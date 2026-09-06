@@ -97,6 +97,28 @@ export const AUDIO_MAX_SIZE_BYTES = deepFreeze(52428800);
 export const AUDIO_MAX_DURATION_SEC = deepFreeze(900);
 export const AUDIO_MAX_TOTAL_DURATION_SEC = deepFreeze(3600);
 
+/** Max clips per report (create dialog + edit tab) (§21.2, §32). */
+export const MAX_CLIPS_PER_REPORT = deepFreeze(10);
+
+/** Multipart field names for the atomic create (§31.2). */
+export const MULTIPART_METADATA_FIELD = deepFreeze("metadata");
+export const MULTIPART_CLIPS_FIELD = deepFreeze("clips");
+export const MULTIPART_CREATEKEY_FIELD = deepFreeze("createKey");
+export const MULTIPART_CLIPINDEXES_FIELD = deepFreeze("clipIndexes");
+
+/** STT pipeline (§33). */
+export const ADDIS_AI_STT_MAX_DURATION_SEC = deepFreeze(60);
+export const STT_PCM_SAMPLE_RATE = deepFreeze(16000);
+export const STT_PCM_CHANNELS = deepFreeze(1);
+export const STT_PCM_BITS_PER_SAMPLE = deepFreeze(16);
+
+/** Transient create-attempt session (§31.2, §62). */
+export const ATTEMPT_SESSION_TTL_MS = deepFreeze(3600000);
+
+/** Audio storage paths (§12.9, §32.5, §62) — local disk, gitignored. */
+export const UPLOADS_AUDIO_DIR = deepFreeze("uploads/audio");
+export const UPLOADS_AUDIO_STAGING_DIR = deepFreeze("uploads/audio/staging");
+
 /** Item vocabulary ((§11.4, §24A). */
 export const ITEM_TYPES = deepFreeze(["activity", "issue", "comment"]);
 export const ITEM_STATUSES = deepFreeze(["reported", "in_progress", "completed"]);

@@ -189,6 +189,26 @@
 - Sequence: commit this record → ff-merge phase-6→main → delete branch →
   phase-7-reports-backend (B1 first).
 
+## Session 2026-09-01 — Phase 7 B2: create pipeline — IMPLEMENTED (pending commit)
+- **Implemented:** atomic multipart `POST /reports` (B2): STT service
+  (Addis-only Path A, ffmpeg mono-16k PCM, wavSplitter silence chunks,
+  402/429/502 mapping), multer clip upload (staging, MIME/size caps),
+  report validator (metadata JSON→object, clipIndexes, createKey), ffprobe
+  duration gate, report controller (attempt-session skip/replay, one
+  §27.7 transaction, embedded audios + transcription{raw,latest,ready}),
+  routes mounted. G-STT real test PASSED (see findings B2 entry).
+- **Attempt-session = option A (filesystem staging state, owner)** —
+  `services/attemptSession.js` writes/reads
+  `uploads/audio/staging/<userId>/<createKey>/state.json`; **no Mongo
+  model file** (`models/create-attempt.model.js` DELETED); §17.2 stays
+  at five entities; spec §31.2/§17.2/§62 + working files mirrored.
+- Files: 4 modified (constants, httpStatus, env, routes/index) + 8 new
+  (services/stt + attemptSession, wavSplitter, ffprobe, clipUpload,
+  report validator/controller/routes). node --check + grep battery clean.
+- **STT result (real provider, `audio-ccf3cf68…webm`, 530 s / 9 chunks):**
+  2084 chars merged Amharic, elapsed ≈ 259 s. See findings B2 entry.
+- Gates: G-STT passed; no merge; step-5 review before commit. Next: B3 clips.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

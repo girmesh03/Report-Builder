@@ -30,6 +30,8 @@ const ENV_SPEC = {
   JWT_ACCESS_SECRET: { required: true },
   JWT_REFRESH_SECRET: { required: true },
   ADDIS_API_KEY: { required: true },
+  ADDIS_AI_BASE_URL: { default: "" },
+  ADDIS_AI_STT_LANGUAGE_CODE: { default: "am" },
   GEMINI_API_KEY: { required: true },
   NVIDIA_API_KEY: { required: true },
   NVIDIA_API_URL: { required: true },

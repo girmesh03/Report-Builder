@@ -4124,7 +4124,10 @@ no new path is introduced here; any future entity requires amending
 > of record is now **five entities**: User, Branch, Report (with
 > `audios[]` + `transcription{}` embedded), Item (separate), and
 > ChatConversation (per report). GenerationPreset is a user CRUD
-> resource (config; §34), not a system-of-record entity. This supersedes
+> resource (config; not system-of-record). **The create attempt-session
+> is filesystem staging state, not an entity and not a Mongo collection**
+> (option A, owner 2026-09-01 — §31.2); the system of record stays at
+> five entities. This supersedes
 > the earlier seven-collection inventory and the standalone Audio/
 > Transcription models (§22/§23 rewritten as embedded members).
 
@@ -6633,11 +6636,13 @@ Backend pipeline (controller, express-async-handler):
    partial/written file only — earlier clips' artifacts are retained
    for the retry) → error; the dialog stays open, form state +
    recorded audio preserved, outside-click does NOT close.
-2. **Attempt-session** (R4): a transient Mongo record keyed by
-   `createKey`, `{ user, clips:[{index,name,uploaded,transcribed,text,
-   error}], status: in_progress|committed, committedReportId?, ttl }`
-   with a TTL (~1 h) + sweeper; staging under `uploads/audio/staging/`.
-   Scoped by `user` (BR-13).
+2. **Attempt-session** (R4, option A — owner 2026-09-01): a
+   **filesystem staging state**, not a Mongo collection — `state.json`
+   under `uploads/audio/staging/<userId>/<createKey>/` carrying
+   `{ status: in_progress|committed, committedReportId?, clips:[
+   {index,name,uploaded,transcribed,text,error}] }` beside the staged
+   clip files; TTL + sweeper own the dir (§62); user-scoped (BR-13).
+   **No model file; the system of record stays at five entities (§17.2).**
 3. **Incremental retry:** resubmit with the same `createKey` skips
    clips already marked uploaded+transcribed (reuses their stored
    text); only failed/pending clips re-sent. **Commit replay:** after a

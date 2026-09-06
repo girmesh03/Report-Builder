@@ -9,6 +9,7 @@ import { Router } from "express";
 import { HTTP_STATUS } from "../utils/httpStatus.js";
 import authRoutes from "./auth.routes.js";
 import branchRoutes from "./branch.routes.js";
+import reportRoutes from "./report.routes.js";
 
 const routes = Router();
 
@@ -22,5 +23,6 @@ routes.get("/health", (_req, res) => {
 
 routes.use("/auth", authRoutes);
 routes.use("/branches", branchRoutes);
+routes.use("/reports", reportRoutes);
 
 export default routes;
