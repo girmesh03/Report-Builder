@@ -10,7 +10,7 @@
  * in the controller (§31.2) — 422 there, not here.
  */
 
-import { body } from "express-validator";
+import { body, param } from "express-validator";
 import {
   MULTIPART_CREATEKEY_FIELD,
   MULTIPART_METADATA_FIELD,
@@ -81,6 +81,18 @@ export const createReportChain = [
   ...clipIndexesChain,
 ];
 
+/** Params: reportId (clips / meta routes). */
+export const reportIdParamChain = [
+  param("reportId").isMongoId().withMessage("Invalid report ID"),
+];
+
+/** Params: clipId for a nested clip route. */
+export const clipIdParamChain = [
+  param("clipId").isMongoId().withMessage("Invalid clip ID"),
+];
+
 export default {
   createReportChain,
+  reportIdParamChain,
+  clipIdParamChain,
 };

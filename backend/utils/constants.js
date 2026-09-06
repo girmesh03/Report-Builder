@@ -100,11 +100,12 @@ export const AUDIO_MAX_TOTAL_DURATION_SEC = deepFreeze(3600);
 /** Max clips per report (create dialog + edit tab) (§21.2, §32). */
 export const MAX_CLIPS_PER_REPORT = deepFreeze(10);
 
-/** Multipart field names for the atomic create (§31.2). */
+/** Multipart field names (§31.2, §32.2). */
 export const MULTIPART_METADATA_FIELD = deepFreeze("metadata");
 export const MULTIPART_CLIPS_FIELD = deepFreeze("clips");
 export const MULTIPART_CREATEKEY_FIELD = deepFreeze("createKey");
 export const MULTIPART_CLIPINDEXES_FIELD = deepFreeze("clipIndexes");
+export const MULTIPART_CLIP_FIELD = deepFreeze("clip");
 
 /** STT pipeline (§33). */
 export const ADDIS_AI_STT_MAX_DURATION_SEC = deepFreeze(60);

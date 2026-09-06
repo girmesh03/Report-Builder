@@ -24,7 +24,7 @@
 
 import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
-import { rename } from "node:fs/promises";
+import { rename, unlink } from "node:fs/promises";
 import logger from "../utils/logger.js";
 import { CustomError } from "../utils/errors.js";
 import { HTTP_STATUS } from "../utils/httpStatus.js";
@@ -230,4 +230,203 @@ export const createReport = asyncHandler(async (req, res) => {
   }
 });
 
-export default { createReport };
+/**
+ * Resolves a report (owner-scoped) or throws 404 (§31).
+ * @param {import("express").Request} req - Express request (has params).
+ * @returns {Promise<import("mongoose").Document>} Lean report row.
+ */
+const findOwnedReport = async (req) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+  const report = await Report.findOne({ _id: reportId, user: userId }).lean();
+  if (!report) {
+    throw new CustomError("NOT_FOUND", "Report not found");
+  }
+  return report;
+};
+
+/**
+ * Rejects writes on archived or generated reports (BR-12 §31.8) —
+ * reads are allowed on both (review surfaces).
+ * @param {Object} report - The owned report row (lean).
+ */
+const assertWritable = (report) => {
+  if (report.isArchived) {
+    throw new CustomError("FORBIDDEN", "Report is archived");
+  }
+  if (report.generated) {
+    throw new CustomError("FORBIDDEN", "Report is already generated");
+  }
+};
+
+/**
+ * Serializes an embedded AudioClip subdoc to the AudioDto — `filePath`
+ * never leaks; `updatedAt` aliases `createdAt` (clips are immutable).
+ * @param {Object} audio - The embedded subdoc.
+ * @param {string} reportId - The owning report `_id`.
+ * @returns {Object} AudioDto.
+ */
+const toAudioDto = (audio, reportId) => ({
+  _id: audio._id,
+  report: reportId,
+  mimeType: audio.mimeType,
+  sizeBytes: audio.sizeBytes,
+  durationSec: audio.durationSec,
+  createdAt: audio.createdAt,
+  updatedAt: audio.createdAt,
+});
+
+/**
+ * POST /reports/:reportId/clips — add a clip at edit time (post-create).
+ * @type {import("express").RequestHandler}
+ */
+export const addClip = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+  const file = req.file;
+
+  if (!file) {
+    throw new CustomError("UNPROCESSABLE_ENTITY", "A clip file is required");
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    assertWritable(report);
+
+    // Duration gate (ffprobe) — the file is already on disk (multer).
+    const durationSec = (await getAudioDuration(file.path).catch(() => -1)) || -1;
+    if (durationSec > AUDIO_MAX_DURATION_SEC || durationSec < 0) {
+      throw new CustomError(
+        "UNPROCESSABLE_ENTITY",
+        "The clip is longer than the allowed duration",
+      );
+    }
+
+    report.audios.push({
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      durationSec,
+      filePath: file.path, // final path already chosen by multer
+      createdAt: new Date(),
+    });
+    // R4 C1: adding a clip on a transcription-bearing report drops readiness.
+    if (report.transcription) {
+      report.transcription.ready = false;
+    }
+    await report.save({ session });
+    await session.commitTransaction();
+
+    const audio = report.audios[report.audios.length - 1];
+    res.status(HTTP_STATUS.CREATED).json({
+      success: true,
+      message: "Clip uploaded",
+      data: toAudioDto(audio, reportId),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    // unlink the just-uploaded file on failure (orphan sweep also guards).
+    if (file?.path) {
+      await unlink(file.path).catch(() => {});
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * GET /reports/:reportId/clips — flat list, createdAt asc.
+ * @type {import("express").RequestHandler}
+ */
+export const listClips = asyncHandler(async (req, res) => {
+  const { reportId } = req.validated.params;
+  const report = await findOwnedReport(req);
+  const clips = [...report.audios].sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+  );
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Clips",
+    data: { clips: clips.map((a) => toAudioDto(a, reportId)) },
+  });
+});
+
+/**
+ * GET /reports/:reportId/clips/:clipId — single AudioDto (byte source
+ * for a client-side playback Blob — no stream endpoint).
+ * @type {import("express").RequestHandler}
+ */
+export const getClip = asyncHandler(async (req, res) => {
+  const { reportId, clipId } = req.validated.params;
+  const report = await findOwnedReport(req);
+  const audio = report.audios.find((a) => a._id.toString() === clipId);
+  if (!audio) {
+    throw new CustomError("NOT_FOUND", "Clip not found");
+  }
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Clip",
+    data: toAudioDto(audio, reportId),
+  });
+});
+
+/**
+ * DELETE /reports/:reportId/clips/:clipId — direct delete: embedded
+ * subdoc removed + physical `fs.unlink` (R4 C2/C3: readiness drops, or
+ * the transcription clears when the last clip is removed).
+ * @type {import("express").RequestHandler}
+ */
+export const deleteClip = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId, clipId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    assertWritable(report);
+
+    const audio = report.audios.find((a) => a._id.toString() === clipId);
+    if (!audio) {
+      throw new CustomError("NOT_FOUND", "Clip not found");
+    }
+    const filePath = audio.filePath;
+
+    report.audios = report.audios.filter((a) => a._id.toString() !== clipId);
+    if (report.audios.length === 0) {
+      // R4 C3 — last clip deleted: clear the transcription.
+      report.transcription = { raw: null, latest: null, ready: false };
+    } else if (report.transcription) {
+      // R4 C2 — non-last delete: drop readiness, keep the transcription.
+      report.transcription.ready = false;
+    }
+    await report.save({ session });
+    await session.commitTransaction();
+
+    // Unlink the physical file after commit (orphan sweep is the net).
+    await unlink(filePath).catch(() => {});
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Clip deleted",
+      data: null,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+export default { createReport, addClip, listClips, getClip, deleteClip };

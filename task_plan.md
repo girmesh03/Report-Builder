@@ -633,7 +633,7 @@ amendments` → main → delete branch → create `phase-7-reports-backend` → 
 **Increments (each Step-1.1 + gated + mirrored):**
 - B1 schema foundation (report + item models, constants) — ✅ DONE (06db45e)
 - B2 create pipeline (STT service, atomic multipart POST, attempt-session) — ✅ IMPLEMENTED (pending commit; attempt-session = filesystem staging state, option A, NO Mongo model)
-- B3 clips (nested; direct-delete)
+- B3 clips (nested; direct-delete) — ✅ IMPLEMENTED (pending commit; audio tier, 403 archived/generated, readiness C1/C2, clear-on-last C3, §32 reconciled)
 - B4 transcription post-create (GET/PUT re-transcribe/PATCH/revert; ready flag)
 - B5 report read/edit/lifecycle
 - B6 items (report-scoped + cross-report + status PATCH)

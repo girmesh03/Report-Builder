@@ -209,6 +209,21 @@
   2084 chars merged Amharic, elapsed ≈ 259 s. See findings B2 entry.
 - Gates: G-STT passed; no merge; step-5 review before commit. Next: B3 clips.
 
+## Session 2026-09-01 — Phase 7 B3: clips surface — IMPLEMENTED (pending commit)
+- **Implemented (post-create):** `POST`/`GET` list/`GET` single/`DELETE`
+  `/reports/:reportId/clips(:clipId)?` — multer single→final, owner-scoped
+  404, **403 archived/generated**, ffprobe duration gate, embedded subdoc
+  push/removal + **`transcription.ready` (R4 C1/C2) / clear-on-last (C3)**,
+  `fs.unlink` after commit, AudioDto (filePath never). Param chains + routes.
+- **Spec §32 reconciled (E1–E2):** dropped `language` field, ai-tier, no
+  status moves; §32.4 rewrite to the R4 readiness rules (no
+  audio_attached/transcribed/draft consequences).
+- **Live-DB smoke PASSED** (create→add→delete non-last→delete last; C3
+  confirms `audios=0` + `transcription{null,null,false}`); cleaned up.
+- Files: clipUpload (both shapes), validator, controller (+4 handlers),
+  routes; mirrors in spec §32 + working files. Gates: node --check +
+  grep clean + smoke passed. Next: B4 transcription post-create.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

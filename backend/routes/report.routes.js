@@ -12,7 +12,10 @@ import { authenticate } from "../middleware/auth.js";
 import validate from "../validators/validation.js";
 import * as reportController from "../controllers/report.controller.js";
 import * as reportValidator from "../validators/report.validator.js";
-import { uploadClips } from "../middleware/clipUpload.js";
+import {
+  uploadClips,
+  uploadClip,
+} from "../middleware/clipUpload.js";
 
 const router = Router();
 
@@ -31,6 +34,41 @@ router.post(
   reportValidator.createReportChain,
   validate(),
   reportController.createReport,
+);
+
+/** POST /reports/:reportId/clips — add a clip (post-create). */
+router.post(
+  "/:reportId/clips",
+  reportValidator.reportIdParamChain,
+  uploadClip,
+  validate(),
+  reportController.addClip,
+);
+
+/** GET /reports/:reportId/clips — flat list. */
+router.get(
+  "/:reportId/clips",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.listClips,
+);
+
+/** GET /reports/:reportId/clips/:clipId — single AudioDto. */
+router.get(
+  "/:reportId/clips/:clipId",
+  reportValidator.reportIdParamChain,
+  reportValidator.clipIdParamChain,
+  validate(),
+  reportController.getClip,
+);
+
+/** DELETE /reports/:reportId/clips/:clipId — direct delete (DB + file). */
+router.delete(
+  "/:reportId/clips/:clipId",
+  reportValidator.reportIdParamChain,
+  reportValidator.clipIdParamChain,
+  validate(),
+  reportController.deleteClip,
 );
 
 export default router;

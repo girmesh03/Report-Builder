@@ -90,8 +90,13 @@ multer + validator + controller (atomic `POST /reports`) + routes; G-STT real
 provider test PASSED (`audio-ccf3cf68…` 530 s → 9 chunks → 2084 chars Amharic).
 **Attempt-session = option A (filesystem staging state)** — `services/
 attemptSession.js`, NO Mongo model (`models/create-attempt.model.js` deleted);
-system of record stays at five entities (§17.2). Next: B3 clips, B4
-transcription post-create, B5 read/edit/lifecycle, B6 items — each Step-1.1+
+system of record stays at five entities (§17.2). **B3 clips implemented
+(pending commit):** `POST`/`GET`/`GET :id`/`DELETE` nested
+`/reports/:reportId/clips` — audio tier, 403 archived/generated,
+embedded subdoc push/removal, `transcription.ready` C1/C2, clear-on-last
+C3, `fs.unlink` after commit; §32 reconciled (language field dropped,
+no status moves); live-DB smoke passed. Next: B4 transcription post-create,
+B5 read/edit/lifecycle, B6 items — each Step-1.1+
 gated+mirrored. Out of scope for phase 7: generation/presets/digest, the
 conversation surface entirely (ChatConversation stays design-only),
 accept-gate enforcement, R6–R10, frontend

@@ -719,6 +719,54 @@ node --check on all B2 files; grep battery clean (no console.log, semantic
 statuses, no prompts, language = SDK param only); G-STT passed; no orphan
 temp dirs; step-5 owner review before commit. Next: B3 clips.
 
+## Session 2026-09-01 — Phase 7 B3: clips surface implemented
+
+Post-create clips endpoints (`/reports/:reportId/clips`), reconciling the
+R3-era §32 status text to the consolidated no-status model. Mirrors:
+progress.md, spec §32.2/§32.4, this file (one §66.6 commit); AGENTS/
+task_plan updated.
+
+### Implemented
+- `POST /reports/:reportId/clips` — multer `single('clip')` to final
+  `uploads/audio/` (filename `{reportId}-{timestamp}{ext}`); resolve
+  report owner-scoped → 404; **403 archived/generated**; ffprobe duration
+  cap; embedded subdoc push; **`transcription.ready=false` on a
+  transcription-bearing report (R4 C1)**; 201 AudioDto (no filePath,
+  updatedAt=createdAt).
+- `GET /reports/:reportId/clips` — flat `{ clips }`, createdAt asc, read
+  allowed on archived/generated (review surface); 404 report.
+- `GET /reports/:reportId/clips/:clipId` — AudioDto; byte source for
+  client Blob playback (no stream); 404.
+- `DELETE /reports/:reportId/clips/:clipId` — **403 archived/generated**;
+  subdoc removal in session + readiness C2 (`ready=false`, keep trans) or
+  **C3 (last clip → clear transcription `{raw:null,latest:null,ready:false}`)**;
+  after commit `fs.unlink` file; 200 `{data:null}`.
+- Validator param chains (`reportId`/`clipId` MongoId); routes mounted
+  (multer → validator → `validate()` → controller, C24).
+- `middleware/clipUpload.js` now exports both `uploadClips` (create,
+  array→staging) and `uploadClip` (post-create, single→final).
+
+### Spec reconciliation (§32, E1–E2)
+- §32.2: dropped `language` field (STT always am); ai-tier; no status
+  move on first clip; readiness C1 added.
+- §32.4: removed the `audio_attached → transcribed`/`draft` status
+  consequences + "cascade 1:1 Transcription row" — replaced with the R4
+  readiness rules (C2 non-last → ready false; C3 last → clear trans).
+  NOTE: §32.4's "Drop RS ... reconciled" heading marker retains the old
+  sub-text; behavior governed by this record + §17.6.
+
+### Live-DB smoke (B3 mutation semantics) — PASSED
+Real Mongo connected; throwaway report: create (+1 clip + trans) →
+addClip push (+ready=false) → deleteClip non-last (ready stays false,
+trans kept) → deleteClip last (`audios=0`, `transcription
+{raw:null,latest:null,ready:false}` — C3 OK). Report + probe files
+cleaned up; disconnected.
+
+### Gates
+node --check (clipUpload, validator, controller, routes); grep battery
+clean (no console.log, no status vocabulary beyond attempt marks, no
+`/audios/`, no stream); live-DB smoke passed; no residue. Next: B4.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

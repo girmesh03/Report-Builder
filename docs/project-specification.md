@@ -6834,33 +6834,31 @@ rewind to `draft`).
 
 ### 32.2 Upload
 
-`POST /reports/:reportId/clips` (access, global
-tier): multipart/form-data with one file part `clip` plus a
-`language` field (default `am`, must be a `LANGUAGE_CODES`
-member). Rules:
+`POST /reports/:reportId/clips` (access, **ai tier** §27.3):
+multipart/form-data with one file part `clip`. **No `language` field**
+(batched — STT is always `am`, §33); `durationSec` is informational,
+ffprobe enforces the cap. Rules:
 
 - MIME in `AUDIO_ALLOWED_MIME_TYPES`; size ≤ `AUDIO_MAX_SIZE_BYTES`
   (50 MB); duration ≤ `AUDIO_MAX_DURATION_SEC` (900 s) verified
-  via ffprobe (informational `durationSec`; the §29 chain enforces
-  the file, the multer `limits` enforce size, ffprobe enforces
-  duration). Video MIME (`video/*`, `.mp4`) is rejected — 422 —
+  via ffprobe. Video MIME (`video/*`, `.mp4`) is rejected — 422 —
   with the message "Only audio recordings are supported": the
   product records voice only (BR-02, the §53 recorder is audio-
-  only) and no video path exists anywhere (not a deferred
-  feature; the rejection is a plain MIME rule).
+  only) and no video path exists anywhere.
 - Store under `backend/uploads/audio/` (gitignored, multer
-  destination; filename = `{$reportId}-{$timestamp}` +
-  sanitized extension, no user input in names). The binding
-  `{ report }` is written in the same §27.7 session that
-  inserts the Audio doc — clips bind to the report, never to a
-  visit (§6.10 locked decision 5; §22).
-- **Frozen at `generated`:** upload is refused with 403 while the
-  report sits at `generated` (BR-12, §31.4) — audio addition is
-  not a post-generation path.
+  destination; filename = `{reportId}-{timestamp}` + sanitized
+  extension, no user input in names). The clip binds to the owning
+  report by **embedded subdoc push** — clips bind to the report,
+  never to a visit (§6.10 locked decision 5, §22).
+- **Frozen at generated:** upload is refused with 403 while the
+  report is generated (BR-12, §31.8); archived → 403.
+- **Readiness (R4 C1):** adding a clip on a transcription-bearing
+  not-yet-generated report sets `transcription.ready = false` until
+  re-transcribed (deferred pending-clip mechanics, R4/R7).
 - Response 201: AudioDto — `{ _id, report, mimeType,
-sizeBytes, durationSec, createdAt, updatedAt }` (all fields,
-  no `filePath`). First clip of the report triggers
-  `draft → audio_attached` (§31.4, §32 session).
+  sizeBytes, durationSec, createdAt, updatedAt }` (all fields,
+  no `filePath`); `updatedAt` aliases `createdAt` (clips are
+  immutable). **No status move** — there is no status machine (§17.6).
 - `video` clips rejected; silent `audio/webm` uploads accepted
   for storage (metadata-only) but the §33 pipeline never feeds
   webm — chunk MIME is §33's own rule (uploaded webm is
@@ -6884,29 +6882,26 @@ sizeBytes, durationSec, createdAt, updatedAt }` (all fields,
   recorded Blob directly). This amends `MuiAudioPlayer` (which the
   prior spec wired to a `/play` URL).
 
-### 32.4 Deletion & the rewind rule (R3-amended)
+### 32.4 Deletion & the rewind rule (R3-amended, reconciled R4)
 
 `DELETE /reports/:reportId/clips/:clipId` (access, direct delete with
-a confirm dialog on the UI): removes the Audio **document (DB)** and —
-when the report sits at `transcribed` — cascades the report's 1:1
-Transcription row (Option X: removes it; there is no report
-`transcription` ref to clear — the invariant is the unique index on
-`Transcription.report`, §23/R4)
-in the §27.7 session (§22/§23) and, after commit,
+a confirm dialog on the UI): removes the embedded **AudioClip subdoc**
+then, after commit,
 `fs.unlink`s the **physical file under `backend/uploads/audio/`** —
-both the DB row and the file are deleted (failure → orphan-sweep retry,
-§62). Status consequences per §31.4:
-- delete **one** clip while some remain — was `audio_attached` →
-  stays `audio_attached`; was `transcribed` → cascades the
-  transcription and lands `audio_attached`;
-- **delete the report's final clip (zero remain) → `draft`** (no
-  audio = `draft` presence, §17.6), always, regardless of prior
-  status.
-At `generated` deletion is **frozen** — 403 (BR-12, §31.4):
-the generated content is the deliverable and corrections are the
-editing path. Response 200 `{ data: null, message }` (message =
-§60 catalogue copy — "Clip deleted" with the rewind sentence in
-the confirm dialog).
+both the DB subdoc and the file are deleted (failure → orphan-sweep retry,
+§62). **There is no status machine** (consolidated, §17.6) — the R4
+readiness consequences apply instead:
+- delete **one** clip while some remain on a transcription-bearing
+  report → `transcription.ready = false` (the transcription stays, stale,
+  C2);
+- **delete the report's final clip (zero remain) → CLEAR the embedded
+  transcription** (`raw = latest = null`, `ready = false`, C3) — a
+  transcription exists only with ≥ 1 clip. The report row itself stays
+  (not-yet-generated, no clips).
+At `generated` deletion is **frozen** — 403 (BR-12, §31.8): the
+generated content is the deliverable and corrections are the editing
+path. Response 200 `{ data: null, message }` (message = §60 catalogue
+copy — "Clip deleted" with the rewind sentence in the confirm dialog).
 
 ### 32.5 Temp-cleanup & file lifecycle
 
