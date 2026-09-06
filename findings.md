@@ -967,6 +967,36 @@ toggle hidden, create icon-only).
 Gates: `vite build` 0 errors → `dist/` deleted; grep clean (no literals in the
 new component, all copy from constants). Next: Stage B2 ReportsFilterMenu.
 
+## Session 2026-09-01 — Phase 8 Stage B2: ReportsFilterMenu implemented
+
+Owner decisions (deep analysis): three divider/caption sections, each a
+**select-one RadioGroup** ("one at a time" — no checkbox conflicts), icons
+removed from **both** the branches and reports filter menus, captions added
+to constants.
+
+- **`components/reports/ReportsFilterMenu.jsx`** — Menu with 3 radio sections:
+  Archive (all|active|archived → `BRANCH_ISARCHIVED`), Generated
+  (all|true|false → `REPORT_GENERATED`), Branch (All + the user's branches
+  via `useGetBranchesQuery({ page:1, limit: BRANCH_FILTER_LIST_LIMIT,
+  isArchived: all })`, branch `_id` = Q1 single-select). Controlled
+  `RadioGroup value/onChange`; no icon props (default Radio only); captions
+  from `REPORTS_COPY.filter.sections`.
+- **`components/branches/BranchesFilterMenu.jsx`** — icons removed
+  (CheckCircleOutlined/Archive); docstring corrected.
+- **`pages/Reports.jsx`** — filter state `{archive,generated,branch}` (each
+  starts "all"), `filterAnchorEl`; real open/close handlers replace the
+  filter stub; `query` memo derives `isArchived`/`generated`/`branch`
+  (omit generated/branch when "all" — C21, matches backend; `result.docs`
+  still just held, rows come B4); `filterBadge = hasFilter ? totalDocs : 0`;
+  `ReportsFilterMenu` rendered.
+- **`utils/constants.js`** — `REPORTS_COPY.filter.sections`
+  (archive/generated/branch), `BRANCH_FILTER_LIST_LIMIT` = 100.
+
+Gates: `vite build` 0 errors → `dist/` deleted; grep clean (no icons in
+branches filter — only docstring mention; radios 3 groups; no icon props in
+reports menu). NO COMMIT (owner-directs rule). Next: Stage B3 header-actions
+real wiring + view toggle or B4 grid.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

@@ -166,8 +166,12 @@ toggle/filter+badge/create), stub `console.log` handlers + temporary
 `viewMode` state; `REPORTS_COPY.actions`; BranchesHeaderActions literals →
 `BRANCHES_COPY.actions`. **xs (A8) applied to the reports header** —
 `isXs`/`effectiveView`/`viewMode={isXs ? undefined : effectiveView}` (list
-forced, toggle hidden, create icon-only on xs), mirroring Branches. Next =
-Stage B2 ReportsFilterMenu, mirroring
+forced, toggle hidden, create icon-only on xs), mirroring Branches.
+**Stage B2 (ReportsFilterMenu) — DONE, uncommitted:** 3 radio sections
+(Archive/Generated/Branch Q1, one-at-a-time), divider captions, no icons;
+`BranchesFilterMenu` icons removed; `Reports.jsx` real open/close + derived
+query + badge. Next =
+Stage B3 (header-actions real wiring + view toggle), mirroring
 Branches Phase 5.
 
 **Mirrors:** findings/progress/task_plan + this AGENTS block are updated per

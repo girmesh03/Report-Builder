@@ -667,9 +667,10 @@ OUT of this campaign.
   — ✅ DONE (uncommitted). Header actions (view toggle/filter/create,
   console.log stubs + branches literal fix) — ✅ DONE (uncommitted).
   xs (A8): isXs/effectiveView + `viewMode={isXs ? undefined : effectiveView}`
-  applied. B2
-  ReportsFilterMenu (isArchived/generated/
-  branch-Q1 + badge) → B3 header actions (real wiring) + view toggle → B4 MuiDataGrid
+  applied. B2 ReportsFilterMenu (isArchived/generated/
+  branch-Q1 + badge) — ✅ DONE (uncommitted; radio sections one-at-a-time,
+  captions, no icons in branches+reports filter menus) → B3 header
+  actions (real wiring) + view toggle → B4 MuiDataGrid
   (columns/reports.jsx, flex C31, server pagination/sort) → B5 card/list +
   MuiPagination (C32/C33) → B6 create dialog (atomic multipart `createReport`
   + `createKey`; RHF date+visits via BranchVisitDialog; min-1-clip orb+drag-drop;

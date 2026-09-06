@@ -135,6 +135,10 @@ export const REPORT_GENERATED = Object.freeze({
   FALSE: "false",
 });
 
+/** Branch list limit for the reports filter menu's Branch radio section
+ *  (§50, §46.14) — mirrors the backend 1–100 clamp. */
+export const BRANCH_FILTER_LIST_LIMIT = Object.freeze(100);
+
 /**
  * Deterministic avatar palette (A41, 2026-08-31) — theme-compatible hex
  * colors (readable on both light and dark cards) that first-letter avatars
@@ -245,6 +249,11 @@ export const REPORTS_COPY = Object.freeze({
     notGeneratedLabel: "Not generated",
     allLabel: "All",
     branchLabel: "Branch",
+    sections: Object.freeze({
+      archive: "Archive",
+      generated: "Generated",
+      branch: "Branch",
+    }),
   }),
   actions: Object.freeze({
     viewModeAria: "View mode",

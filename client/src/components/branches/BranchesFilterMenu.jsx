@@ -3,7 +3,7 @@
  *
  * Branches filter as a Menu (replaces the provisional §56.4/OQ-017
  * dialog): a FormControl with two checkboxes — "Active" and
- * "Archived", each with a start icon. If neither box is checked the
+ * "Archived" (no icons, §46.14). If neither box is checked the
  * filter is `all` (no filter). Selection is applied live; the page
  * derives the `isArchived` query value and resets to page 1 (§46.7).
  */
@@ -13,8 +13,6 @@ import FormControl from "@mui/material/FormControl";
 import FormGroup from "@mui/material/FormGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
-import CheckCircleOutline from "@mui/icons-material/CheckCircleOutlined";
-import Archive from "@mui/icons-material/Archive";
 import { BRANCHES_COPY } from "../../utils/constants.js";
 
 /**
@@ -45,8 +43,6 @@ export const BranchesFilterMenu = ({
               onChange={(e) => onChange("active", e.target.checked)}
               size="small"
               color="primary"
-              icon={<CheckCircleOutline fontSize="small" />}
-              checkedIcon={<CheckCircleOutline fontSize="small" />}
             />
           }
         />
@@ -58,8 +54,6 @@ export const BranchesFilterMenu = ({
               onChange={(e) => onChange("archived", e.target.checked)}
               size="small"
               color="primary"
-              icon={<Archive fontSize="small" />}
-              checkedIcon={<Archive fontSize="small" />}
             />
           }
         />

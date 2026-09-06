@@ -299,6 +299,16 @@
 - **Gates:** `vite build` 0 errors → `dist/` deleted.
 - **No commit.** Next: Stage B2 ReportsFilterMenu.
 
+## Session 2026-09-01 — Phase 8 Stage B2: ReportsFilterMenu — DONE (uncommitted)
+- **Implemented:** `ReportsFilterMenu.jsx` (3 radio sections — Archive/
+  Generated/Branch Q1 — one-at-a-time, divider captions, no icons);
+  `BranchesFilterMenu` icons removed; `Reports.jsx` real open/close +
+  filter-derived query + badge; constants `filter.sections` +
+  `BRANCH_FILTER_LIST_LIMIT`.
+- **Gates:** `vite build` 0 errors → `dist/` deleted; grep clean.
+- **No commit** (owner-directs rule). Next: Stage B3 (header-actions real
+  wiring + view toggle) or B4 grid.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`
