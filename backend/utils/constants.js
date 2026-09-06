@@ -82,6 +82,30 @@ export const PAGINATION_MAX_LIMIT = deepFreeze(100);
 export const BRANCH_NAME_MAX_LENGTH = deepFreeze(100);
 export const BRANCH_LOCATION_MAX_LENGTH = deepFreeze(200);
 
+/** Report field limits & content caps (§11.4, §21.2). */
+export const CONTENT_MAX_SIZE_BYTES = deepFreeze(1048576);
+export const ARCHIVED_TTL_SECONDS = deepFreeze(2592000);
+
+/** Audio clip caps (§11.3, §32). */
+export const AUDIO_ALLOWED_MIME_TYPES = deepFreeze([
+  "audio/mpeg",
+  "audio/wav",
+  "audio/mp4",
+  "audio/webm",
+]);
+export const AUDIO_MAX_SIZE_BYTES = deepFreeze(52428800);
+export const AUDIO_MAX_DURATION_SEC = deepFreeze(900);
+export const AUDIO_MAX_TOTAL_DURATION_SEC = deepFreeze(3600);
+
+/** Item vocabulary ((§11.4, §24A). */
+export const ITEM_TYPES = deepFreeze(["activity", "issue", "comment"]);
+export const ITEM_STATUSES = deepFreeze(["reported", "in_progress", "completed"]);
+export const ITEM_STATUSES_BY_TYPE = deepFreeze({
+  activity: ["completed", "in_progress"],
+  issue: ["reported", "in_progress", "completed"],
+  comment: [],
+});
+
 /** Pagination row-per-page options for MuiDataGrid and MuiPagination (§11.3, §46.7). */
 export const ROWS_PER_PAGE_OPTIONS = deepFreeze([10, 25, 50, 100]);
 
