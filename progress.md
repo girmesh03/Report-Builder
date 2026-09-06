@@ -275,6 +275,30 @@
 - **Gates:** `vite build` 0 errors → `dist/` deleted; grep clean.
 - **No commit** (owner-directs rule). Next: Stage B-B1 `/reports` fetch skeleton.
 
+## Session 2026-09-01 — Phase 8 Stage B-B1: `/reports` fetch skeleton — DONE (uncommitted)
+- **Implemented:** `Reports.jsx` stub → page shell (MuiPageHeader title/subtitle,
+  no actions) + loading/error/empty primaries (`!data && !error` gate,
+  one-time error toast, handleRetry). Data held not rendered (rows in B4/B5).
+  Header folded into B1 (F1); empty is title-only (create action in B6).
+- **Gates:** `vite build` 0 errors → `dist/` deleted; grep clean.
+- **No commit** (owner-directs rule). Next: Stage B2 ReportsFilterMenu.
+
+## Session 2026-09-01 — Header-actions stubs (before B2) — DONE (uncommitted)
+- **Implemented:** `ReportsHeaderActions.jsx` (view toggle, filter+badge,
+  create; clone of Branches) wired into `Reports.jsx` header `actions` with
+  `console.log` stub handlers (view/filter/create) + temporary `viewMode`
+  state; `REPORTS_COPY.actions` added; `BranchesHeaderActions` literals fixed
+  to `BRANCHES_COPY.actions` (owner).
+- **Gates:** `vite build` 0 errors → `dist/` deleted; grep clean.
+- **No commit.** Next: Stage B2 ReportsFilterMenu.
+
+## Session 2026-09-01 — xs UI correction (A8) — DONE (uncommitted)
+- `Reports.jsx`: isXs + effectiveView (xs forces list) + `viewMode={isXs ?
+  undefined : effectiveView}` to header actions (toggle hidden, create
+  icon-only on xs) — mirror of Branches.
+- **Gates:** `vite build` 0 errors → `dist/` deleted.
+- **No commit.** Next: Stage B2 ReportsFilterMenu.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

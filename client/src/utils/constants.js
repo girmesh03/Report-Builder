@@ -193,6 +193,16 @@ export const BRANCHES_COPY = Object.freeze({
     activeLabel: "Active",
     archivedLabel: "Archived",
   }),
+  actions: Object.freeze({
+    viewModeAria: "View mode",
+    listViewAria: "List view",
+    gridViewAria: "Grid view",
+    filterTooltip: "Filter",
+    filterAria: "Filter branches",
+    newBranchTooltip: "New branch",
+    newBranchAria: "New branch",
+    newBranchLabel: "New branch",
+  }),
   confirm: Object.freeze({
     archiveTitle: "Archive branch",
     archiveMessage: (name) => `Are you sure you want to archive “${name}”? You can restore it later.`,
@@ -235,6 +245,15 @@ export const REPORTS_COPY = Object.freeze({
     notGeneratedLabel: "Not generated",
     allLabel: "All",
     branchLabel: "Branch",
+  }),
+  actions: Object.freeze({
+    viewModeAria: "View mode",
+    listViewAria: "List view",
+    gridViewAria: "Grid view",
+    filterTooltip: "Filter",
+    filterAria: "Filter reports",
+    newReportTooltip: "New report",
+    newReportAria: "New report",
   }),
   confirm: Object.freeze({
     archiveTitle: "Archive report",

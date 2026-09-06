@@ -904,6 +904,69 @@ Notes:
 - Next: Stage B-B1 `/reports` fetch skeleton (loading/error/empty primaries).
 - NO COMMIT (owner-directs rule).
 
+## Session 2026-09-01 — Phase 8 Stage B-B1: `/reports` fetch skeleton — done (uncommitted)
+
+Owner-approved after deep analysis. Reconciliations applied:
+- **F1:** the header is folded INTO B1 (MuiPageHeader always renders above the
+  fetch primaries, exactly like Branches' first page increment); header
+  *actions* + view toggle stay B3.
+- **F3:** MuiEmptyState is title-only (no create action — the dialog lands in
+  Stage B6; a handler that opens nothing was avoided).
+- **F4:** data-held-not-rendered — `data.docs` held, rows render in B4/B5
+  (the exact Branches first-increment contract).
+- **F5:** `isFetching` omitted (unused → gate violation; grid-refetch comes B4).
+
+Changed `client/src/pages/Reports.jsx` (stub → header + fetch surfaces):
+- `useMemo` stable query `{ page:1, limit:10, sort:"-date", isArchived:"all" }`
+  (aligns with backend defaults/validator).
+- `const loading = !data && !error` (C21); one-time error toast via
+  `prevErrorRef` (C27); `handleRetry = useCallback(() => refetch(), [])`.
+- Renders MuiPageHeader (title/subtitle, no actions) then loading
+  (LoadingSpinner) / error (MuiErrorState) / empty (MuiEmptyState title-only) /
+  `null` for data-present. Copy from REPORTS_COPY only.
+
+Gates: `vite build` 0 errors → `dist/` deleted; grep clean (no `result.data.*`,
+no `isFetching`, no direct `alignItems`, no literals). Only `Reports.jsx` changed.
+Next: Stage B2 ReportsFilterMenu. NO COMMIT (owner-directs rule).
+
+## Session 2026-09-01 — Phase 8 header-actions stubs: `/reports` header + branches literal fix
+
+Owner reordered: header actions BEFORE the filter menu (F1 in B1 said header
+folded into the fetch skeleton; its *actions* now land as their own increment
+ahead of B2). All clicks are `console.log` stubs to be integrated later.
+
+- **New `components/reports/ReportsHeaderActions.jsx`** — structural clone of
+  `BranchesHeaderActions` (view toggle list/grid sm+; filter IconButton +
+  matched badge; create MuiButton labeled / IconButton+Add on xs); same prop
+  signature `{ viewMode, onViewModeChange, filterBadge, onFilterMenuOpen,
+  onCreateDialogOpen }`; copy from `REPORTS_COPY.actions` (no literals).
+- **`pages/Reports.jsx`** — renders the header `actions` slot with
+  stub `useCallback` handlers (`console.log` view/filter-anchor/create), a
+  temporary `viewMode` state (drives the toggle; becomes the real
+  effective-view state in B4), `filterBadge = 0` (badge hidden, no filter yet).
+  Client `console.log` is acceptable (backend ban is Winston-scoped; owner
+  requested stubs, replaced on integration).
+- **`utils/constants.js`** — added `REPORTS_COPY.actions` (view/filter/new-
+  report strings; the create label reuses `empty.createLabel`).
+- **`components/branches/BranchesHeaderActions.jsx`** — fixed its hardcoded
+  literals to `BRANCHES_COPY.actions` (owner request; adds the same.actions
+  block to BRANCHES_COPY).
+
+## Session 2026-09-01 — xs UI correction on `/reports` header (A8)
+Owner flagged missing xs behavior; mirrors Branches (A8 = xs forced-list,
+toggle hidden, create icon-only).
+- `pages/Reports.jsx`: added `useTheme`+`useMediaQuery` imports, `isXs`,
+  `effectiveView = isXs ? "list" : viewMode`, and pass
+  `viewMode={isXs ? undefined : effectiveView}` to ReportsHeaderActions
+  (undefined on xs hides the toggle + collapses create, mirrors Branches:291).
+  Docstring updated. `effectiveView` now drives the toggle display; the render
+  side (grid/list) lands in B4/B5.
+- Gates: `vite build` 0 errors → `dist/` deleted; grep shows all five xs
+  wiring points.
+
+Gates: `vite build` 0 errors → `dist/` deleted; grep clean (no literals in the
+new component, all copy from constants). Next: Stage B2 ReportsFilterMenu.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

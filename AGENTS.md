@@ -156,8 +156,19 @@ already); 401 = global auth gate only (never a per-page error).
 
 **Progress:** Stage A (domain plumbing: reportsSlice + tagTypes
 `["User","Branch","Report"]` debt fix + store import + constants) — DONE,
-uncommitted (owner-directs rule). Next = Stage B-B1 `/reports` fetch skeleton
-(`!data && !error`, loading/error/empty primaries), mirroring Branches Phase 5.
+committed 945085d. **Stage B-B1 (`/reports` page shell + fetch skeleton) —
+DONE, uncommitted** (owner-directs rule): Reports.jsx stub → MuiPageHeader
+(title/subtitle, no actions) + loading/error/empty primaries
+(`!data && !error`, one-time error toast, handleRetry; data held not
+rendered; empty title-only — create action in B6). **Header-actions stubs —
+DONE, uncommitted** (before B2, per owner): ReportsHeaderActions (view
+toggle/filter+badge/create), stub `console.log` handlers + temporary
+`viewMode` state; `REPORTS_COPY.actions`; BranchesHeaderActions literals →
+`BRANCHES_COPY.actions`. **xs (A8) applied to the reports header** —
+`isXs`/`effectiveView`/`viewMode={isXs ? undefined : effectiveView}` (list
+forced, toggle hidden, create icon-only on xs), mirroring Branches. Next =
+Stage B2 ReportsFilterMenu, mirroring
+Branches Phase 5.
 
 **Mirrors:** findings/progress/task_plan + this AGENTS block are updated per
 increment (same discipline as Phase 5), committed only on owner request.
