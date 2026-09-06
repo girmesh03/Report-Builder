@@ -176,6 +176,19 @@
 - Files: findings/progress/task_plan/AGENTS + spec §23/§31.2/§33/§34/§36/
   §31.9. Gates: verified; no merge. Next: R5 Generation+Presets.
 
+## Session 2026-09-01 — Phase 7 plan-of-record: backend implementation (R5 OPEN)
+- **R5 suspended/OPEN** (stops here; restarts after the app works end-to-end).
+- Next = **backend implementation** of everything amended so far on
+  **`phase-7-reports-backend`** (main-based, after ff-merging this branch).
+- Backend increments B1–B6 (schema foundation; create pipeline; clips;
+  transcription post-create; report read/edit/lifecycle; items). Each is
+  Step-1.1 identified + gated + mirrored (increment protocol binding).
+- **OUT:** R5 generation+presets+digest; conversation surface entirely;
+  accept-gate enforcement; R6–R10; frontend (→ `phase-8-reports-frontend`).
+- Files: findings/progress/task_plan/AGENTS + spec §66/§69. Gates honored.
+- Sequence: commit this record → ff-merge phase-6→main → delete branch →
+  phase-7-reports-backend (B1 first).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

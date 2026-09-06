@@ -618,11 +618,30 @@ Activities&Issues page / Dashboard band / Branch Details / exports-only); chat s
   all-or-nothing; wholesale; latest=raw on clip-change); GET 200
   `{raw,latest,readiness}`; accept gate 409 (not-ready/empty latest, SC-8);
   pre-create A1–A15 retention/skip; C1–C6 readiness; F1–F4 editor.
-  **Next: R5 Generation+Presets** (accept→generated+items; digest+exemplars+
-  correction-habits; preset CRUD, per-message adjustable).
-- R5 Generation+Presets (digest+exemplars+correction-habits); R6 Correction;
-  R7 Chat (streaming + MUI + card protocol); R8 Export.
-- GET /items consumer page decided later.
+
+### Phase 7 — Backend implementation (R5 LEFT OPEN, 2026-09-01)
+
+**Owner:** R5 (Generation+Presets+digest) is **suspended/OPEN** — restarts
+after the app works end-to-end. Next = **backend implementation** of everything
+amended so far. Increment protocol binding. See findings.md "Phase 7
+plan-of-record".
+
+**Git sequence:** this record committed → ff-merge `phase-6-trust-overlay-
+amendments` → main → delete branch → create `phase-7-reports-backend` → B1…B6 →
+`phase-8-reports-frontend` (separate) → R5 restart.
+
+**Increments (each Step-1.1 + gated + mirrored):**
+- B1 schema foundation (report + item models, constants)
+- B2 create pipeline (STT service, atomic multipart POST, attempt-session)
+- B3 clips (nested; direct-delete)
+- B4 transcription post-create (GET/PUT re-transcribe/PATCH/revert; ready flag)
+- B5 report read/edit/lifecycle
+- B6 items (report-scoped + cross-report + status PATCH)
+
+**OUT:** R5 generation/presets/digest (+ DIGEST_MAX_TOKENS etc.);
+conversation surface ENTIRELY (ChatConversation stays design-only); accept-gate
+enforcement; R6 Correction; R7 Chat; R8–R10; /details; GET /items consumer page;
+frontend work.
 
 ### Spec reconciliation sweep (2026-09-01) — COMPLETE
 

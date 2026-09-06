@@ -81,11 +81,17 @@ sets — see `task_plan.md` Phase 6 section.
   §34/§36.
 
 **Status:** consolidated re-amendment complete (supersedes R1/R3). R1/R3/R2/R4
-amended; open items closed (2026-09-01); GET /items contract confirmed.
-**Next = R5 Generation+Presets** (accept→generated+items; digest+exemplars+
-correction-habits; preset CRUD per-message adjustable), then R6 Correction,
-R7 Chat (streaming + MUI), R8 Export, R9/R10. Remaining open only: GET /items
-consumer page (later), chat streaming (R7).
+amended; open items closed (2026-09-01); full spec reconciliation sweep done.
+**R5 (Generation+Presets+digest) LEFT OPEN** — restarts after the app works
+end-to-end. **Next = Phase 7 backend implementation** on
+`phase-7-reports-backend` (after ff-merging this branch → main): increments
+B1 schema foundation, B2 create pipeline, B3 clips, B4 transcription
+post-create, B5 report read/edit/lifecycle, B6 items — each Step-1.1+gated+
+mirrored (increment protocol binding). Out of scope for phase 7: generation/
+presets/digest, the conversation surface entirely (ChatConversation stays
+design-only), accept-gate enforcement, R6–R10, frontend
+(→ `phase-8-reports-frontend` later). Remaining supersede of this phase's close:
+merge + branch delete after owner approval.
 
 ## What this repo is
 

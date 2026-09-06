@@ -612,6 +612,56 @@ outside-click won't close; form + audio preserved. Duplicate-day allowed.
 16 MB guardrail (binaries on disk; content caps). createKey = idempotency
 end-to-end.
 
+## Session 2026-09-01 — Phase 7 plan-of-record: backend implementation (R5 LEFT OPEN)
+
+Owner directive: stop R5 here; R5 stays **OPEN** and will be **restarted after
+the app works end-to-end**. Next campaign = **backend implementation** of
+everything amended so far. Increment protocol is non-negotiable even in
+implementation. Mirrors: progress.md, task_plan.md, AGENTS.md, spec §66/§69
+(one commit, §66.6).
+
+### Commit direction (resolved)
+1. Record this plan (this commit). 2. ff-merge `phase-6-trust-overlay-amendments`
+→ main. 3. Create **`phase-7-reports-backend`** from main. 4. Implement B1→B6
+incrementally (each Step-1.1 identified, gated, mirrored). 5. On completion →
+**`phase-8-reports-frontend`** (separate branch). 6. R5 restarts.
+
+### Scope — IN (amendment-grounded, this phase)
+- B1 schema foundation: report.model.js (visits[] + isMain, embedded
+  audios[]/transcription{raw,latest,ready}, generated, archive, indexes);
+  item.model.js (per-type status, no rating, comment nullable/no-status,
+  one-comment partial unique); constants the backend reads (ITEM_TYPES,
+  ITEM_STATUSES, ITEM_STATUSES_BY_TYPE, CONTENT_MAX_SIZE_BYTES,
+  AUDIO_MAX_TOTAL_DURATION_SEC).
+- B2 create pipeline: stt.service.js (Addis-only Path A, ffmpeg mono-16k PCM,
+  wavSplitter 60s silence chunks, per-clip all-or-nothing, 402≠429); atomic
+  multipart POST /reports; transient attempt-session (Mongo/TTL/
+  committedReportId replay/staging sweep); incremental skip; merged-empty reject.
+- B3 clips: nested upload/list/single/direct-delete+unlink under
+  /reports/:reportId/clips.
+- B4 transcription post-create: GET 200 {raw,latest,readiness}; PUT re-transcribe
+  only (wholesale, ready→no-op, all-or-nothing); PATCH {latest}; PUT …/revert;
+  transcription.ready on clip add/remove.
+- B5 report read/edit/lifecycle: list/meta reads; PATCH meta (frozen while
+  generated); archive/restore/delete (+ child cascade).
+- B6 items: report-scoped GET; cross-report GET /items; PATCH …/items/:itemId
+  {status} (same-status→200, 403 archived, not generated-gated).
+
+### Scope — OUT (deferred, recorded)
+- **R5 OPEN:** generation engine, GenerationPreset model/routes, digest+
+  exemplars, their $11 constants (DIGEST_MAX_TOKENS etc.) — deferred wholesale.
+- **Conversation surface ENTIRELY** deferred (no conversation.model.js, no
+  thread/card endpoints in this phase; ChatConversation stays design-only).
+- **Accept-gate** concept recorded but enforcement deferred.
+- R6 Correction, R7 Chat, R8–R10, /details, GET /items consumer page, frontend
+  work — future / not in this branch.
+
+### Gates
+node --check every file; backend grep battery (no console.log, no numeric
+statuses, no rating/stt/legacy status, no literals); validate() invoked;
+express-async-handler; secrets only in backend/.env; increment protocol
+respected at every step.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

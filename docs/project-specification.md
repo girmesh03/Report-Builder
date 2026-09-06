@@ -13130,6 +13130,20 @@ and deployment (§65); delivery follows in Part F (§66–§69).
 
 ## 66. Implementation Phases
 
+> **Phase 7 — backend implementation (owner 2026-09-01).** R5 (generation +
+> presets + digest/exemplars) is **suspended/OPEN** and restarts after the app
+> works end-to-end. Next is the **backend implementation** of everything
+> amended so far, on branch `phase-7-reports-backend` (after ff-merging
+> `phase-6-trust-overlay-amendments` → main): increments B1 schema foundation,
+> B2 create pipeline, B3 clips, B4 transcription post-create, B5 report
+> read/edit/lifecycle, B6 items — each Step-1.1 identified + gated + mirrored
+> (the increment protocol is non-negotiable even in implementation). **OUT of
+> phase 7:** generation/presets/digest (+ their §11 constants), the conversation
+> surface entirely (ChatConversation stays design-only), accept-gate
+> enforcement, the correction/chat/export/analytics/search increments, and
+> frontend work (which lands on `phase-8-reports-frontend` separately). See
+> `findings.md` "Phase 7 plan-of-record"; `task_plan.md` "Phase 7".
+
 > **CONSOLIDATED AMENDMENT (2026-09-01).** Phase planning follows the
 > consolidated model: no wizard phase; the report domain is the atomic
 > create → `/edit` → `/chat` flow (§31/§34/§36). The increment table
@@ -13748,6 +13762,13 @@ once and cites it uniformly.
 > **STILL OPEN (decided later):** `GET /items` consumer page; chat
 > streaming (fake-stream vs real SSE, R7); `GET /reports/:reportId/details`
 > (separate brainstorm). See `task_plan.md` "Open items".
+
+> **PHASE 7 (2026-09-01).** R5 (generation + presets + digest) registered as
+> **OPEN/suspended** — restarts after the app works end-to-end. The conversation
+> surface (ChatConversation + card endpoints) is **deferred entirely** to a
+> later increment (design-only now). Phase 7 = backend implementation (B1–B6,
+> `phase-7-reports-backend`); accept-gate enforcement deferred. See
+> `task_plan.md` "Phase 7".
 
 ### 69.1 Purpose, scope & mechanics
 
