@@ -15,6 +15,7 @@ import {
   MULTIPART_CREATEKEY_FIELD,
   MULTIPART_METADATA_FIELD,
   MULTIPART_CLIPINDEXES_FIELD,
+  CONTENT_MAX_SIZE_BYTES,
 } from "../utils/constants.js";
 
 /** The §6.5 `HH:mm` regex. */
@@ -91,8 +92,18 @@ export const clipIdParamChain = [
   param("clipId").isMongoId().withMessage("Invalid clip ID"),
 ];
 
+/** PATCH transcription: `latest` — string, empty allowed (F1), capped. */
+export const latestBodyChain = [
+  body("latest")
+    .isString()
+    .withMessage("Latest must be a string")
+    .isLength({ max: CONTENT_MAX_SIZE_BYTES })
+    .withMessage("Latest is too long"),
+];
+
 export default {
   createReportChain,
   reportIdParamChain,
   clipIdParamChain,
+  latestBodyChain,
 };

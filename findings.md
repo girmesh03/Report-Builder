@@ -767,6 +767,48 @@ node --check (clipUpload, validator, controller, routes); grep battery
 clean (no console.log, no status vocabulary beyond attempt marks, no
 `/audios/`, no stream); live-DB smoke passed; no residue. Next: B4.
 
+## Session 2026-09-01 — Phase 7 B4: transcription post-create implemented
+
+The post-create transcription surface (§33.6–§33.8, §31.9). Mirrors:
+progress.md, task_plan.md, AGENTS.md, this file (one §66.6 commit).
+
+### Implemented
+- `GET /reports/:reportId/transcription` — **200 always**
+  `{ raw, latest, readiness }` (null content when cleared); readiness =
+  `transcription.ready`; read allowed on archived/generated.
+- `PUT /reports/:reportId/transcription` — **re-transcribe only**
+  (creation is the B2 pipeline): 403 archived/generated; **no clips →
+  422**; **ready → 200 no-op** (D3); else **wholesale** re-hear of every
+  active clip (createdAt asc) → merged `raw`, `latest = raw`
+  (D8), `ready: true`; **all-or-nothing (D4)** — any provider failure
+  writes nothing → **502 generic** ("Transcription failed — please
+  retry"); empty merge → 422 (SC-8).
+- `PATCH /reports/:reportId/transcription` `{ latest }` — write the
+  story; empty allowed (F1); `raw` untouched (BR-11); 200 `{latest}`;
+  no 403 (content path stays open post-generation, §31.9).
+- `PUT /reports/:reportId/transcription/revert` — single undo
+  `latest ← raw` (BR-11); 200 `{latest}`.
+- Validator: `latestBodyChain` (string, empty OK, ≤ `CONTENT_MAX_SIZE_BYTES`);
+  routes mounted (GET/PUT/PATCH + revert), 401 global gate + 404
+  report-not-found-for-user preserved.
+
+### Live-Mongo smoke — PASSED (full lifecycle)
+create(ready:true) → add clip (ready:false) → reTranscribe wholesale
+(raw+latest rebuilt, latest==raw, ready:true) → PATCH latest ("reviewed
+story", raw unchanged) → revert (latest==raw) → delete last clip (C3 clear:
+audios 0, transcription {null,null,false}) → cleaned.
+
+### Notes
+- `corrections/transcripts` (Mode-3 ephemeral STT) is §35/R6 — **excluded
+  from B4** per Phase-7 OUT.
+- 502 on wholesale failure is generic by logic (D4 all-or-nothing; §33.8's
+  `{failed:[...]}` partial body is a spec nicety — client retries whole).
+
+### Gates
+node --check (validator, controller, routes); grep battery clean (no
+console.log, no status vocab, no stream); live-DB smoke passed; no
+residue. Next: B5 read/edit/lifecycle.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:

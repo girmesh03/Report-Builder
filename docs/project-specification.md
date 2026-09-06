@@ -7162,6 +7162,13 @@ returned as `{ raw, latest, readiness }` — **no** `_id`/`user`/
 ```
 ### 33.9 Verification usage
 
+- **B4 implementer note (2026-09-01):** the four post-create surfaces
+  (GET / PUT re-transcribe / PATCH latest / PUT revert) are implemented in
+  `report.controller.js`; wholesale failure returns a generic 502
+  (all-or-nothing, D4 — nothing written; the §33.8 `{failed:[...]}` shape
+  is a documentation nicety the client retries whole). Creation remains
+  the B2 pipeline; Mode-3 `corrections/transcripts` is §35/R6 (deferred).
+
 - Grep gates: Addis only in STT (no Gemini/NVIDIA client in
   `stt.service.js`); chunk length constant, never literal; no
   streaming markers (`res.` streams absent); `raw` written once

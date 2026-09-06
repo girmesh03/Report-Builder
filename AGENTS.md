@@ -95,8 +95,13 @@ system of record stays at five entities (§17.2). **B3 clips implemented
 `/reports/:reportId/clips` — audio tier, 403 archived/generated,
 embedded subdoc push/removal, `transcription.ready` C1/C2, clear-on-last
 C3, `fs.unlink` after commit; §32 reconciled (language field dropped,
-no status moves); live-DB smoke passed. Next: B4 transcription post-create,
-B5 read/edit/lifecycle, B6 items — each Step-1.1+
+no status moves); live-DB smoke passed. **B4 transcription post-create
+implemented (pending commit):** `GET` 200 `{raw,latest,readiness}` (nulls
+when cleared); `PUT` re-transcribe-only (wholesale, ready→200 no-op,
+all-or-nothing → generic 502, latest=raw on clip-change); `PATCH {latest}`
+(empty OK, raw untouched); `PUT …/revert` (latest←raw); routes mounted;
+live-DB smoke passed. Next: B5 read/edit/lifecycle,
+B6 items — each Step-1.1+
 gated+mirrored. Out of scope for phase 7: generation/presets/digest, the
 conversation surface entirely (ChatConversation stays design-only),
 accept-gate enforcement, R6–R10, frontend

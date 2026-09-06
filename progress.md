@@ -224,6 +224,17 @@
   routes; mirrors in spec §32 + working files. Gates: node --check +
   grep clean + smoke passed. Next: B4 transcription post-create.
 
+## Session 2026-09-01 — Phase 7 B4: transcription post-create — IMPLEMENTED (pending commit)
+- **Implemented:** `GET` 200 `{raw,latest,readiness}` (nulls when cleared);
+  `PUT` re-transcribe-only (wholesale; no clips→422; ready→200 no-op;
+  all-or-nothing → generic 502; latest=raw on clip-change); `PATCH {latest}`
+  (empty OK, raw untouched); `PUT …/revert` (latest←raw). Validator
+  latestBodyChain; routes mounted.
+- **Live-Mongo smoke PASSED** (full lifecycle create→add→reTranscribe→
+  PATCH→revert→last-delete C3); cleaned up.
+- Gates: node --check + grep clean + smoke passed. Next: B5
+  read/edit/lifecycle (list/meta reads, PATCH meta, archive/restore/delete).
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

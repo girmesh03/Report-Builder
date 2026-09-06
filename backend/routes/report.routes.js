@@ -71,4 +71,37 @@ router.delete(
   reportController.deleteClip,
 );
 
+/** GET /reports/:reportId/transcription — always 200 {raw, latest, readiness}. */
+router.get(
+  "/:reportId/transcription",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.getTranscription,
+);
+
+/** PUT /reports/:reportId/transcription — re-transcribe only (wholesale). */
+router.put(
+  "/:reportId/transcription",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.reTranscribe,
+);
+
+/** PATCH /reports/:reportId/transcription — write `latest`. */
+router.patch(
+  "/:reportId/transcription",
+  reportValidator.reportIdParamChain,
+  reportValidator.latestBodyChain,
+  validate(),
+  reportController.patchTranscription,
+);
+
+/** PUT /reports/:reportId/transcription/revert — single undo latest←raw. */
+router.put(
+  "/:reportId/transcription/revert",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.revertTranscription,
+);
+
 export default router;

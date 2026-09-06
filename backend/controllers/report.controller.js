@@ -429,4 +429,171 @@ export const deleteClip = asyncHandler(async (req, res) => {
   }
 });
 
-export default { createReport, addClip, listClips, getClip, deleteClip };
+/**
+ * Serializes the embedded transcription to its wire shape.
+ * @param {Object|null} transcription - The report's transcription.
+ * @returns {{raw: string|null, latest: string|null, readiness: boolean}}
+ *   `raw`/`latest` null when cleared; readiness = the `ready` flag.
+ */
+const toTranscriptionDto = (transcription) => ({
+  raw: transcription?.raw ?? null,
+  latest: transcription?.latest ?? null,
+  readiness: transcription?.ready ?? false,
+});
+
+/**
+ * GET /reports/:reportId/transcription — always 200 (nulls when cleared).
+ * @type {import("express").RequestHandler}
+ */
+export const getTranscription = asyncHandler(async (req, res) => {
+  const report = await findOwnedReport(req);
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Transcription",
+    data: toTranscriptionDto(report.transcription),
+  });
+});
+
+/**
+ * PUT /reports/:reportId/transcription — re-transcribe only (wholesale).
+ * @type {import("express").RequestHandler}
+ */
+export const reTranscribe = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    assertWritable(report);
+
+    if (!report.audios || report.audios.length === 0) {
+      throw new CustomError("UNPROCESSABLE_ENTITY", "A clip is required first");
+    }
+
+    // D3 — ready already: 200 no-op (creation guarantees ready:true).
+    if (report.transcription?.ready) {
+      await session.commitTransaction();
+      res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: "Transcription",
+        data: toTranscriptionDto(report.transcription),
+      });
+      return;
+    }
+
+    // Wholesale re-hear of every active clip, in order.
+    const clips = [...report.audios].sort(
+      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+    );
+    try {
+      const texts = [];
+      for (const clip of clips) {
+        texts.push(await transcribeClip(clip.filePath));
+      }
+      const merged = texts.join(" ");
+      if (merged.trim() === "") {
+        throw new CustomError(
+          "UNPROCESSABLE_ENTITY",
+          "The recording came out silent — please re-record",
+        );
+      }
+      report.transcription = { raw: merged, latest: merged, ready: true };
+    } catch (error) {
+      // All-or-nothing (D4): a provider/STT failure writes nothing.
+      throw new CustomError(
+        "BAD_GATEWAY",
+        "Transcription failed — please retry",
+      );
+    }
+
+    await report.save({ session });
+    await session.commitTransaction();
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Transcription",
+      data: toTranscriptionDto(report.transcription),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * PATCH /reports/:reportId/transcription — write `latest` (review edit /
+ * correction result). `raw` never changes (BR-11); empty allowed (F1).
+ * @type {import("express").RequestHandler}
+ */
+export const patchTranscription = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+  const { latest } = req.validated.body;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    report.transcription.latest = latest;
+    await report.save({ session });
+    await session.commitTransaction();
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Transcription updated",
+      data: { latest },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * PUT /reports/:reportId/transcription/revert — single undo: latest←raw.
+ * @type {import("express").RequestHandler}
+ */
+export const revertTranscription = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    report.transcription.latest = report.transcription.raw;
+    await report.save({ session });
+    await session.commitTransaction();
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Transcription reverted",
+      data: { latest: report.transcription.latest },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+export default { createReport, addClip, listClips, getClip, deleteClip, getTranscription, reTranscribe, patchTranscription, revertTranscription };
