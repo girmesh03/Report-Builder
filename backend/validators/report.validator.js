@@ -10,7 +10,7 @@
  * in the controller (§31.2) — 422 there, not here.
  */
 
-import { body, param } from "express-validator";
+import { body, param, query } from "express-validator";
 import {
   MULTIPART_CREATEKEY_FIELD,
   MULTIPART_METADATA_FIELD,
@@ -20,6 +20,36 @@ import {
 
 /** The §6.5 `HH:mm` regex. */
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * The locked visits invariant contract (§31.2/§31.5): non-empty, exactly
+ * one `isMain` when > 1, per-visit `HH:mm` with `in < out`, chronological.
+ * @param {Array<Object>|undefined} visits - The visits array to check.
+ * @returns {boolean} True when valid; throws otherwise.
+ */
+const validateVisits = (visits) => {
+  if (!Array.isArray(visits) || visits.length < 1) {
+    throw new Error("At least one visit is required");
+  }
+  if (visits.length > 1) {
+    const mains = visits.filter((v) => v?.isMain === true).length;
+    if (mains !== 1) {
+      throw new Error("Exactly one visit must be the main branch");
+    }
+  }
+  visits.forEach((visit, i) => {
+    if (!HHMM.test(visit?.clockIn) || !HHMM.test(visit?.clockOut)) {
+      throw new Error(`visits[${i}] clocks must be HH:mm`);
+    }
+    if (visit.clockIn >= visit.clockOut) {
+      throw new Error(`visits[${i}] clockIn must be before clockOut`);
+    }
+    if (i > 0 && visits[i - 1].clockIn > visit.clockIn) {
+      throw new Error("visits must be in chronological order");
+    }
+  });
+  return true;
+};
 
 /** createKey — the atomic create's idempotency/resume key. */
 const createKeyChain = [
@@ -37,26 +67,10 @@ const metadataChain = [
     .withMessage("Metadata must be a JSON string")
     .customSanitizer((value) => JSON.parse(value))
     .custom((meta) => {
-      if (!Array.isArray(meta?.visits) || meta.visits.length < 1) {
+      if (!Array.isArray(meta?.visits)) {
         throw new Error("At least one visit is required");
       }
-      if (meta.visits.length > 1) {
-        const mains = meta.visits.filter((v) => v?.isMain === true).length;
-        if (mains !== 1) {
-          throw new Error("Exactly one visit must be the main branch");
-        }
-      }
-      meta.visits.forEach((visit, i) => {
-        if (!HHMM.test(visit?.clockIn) || !HHMM.test(visit?.clockOut)) {
-          throw new Error(`visits[${i}] clocks must be HH:mm`);
-        }
-        if (visit.clockIn >= visit.clockOut) {
-          throw new Error(`visits[${i}] clockIn must be before clockOut`);
-        }
-        if (i > 0 && meta.visits[i - 1].clockIn > visit.clockIn) {
-          throw new Error("visits must be in chronological order");
-        }
-      });
+      validateVisits(meta.visits);
       return true;
     }),
 ];
@@ -101,9 +115,55 @@ export const latestBodyChain = [
     .withMessage("Latest is too long"),
 ];
 
+/** GET /reports — list pagination + filters (§31.3). */
+export const listReportsChain = [
+  query("page")
+    .optional()
+    .isInt({ min: 1 })
+    .toInt()
+    .withMessage("Page must be a positive integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .toInt()
+    .withMessage("Limit must be between 1 and 100"),
+  query("sort")
+    .optional()
+    .isIn(["date", "-date"])
+    .withMessage("Invalid sort value"),
+  query("isArchived")
+    .optional()
+    .isIn(["active", "archived", "all"])
+    .withMessage("Invalid archive filter value"),
+  query("branch").optional().isMongoId().withMessage("Invalid branch filter"),
+  query("generated")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("Invalid generated filter"),
+];
+
+/** PATCH meta: `{ date?, visits[] }` whole block (§31.5). */
+export const patchMetaChain = [
+  body("date").optional().isISO8601().withMessage("Date must be a valid date"),
+  body("visits")
+    .optional()
+    .custom((visits) => {
+      validateVisits(visits);
+      return true;
+    }),
+  body().custom((_, { req }) => {
+    if (req.body.date === undefined && req.body.visits === undefined) {
+      throw new Error("At least one of date or visits is required");
+    }
+    return true;
+  }),
+];
+
 export default {
   createReportChain,
   reportIdParamChain,
   clipIdParamChain,
   latestBodyChain,
+  listReportsChain,
+  patchMetaChain,
 };

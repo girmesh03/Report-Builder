@@ -235,6 +235,23 @@
 - Gates: node --check + grep clean + smoke passed. Next: B5
   read/edit/lifecycle (list/meta reads, PATCH meta, archive/restore/delete).
 
+## Session 2026-09-01 — Phase 7 B5: report read/edit/lifecycle — IMPLEMENTED (pending commit)
+- **Implemented:** `GET /reports` (paginated, filters isArchived/branch
+  Q1/generated/sort, light DTO strips transcription+filePath, populated
+  user+visits.branch); `GET /reports/:reportId` (meta read, light); `PATCH`
+  meta (whole-block, active-branch 422, **403 generated AND archived**);
+  `archive`/`restore` (404/409); `DELETE` archived-only (physical delete +
+  child cascade incl. `Item.deleteMany` + `fs.unlink` after commit; no
+  `deletedAt`). 401 = global auth gate only (never a controller error).
+- **Live-Mongo smoke PASSED** (list filters/sort + meta edit + freeze +
+  archive/restore + active-delete 404 + archived-delete cascade); cleaned.
+  Flagged: live `branches` collection has an old `user_1_nameFolded_1`
+  index not in the §20 model (pre-existing drift; probe avoided; owner
+  reconcile later).
+- Files: validator (listReportsChain, patchMetaChain, shared validateVisits),
+  controller (+7 handlers + toListDto/populate), routes (+6). Gates:
+  node --check + grep clean + smoke passed. Next: B6 items.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Branch:** `phase-4-branches-backend-independent`

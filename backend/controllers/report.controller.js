@@ -33,8 +33,12 @@ import { loadAttempt, saveAttempt, clearAttempt } from "../services/attemptSessi
 import { getAudioDuration } from "../utils/ffprobe.js";
 import Report from "../models/report.model.js";
 import Branch from "../models/branch.model.js";
+import Item from "../models/item.model.js";
 import {
   AUDIO_MAX_DURATION_SEC,
+  PAGINATION_DEFAULT_PAGE,
+  PAGINATION_DEFAULT_LIMIT,
+  PAGINATION_MAX_LIMIT,
   UPLOADS_AUDIO_DIR,
 } from "../utils/constants.js";
 
@@ -596,4 +600,335 @@ export const revertTranscription = asyncHandler(async (req, res) => {
   }
 });
 
-export default { createReport, addClip, listClips, getClip, deleteClip, getTranscription, reTranscribe, patchTranscription, revertTranscription };
+/**
+ * Projects a Report row to the §31.3 light list DTO — popsulates
+ * `user` (fullName display) and `visits[].branch`, strips
+ * `transcription` and `audios[].filePath`.
+ * @param {Object} report - A lean/populated report document.
+ * @returns {Object} The light list DTO.
+ */
+const toListDto = (report) => {
+  const user = report.user
+    ? {
+        _id: report.user._id,
+        firstName: report.user.firstName,
+        lastName: report.user.lastName,
+        fullName: report.user.fullName
+          ?? `${report.user.firstName ?? ""} ${report.user.lastName ?? ""}`.trim(),
+      }
+    : null;
+  const visits = (report.visits ?? []).map((v) => ({
+    branch: v.branch
+      ? { _id: v.branch._id, name: v.branch.name, location: v.branch.location }
+      : null,
+    clockIn: v.clockIn,
+    clockOut: v.clockOut,
+    isMain: v.isMain,
+  }));
+  const audios = (report.audios ?? []).map((a) => ({
+    _id: a._id,
+    mimeType: a.mimeType,
+    sizeBytes: a.sizeBytes,
+    durationSec: a.durationSec,
+    createdAt: a.createdAt,
+    updatedAt: a.createdAt,
+  }));
+  return {
+    _id: report._id,
+    user,
+    date: report.date,
+    visits,
+    audios,
+    generated: report.generated,
+    isArchived: report.isArchived,
+    archivedAt: report.archivedAt,
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt,
+  };
+};
+
+/**
+ * GET /reports — paginated list with filters (§31.3).
+ * @type {import("express").RequestHandler}
+ */
+export const listReports = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const {
+    page = PAGINATION_DEFAULT_PAGE,
+    limit = PAGINATION_DEFAULT_LIMIT,
+    sort = "-date",
+    isArchived = "all",
+    branch,
+    generated,
+  } = req.validated.query;
+
+  const filter = { user: userId };
+  if (isArchived === "active") {
+    filter.isArchived = false;
+  } else if (isArchived === "archived") {
+    filter.isArchived = true;
+  }
+  if (branch) {
+    filter.visits = { $elemMatch: { branch, isMain: true } };
+  }
+  if (generated === "true") {
+    filter.generated = { $ne: "" };
+  } else if (generated === "false") {
+    filter.generated = "";
+  }
+
+  const result = await Report.paginate(filter, {
+    page: Math.max(1, page),
+    limit: Math.min(Math.max(1, limit), PAGINATION_MAX_LIMIT),
+    sort,
+    lean: true,
+  });
+
+  // Light DTO needs `user.fullName` + `visits[].branch` display fields.
+  const docs = await Report.populate(result.docs, [
+    { path: "user", select: "firstName lastName" },
+    { path: "visits.branch", select: "name location" },
+  ]);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Reports",
+    data: {
+      docs: docs.map(toListDto),
+      page: result.page,
+      limit: result.limit,
+      totalDocs: result.totalDocs,
+      totalPages: result.totalPages,
+    },
+  });
+});
+
+/**
+ * GET /reports/:reportId — single meta read (Meta-tab seed, §31.3).
+ * @type {import("express").RequestHandler}
+ */
+export const getReport = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const report = await Report.findOne({ _id: reportId, user: userId }).lean();
+  if (!report) {
+    throw new CustomError("NOT_FOUND", "Report not found");
+  }
+  const populated = await Report.populate(report, [
+    { path: "user", select: "firstName lastName" },
+    { path: "visits.branch", select: "name location" },
+  ]);
+
+  res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: "Report",
+    data: toListDto(populated),
+  });
+});
+
+/**
+ * PATCH /reports/:reportId — whole-block meta edit (date + visits).
+ * Frozen at generated (403 §31.5) and archived (§31.9 lean, owner
+ * 2026-09-01). Re-runs the §31.2 visits invariants + active-branch
+ * resolution (422).
+ * @type {import("express").RequestHandler}
+ */
+export const patchReport = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+  const body = req.validated.body;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({ _id: reportId, user: userId })
+      .session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    if (report.isArchived || report.generated) {
+      throw new CustomError("FORBIDDEN", "Report is not editable");
+    }
+
+    // Validate every visited branch resolves to an ACTIVE branch.
+    if (body.visits !== undefined) {
+      const branchIds = [...new Set(body.visits.map((v) => v.branch))];
+      const active = await Branch.find({
+        user: userId,
+        isArchived: false,
+        _id: { $in: branchIds },
+      })
+        .session(session)
+        .lean();
+      const activeSet = new Set(active.map((b) => b._id.toString()));
+      const bad = body.visits.find(
+        (v) => !activeSet.has(v.branch?.toString()),
+      );
+      if (bad) {
+        throw new CustomError(
+          "UNPROCESSABLE_ENTITY",
+          "A visited branch is not available",
+          [{
+            field: `visits[${body.visits.indexOf(bad)}].branch`,
+            message: "Invalid or unavailable branch",
+          }],
+        );
+      }
+      report.visits = body.visits;
+    }
+    if (body.date !== undefined) {
+      report.date = body.date ? new Date(body.date) : null;
+    }
+
+    await report.save({ session });
+    await session.commitTransaction();
+
+    const populated = await Report.populate(report, [
+      { path: "user", select: "firstName lastName" },
+      { path: "visits.branch", select: "name location" },
+    ]);
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Report updated",
+      data: toListDto(populated),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * POST /reports/:reportId/archive — set isArchived + archivedAt (§31.7).
+ * @type {import("express").RequestHandler}
+ */
+export const archiveReport = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findById(reportId).session(session);
+    if (!report || report.user.toString() !== userId) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    if (report.isArchived) {
+      throw new CustomError("CONFLICT", "Report is already archived");
+    }
+    report.isArchived = true;
+    report.archivedAt = new Date();
+    await report.save({ session });
+    await session.commitTransaction();
+
+    const populated = await Report.populate(report, [
+      { path: "user", select: "firstName lastName" },
+      { path: "visits.branch", select: "name location" },
+    ]);
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Report archived",
+      data: toListDto(populated),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * POST /reports/:reportId/restore — clear isArchived + archivedAt (§31.7).
+ * @type {import("express").RequestHandler}
+ */
+export const restoreReport = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findById(reportId).session(session);
+    if (!report || report.user.toString() !== userId) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    if (!report.isArchived) {
+      throw new CustomError("CONFLICT", "Report is not archived");
+    }
+    report.isArchived = false;
+    report.archivedAt = null;
+    await report.save({ session });
+    await session.commitTransaction();
+
+    const populated = await Report.populate(report, [
+      { path: "user", select: "firstName lastName" },
+      { path: "visits.branch", select: "name location" },
+    ]);
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Report restored",
+      data: toListDto(populated),
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+/**
+ * DELETE /reports/:reportId — physical delete of an already-archived
+ * report (Branches mirror): child cascade = embedded audio subdocs +
+ * `fs.unlink` after commit, embedded transcription, Item rows. The
+ * conversation row cascade is a TODO (conversation model is design-only
+ * in Phase 7, §31.7).
+ * @type {import("express").RequestHandler}
+ */
+export const deleteReport = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { reportId } = req.validated.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const report = await Report.findOne({
+      _id: reportId,
+      user: userId,
+      isArchived: true,
+    }).session(session);
+    if (!report) {
+      throw new CustomError("NOT_FOUND", "Report not found");
+    }
+    const filePaths = (report.audios ?? []).map((a) => a.filePath);
+
+    await Report.deleteOne({ _id: reportId, user: userId }).session(session);
+    await Item.deleteMany({ user: userId, report: reportId }).session(session);
+    // TODO (conversation model): delete the report's ChatConversation row
+    // here in the same session when the model exists (§17.4, §31.7).
+
+    await session.commitTransaction();
+
+    // Physical files removed after commit (orphan sweep is the net).
+    await Promise.allSettled(
+      filePaths.map((p) => unlink(p).catch(() => {})),
+    );
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Report deleted",
+      data: null,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+});
+
+export default { createReport, addClip, listClips, getClip, deleteClip, getTranscription, reTranscribe, patchTranscription, revertTranscription, listReports, getReport, patchReport, archiveReport, restoreReport, deleteReport };

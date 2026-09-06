@@ -36,6 +36,55 @@ router.post(
   reportController.createReport,
 );
 
+/** GET /reports — paginated list (filters + light DTO). */
+router.get(
+  "/",
+  reportValidator.listReportsChain,
+  validate(),
+  reportController.listReports,
+);
+
+/** GET /reports/:reportId — single meta read (Meta-tab seed). */
+router.get(
+  "/:reportId",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.getReport,
+);
+
+/** PATCH /reports/:reportId — whole-block meta edit (date + visits). */
+router.patch(
+  "/:reportId",
+  reportValidator.reportIdParamChain,
+  reportValidator.patchMetaChain,
+  validate(),
+  reportController.patchReport,
+);
+
+/** POST /reports/:reportId/archive — set isArchived/archivedAt. */
+router.post(
+  "/:reportId/archive",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.archiveReport,
+);
+
+/** POST /reports/:reportId/restore — clear archive state. */
+router.post(
+  "/:reportId/restore",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.restoreReport,
+);
+
+/** DELETE /reports/:reportId — physical delete (archived target only). */
+router.delete(
+  "/:reportId",
+  reportValidator.reportIdParamChain,
+  validate(),
+  reportController.deleteReport,
+);
+
 /** POST /reports/:reportId/clips — add a clip (post-create). */
 router.post(
   "/:reportId/clips",

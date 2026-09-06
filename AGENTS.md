@@ -100,8 +100,14 @@ implemented (pending commit):** `GET` 200 `{raw,latest,readiness}` (nulls
 when cleared); `PUT` re-transcribe-only (wholesale, ready→200 no-op,
 all-or-nothing → generic 502, latest=raw on clip-change); `PATCH {latest}`
 (empty OK, raw untouched); `PUT …/revert` (latest←raw); routes mounted;
-live-DB smoke passed. Next: B5 read/edit/lifecycle,
-B6 items — each Step-1.1+
+live-DB smoke passed. **B5 read/edit/lifecycle implemented (pending
+commit):** `GET /reports` (paginated; filters isArchived/branch Q1/
+generated/sort; light DTO strips transcription+filePath, populated
+user+visits.branch); `GET /reports/:reportId` (meta read); `PATCH` meta
+(whole-block; 403 generated+archived); `archive`/`restore`; `DELETE`
+archived-only physical delete + child cascade (Item rows + `fs.unlink`;
+no `deletedAt`). 401 = global auth gate only. live-DB smoke passed.
+Next: B6 items — each Step-1.1+
 gated+mirrored. Out of scope for phase 7: generation/presets/digest, the
 conversation surface entirely (ChatConversation stays design-only),
 accept-gate enforcement, R6–R10, frontend

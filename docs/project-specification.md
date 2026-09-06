@@ -6787,6 +6787,18 @@ chat streaming (R7). **Closed (2026-09-01):** item status-update
 (direct PATCH), zero-preset chat (inline RHF dialog), preset binding
 (per-message, adjustable), content/total caps (§11).
 
+> **B5 implementer note (2026-09-01):** the read/meta-edit/lifecycle
+> surface (GET /reports list, GET /reports/:reportId, PATCH meta,
+> archive/restore/delete) is implemented in `report.controller.js` with
+> the light list DTO (transcription + `audios[].filePath` stripped,
+> `user` + `visits.branch` populated); `PATCH` meta returns **403 on both
+> generated and archived** (owner 2026-09-01; the §31.9 matrix lists
+> `403 (generated)` — read it as the freeze gate incl. archived for
+> meta edits); `DELETE` targets already-archived rows only with the
+> child cascade (audio subdocs + `fs.unlink`, embedded transcription,
+> Item rows) and the conversation-row cascade TODOs until that model
+> lands. 401 = global auth gate only.
+
 ---
 ## 32. Audio Upload & Storage
 

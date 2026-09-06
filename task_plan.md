@@ -635,7 +635,7 @@ amendments` → main → delete branch → create `phase-7-reports-backend` → 
 - B2 create pipeline (STT service, atomic multipart POST, attempt-session) — ✅ IMPLEMENTED (pending commit; attempt-session = filesystem staging state, option A, NO Mongo model)
 - B3 clips (nested; direct-delete) — ✅ IMPLEMENTED (pending commit; audio tier, 403 archived/generated, readiness C1/C2, clear-on-last C3, §32 reconciled)
 - B4 transcription post-create (GET/PUT re-transcribe/PATCH/revert; ready flag) — ✅ IMPLEMENTED (pending commit; wholesale re-transcribe, ready→200 no-op, all-or-nothing 502, latest←raw revert)
-- B5 report read/edit/lifecycle
+- B5 report read/edit/lifecycle — ✅ IMPLEMENTED (pending commit; list/meta reads, PATCH meta 403 gen+archived, archive/restore/delete + child cascade)
 - B6 items (report-scoped + cross-report + status PATCH)
 
 **OUT:** R5 generation/presets/digest (+ DIGEST_MAX_TOKENS etc.);

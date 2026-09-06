@@ -809,6 +809,50 @@ node --check (validator, controller, routes); grep battery clean (no
 console.log, no status vocab, no stream); live-DB smoke passed; no
 residue. Next: B5 read/edit/lifecycle.
 
+## Session 2026-09-01 — Phase 7 B5: report read/edit/lifecycle implemented
+
+The report read + meta-edit + lifecycle surface (§31.3/§31.5/§31.7).
+Mirrors: progress.md, task_plan.md, AGENTS.md, this file (one §66.6 commit).
+
+### Implemented
+- `GET /reports` — paginated list; filters `isArchived` (active|archived|
+  all default all), `branch` (Q1 `$elemMatch {branch,isMain:true}`),
+  `generated` (true→`{$ne:''}` / false→`''`), `sort` (date/-date default
+  `-date`), page/limit clamp; **light list DTO** (strips `transcription` +
+  `audios[].filePath`; populated `user` {firstName,lastName,fullName} +
+  `visits.branch` {name,location}); 422 filter errors.
+- `GET /reports/:reportId` — meta read (Meta-tab seed); light DTO; no
+  `?withContent`; 404.
+- `PATCH /reports/:reportId` — whole-block meta edit (date + visits);
+  re-runs visits invariants + active-branch 422; **403 currently on
+  generated AND archived** (owner 2026-09-01); returns light DTO.
+- `POST archive` / `POST restore` — set/clear isArchived+archivedAt;
+  404 / 409 (state mismatch); archive allowed at any time (incl generated).
+- `DELETE /reports/:reportId` — already-archived target only (404 if
+  absent); physical session delete + child cascade (embedded audio
+  subdocs + `fs.unlink` after commit, embedded transcription, Item rows
+  via `Item.deleteMany({user,report})`); `{data:null}` 200; no `deletedAt`;
+  conversation cascade = TODO (design-only, §31.7). No `401` in any
+  controller — the auth gate is the middleware only.
+
+### Auth reminder (repeated correction honored)
+401 = global auth gate only (backend `middleware/auth.js` `authenticate` +
+client `apiSlice` reauth chain); it is never listed as a controller error.
+
+### Live-Mongo smoke — PASSED (full lifecycle)
+create 2 → list all/active/generated/not-gen + sort(newest first) →
+PATCH-meta (clock change) → generated-freeze → archive → restore →
+DELETE-active (404) → archive → DELETE (cascade Item rows, unlink) →
+confirm gone + items 0 → cleaned. NOTE: live `branches` collection has an
+old `user_1_nameFolded_1` index not in the §20 model — a pre-existing
+data-model drift (probe branches collided); smoke now avoids Branch
+inserts; flagged for the owner (index reconcile later, not B5).
+
+### Gates
+node --check (validator, controller, routes); grep battery clean (no
+console.log, no `?withContent`, no visit-subpaths, no `deletedAt`, no
+`401` in CustomError); live-DB smoke passed; no residue. Next: B6 items.
+
 ## Session 2026-08-28 — Branch API Independent Routes (Phase 4.1)
 
 - **Scope:** Implemented 7 independent branch backend routes per brainstorming decisions:
